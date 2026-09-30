@@ -1,0 +1,1799 @@
+<!doctype html>
+<!--
+  Kondukt · Fare Configuration screen — Open Design prototype.
+  Spliced from settings.html, which is spliced from current-trip.html, which is
+  spliced from add-trip.html: the shell, the tokens and the glass layer are
+  byte-identical to the other ten screens, so all eleven read as one product.
+  The app lives in the APP CONTENT slot.
+
+  FareSettingsScreen.tsx is 547 lines. It sets the ten numbers the fare
+  calculator reads, in four labelled sections, and commits them in one
+  transaction. Eight of the things on the screen are wrong in ways a screenshot
+  would not catch:
+
+    1. FOUR OF THE TEN FIELDS ARE NEVER READ. toFareRules
+       (addTicketFare.ts:89-101) projects the fare row onto six calculator
+       inputs: minimumFareCentavos, minimumDistanceMilli, ratePerKmCentavos,
+       sctexRatePerKmCentavos, specialRatePerKmCentavos, sctexAdjustmentMilli.
+       deluxe_rate_per_km, sctex_deluxe_rate_per_km, deluxe_discount_bp and
+       sctex_discount_bp are not in that list, and the FareRules docblock says
+       so outright (:69-71, "deliberately absent: they are not in the pricing
+       path"). They are still validated, still converted, still written in the
+       same transaction, and the screen presents all ten as equal. Forty per
+       cent of this form is inert and nothing on it says so. add-ticket.html
+       already carries the mirror sentence at :1414; this screen is where those
+       four numbers are set, so it is where the fact belongs.
+
+       The redesign does not carry all ten forward. deluxe_discount_bp and
+       sctex_discount_bp are the only columns in the whole schema with no reader
+       at all - not the calculator, not any screen, not a report - so they are
+       off this form: a conductor typing a percentage that can never change a
+       fare is the worst thing this screen could ask of anyone. The four Deluxe
+       rates survive, inside the two rate grids, because the schema puts them
+       beside the two that do charge and deleting half of a row would be a worse
+       lie than keeping it and saying so in the note under it.
+
+       The reverse of that argument is defect 1 on the other side of the form, and
+       it is the operator's call rather than a schema one. special_rate_per_km is
+       a single column where the ordinary side is four, so PWD, Student and
+       Senior share one peso per km on the express way and on the ordinary road
+       alike. The redesign gives the discounted side its own 2x2 and prices the
+       express way column, which costs three new columns and is called out as a
+       schema change under FIELDS below.
+
+       sctex_km_adjustment_milli is off this form too, and that one is not a
+       schema argument, it is the operator's call. The extra kilometres it holds
+       are distance a driver is billed for and not distance the bus drove, so on
+       this screen it was a number that raised a fare with nothing behind it on
+       the journey, and it had a section of its own to live in. It is gone. The
+       express way keeps its own rate per km, because that one is a real charge;
+       what is gone is the km added on top of the distance.
+    2. THE FORM IS FOUR SCREENS TALL AND THE SAVE BUTTON IS ON THE FIFTH.
+       fieldRow is a 48px icon, a label, a 60px input and 32px of padding -
+       about 185px per field, ten of them, and the prototype measures the
+       whole form at 1858px inside an 844px phone. The ten
+       fieldIcon circles are 480px of that: ten decorative marks, ten
+       glyphs, two of them identical (grid twice, for the two discounts), and
+       none of them able to tell "Deluxe rate per km" from "SCTEX Deluxe rate
+       per km" at the one moment a conductor would use them. hasChanges gates
+       the only CTA, so the button is both the last thing on the page and
+       disabled until you have scrolled past everything to fill it in.
+    3. THE COLUMN SPLITS ON A WIDTH NOBODY USES. labelInline flips at
+       columnWidth >= 400 (INLINE_LABEL_WIDTH, :40) and columnWidth is
+       min(windowWidth, 720). A 390px phone is therefore always stacked, and
+       inputInset's 62px (:487) only ever applies at 400px and up. The
+       "label beside the icon" layout the comment at :359-362 describes is the
+       layout no Kondukt device renders.
+    4. THE TWO FLOORS ARE INVISIBLE. minimumFare and minimumDistance are the
+       only two numbers here that bind rather than scale, and priceTicket
+       (:181-187) binds them on exactly the short hops that do not exist on a
+       provincial run: the nine fields around them are all per-kilometre. A
+       conductor who sets 4.5 km sees nothing happen until someone boards at
+       Cubao, and nothing on this screen connects the two inputs to a fare.
+    5. A FRESH DEVICE CANNOT LEAVE THIS SCREEN. fareStore.ts creates its two
+       tables and seeds NO rows, so EMPTY_VALUES (:62-65) leaves nine fields
+       blank — sctexKmAdjustment alone pre-seeds '0'. The SAVE button is
+       disabled until the first keystroke, and there is no "not configured"
+       state, no required marking and no count of what is missing. The only
+       path off a fresh install is to type ten numbers. settings.html already
+       proved the opposite works: it shows "Not set", makes the card an error
+       and says a ticket cannot be priced.
+    6. VALIDATION REPORTS NINE ERRORS DOWN A 1858px SCROLL. validateFareFields
+       (:205-224) returns every error at once, on purpose. errorText (:505)
+       renders each under its own input, 1500px apart, with no summary, no
+       count and no move to the first bad field. Press SAVE again and the same
+       nine appear in the same places.
+    7. THE DISABLED CTA IS A SOLID PRIMARY AT 45% OPACITY. saveDisabled (:516)
+       is opacity .45 over --primary-solid. It blends the fill toward the page
+       and takes the white label under AA with it, while still reading as a
+       live button. settings.html:584 already fixed exactly this, with the
+       comment "opacity would be the wrong repair here". This is the one
+       primary in the viewport, and on a fresh device it is dead and orange.
+    8. errorTextBanner (:527) IS DEAD CODE, and the banner at :283 uses the
+       wrong one. The save-error banner paints styles.errorText, which is the
+       FIELD error style — bodySmall with marginTop space(1) — inside a
+       space(3)-padded card. A 12px line with a 4px top margin in a 12px box.
+
+  The design contribution is a price instead of ten boxes. The screen already
+  stores six of the numbers a fare is worked out from; add-ticket.html already
+  prices from six of them, on a real corridor, with the two floors applied in
+  the app's own order. So the top of this screen computes the fare this
+  configuration would charge and prints it, at two distances - the running trip,
+  and a short hop - so both floors are observable. It is derived from the live
+  field text, which is what makes it safe against the load-once rule at :96-100:
+  a value that is a function of what is typed cannot clobber a typing user the
+  way a second store subscription could.
+
+  The four rates stop being four unrelated pills and become the 2x2 they are in
+  the schema (ratePerKm / sctexRatePerKm over deluxeRatePerKm /
+  sctexDeluxeRatePerKm). The discounted rates stop being one number for three
+  passenger types and become the same 2x2, because the operator charges PWD,
+  Student and Senior differently on the express way and the schema's single
+  special column has nowhere to put that. The two floors stop being two more
+  inputs and become the two bounds. The two percent columns and the extra-km
+  column are gone from the form, as above, so the screen sets ten numbers where
+  the app sets ten, and the count in the header counts what is actually here.
+
+  Prototype states: Configured · Not configured · Invalid · Loading · Load
+  error. All five carry Trip #7 on SCTEX from Iba to Caloocan, 217.4 km — the
+  same run settings.html, add-trip.html, add-ticket.html and current-trip.html
+  carry, so the eleven screens cannot disagree about the corridor. On the money
+  they now differ by ₱1.13: add-trip.html and add-ticket.html still bill the
+  0.5 km the app stores, because nothing on this screen sets it any more, while
+  this screen prices the 217.4 km the bus actually covers. That is the honest
+  consequence of taking the field off this form, and it is true only until
+  those two screens are changed to match.
+-->
+<html lang="en">
+<head><script type="application/json" data-od-external-dependencies>["https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap"]</script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kondukt · Fare Configuration</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+
+
+    @layer od-layout {
+      .od-stack   { display: flex; flex-direction: column; gap: var(--od-gap, 8px); }
+      .od-row     { display: flex; align-items: center; gap: var(--od-gap, 8px); }
+      .od-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--od-gap, 8px); }
+      .od-fill    { flex: 1 1 0; min-width: 0; }
+      .od-grid    { display: grid; gap: var(--od-gap, 12px); grid-template-columns: repeat(var(--od-cols, 3), minmax(0, 1fr)); }
+      :where(.od-stack,.od-row,.od-cluster,.od-grid,.od-stat) > :where(*) { min-width: 0; }
+      .od-stat { display: grid; gap: var(--od-gap, 2px); }
+      .od-truncate { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+      .od-clamp-2 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
+    }
+
+    :root {
+      /* ── kondukt M3 warm palette (src/theme.ts) ───────────────────────── */
+      --primary:#E65100; --on-primary:#FFFFFF; --primary-container:#FFE6D2; --on-primary-container:#4E2200;
+      --primary-solid:#C2410C; --primary-solid-hover:#A93A09;
+      --secondary:#FFB300; --on-secondary:#3D2E00; --secondary-container:#FFEFC7; --on-secondary-container:#4A3600;
+      --secondary-fg:#8A6100;
+      /* Foregrounds for the solid-amber card, measured against #FFB300:
+         7.4:1 / 5.8:1 / 4.9:1. These were raw hex before; tokens keep the two
+         amber cards (Home hero, Dashboard status) provably identical. */
+      --on-secondary-detail:#4F3D2B; --on-secondary-muted:#5B4720; --on-secondary-faint:#6B5518;
+      /* --on-secondary at 28%, for a hairline on the amber fill. A border has
+         no contrast requirement, so a translucent edge is allowed where a
+         translucent foreground would not be. */
+      --on-secondary-rim:rgba(61,46,0,.28);
+      --tertiary:#546E7A; --on-tertiary:#FFFFFF; --tertiary-container:#DDE6EA; --on-tertiary-container:#162B33;
+      --error:#BA1A1A; --on-error:#FFFFFF; --error-container:#FFDAD6; --on-error-container:#410002;
+      --background:#FDF7F3; --surface:#FDF7F3; --surface-lowest:#FFFFFF; --surface-low:#F7EFE9;
+      --surface-container:#F2E9E2; --surface-high:#ECE3DC;
+      --on-surface:#221A15; --on-surface-variant:#53433B; --outline:#85736B; --outline-variant:#D7C2B7;
+      --scrim:rgba(34,26,21,.32);
+
+      /* glass layer */
+      --glass-tint:rgba(255,255,255,.58);
+      --glass-rim:rgba(255,255,255,.85);
+      --glass-on:#1A2029; --glass-on-variant:#4A5568;
+      --glass-accent-primary:#8F3A00; --glass-accent-secondary:#6B4B00; --glass-accent-tertiary:#334A56;
+      --glass-shadow:rgba(90,106,130,.16);
+
+      --radius-sm:8px; --radius-md:12px; --radius-lg:16px; --radius-xl:24px; --radius-glass:28px; --radius-full:999px;
+      --font: 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+      /* shell vars (from the neutral OD handset) */
+      --phone-screen-width:390px; --phone-screen-height:844px; --phone-bezel:10px;
+      --phone-outer-radius:52px; --phone-screen-radius:42px;
+      --phone-safe-top:50px; --phone-safe-bottom:29px;
+      --phone-system-fg:#17181a; --phone-screen-bg:#f8f8f9; --phone-stage-bg:#eaebee;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      min-height: 100dvh; display: grid; place-items: center; padding: 32px;
+      background: radial-gradient(circle at 50% 15%, rgba(255,255,255,.94), transparent 35%), var(--phone-stage-bg);
+      color: #191a1d; font-family: var(--font);
+    }
+
+    /* ── handset shell ─────────────────────────────────────────────────── */
+    .phone-frame {
+      position: relative;
+      width: calc(var(--phone-screen-width) + var(--phone-bezel) * 2);
+      height: calc(var(--phone-screen-height) + var(--phone-bezel) * 2);
+      padding: var(--phone-bezel); border-radius: var(--phone-outer-radius);
+      background: linear-gradient(145deg, rgba(255,255,255,.2), transparent 17%), linear-gradient(160deg, #3f4146 0%, #202227 48%, #0b0c0f 100%);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.13), inset 0 0 0 2px rgba(0,0,0,.85), 0 32px 68px -20px rgba(10,12,16,.52), 0 10px 24px -10px rgba(10,12,16,.32);
+      isolation: isolate;
+    }
+    .phone-frame::before, .phone-frame::after {
+      content: ""; position: absolute; z-index: -1; top: 96px; bottom: 96px; width: 2px;
+      background: linear-gradient(to bottom, transparent, rgba(255,255,255,.13) 16%, transparent 30%, transparent 72%, rgba(255,255,255,.07) 88%, transparent);
+    }
+    .phone-frame::before { left: 0; } .phone-frame::after { right: 0; }
+    .hardware-button { position: absolute; width: 4px; border-radius: 3px; background: linear-gradient(90deg,#08090b,#2a2d33 60%,#08090b); box-shadow: inset 0 1px rgba(255,255,255,.08); }
+    .hardware-button.volume { left: -3px; top: 222px; height: 86px; }
+    .hardware-button.power { right: -3px; top: 270px; height: 82px; }
+
+    .phone-screen {
+      position: relative; width: var(--phone-screen-width); height: var(--phone-screen-height);
+      overflow: hidden; border-radius: var(--phone-screen-radius); background: var(--phone-screen-bg);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.05);
+    }
+    .phone-content { position: absolute; inset: 0; overflow: hidden; padding: 0; background: transparent; }
+
+    .status-bar { position: absolute; z-index: 40; inset: 0 0 auto; height: var(--phone-safe-top); display: grid; grid-template-columns: minmax(0,1fr) 56px minmax(0,1fr); align-items: start; padding: 14px 20px 0; color: var(--phone-system-fg); opacity: .8; pointer-events: none; }
+    .status-time { justify-self: start; display: flex; align-items: center; height: 15px; font-size: 14px; font-weight: 560; line-height: 1; letter-spacing: .01em; font-family: system-ui, sans-serif; }
+    .status-cutout-zone { width: 56px; }
+    .status-icons { justify-self: end; display: inline-flex; align-items: center; height: 15px; gap: 6px; }
+    .status-icons svg { display: block; flex: none; fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
+    .status-icons .connectivity { width: 15px; height: 12px; } .status-icons .wifi { width: 15px; height: 12px; } .status-icons .battery { width: 19px; height: 11px; }
+    .camera-dot { position: absolute; z-index: 45; top: 13px; left: 50%; width: 10px; height: 10px; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(circle at 38% 35%, #344154 0 12%, #0a0c10 34%, #000 76%); box-shadow: 0 0 0 1px rgba(255,255,255,.06); pointer-events: none; }
+    .gesture-indicator { position: absolute; z-index: 45; left: 50%; bottom: 8px; width: 96px; height: 4px; transform: translateX(-50%); border-radius: 99px; background: var(--phone-system-fg); opacity: .86; pointer-events: none; }
+
+    /* ── app root ──────────────────────────────────────────────────────── */
+    #app {
+      position: relative; height: 100%; display: flex; flex-direction: column;
+      color: var(--glass-on);
+      background:
+        radial-gradient(125% 82% at 6% -4%, #FBC9A8 0%, rgba(246,227,212,.78) 32%, rgba(244,247,251,0) 63%),
+        radial-gradient(130% 88% at 104% 104%, #C6D9E8 0%, rgba(228,233,242,.72) 34%, rgba(244,247,251,0) 66%),
+        #F4F7FB;
+    }
+    .app-scroll {
+      flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch; scrollbar-width: none;
+      padding-bottom: var(--phone-safe-bottom);
+    }
+    .app-scroll::-webkit-scrollbar { display: none; }
+
+    .readable { width: 100%; max-width: 720px; margin-inline: auto; padding-inline: 20px; }
+    .pad-x { padding-inline: 20px; }
+
+    /* ── typography roles ──────────────────────────────────────────────── */
+    .display-s { font-weight: 700; font-size: 28px; line-height: 36px; letter-spacing: -.3px; }
+    .headline-s { font-weight: 600; font-size: 20px; line-height: 27px; letter-spacing: -.3px; }
+    .title-m { font-weight: 600; font-size: 16px; line-height: 23px; }
+    .body-m { font-weight: 400; font-size: 14px; line-height: 21px; }
+    .body-s { font-weight: 400; font-size: 12px; line-height: 18px; }
+    .label-l { font-weight: 600; font-size: 15px; line-height: 20px; }
+    .label-s { font-weight: 600; font-size: 11px; line-height: 16px; letter-spacing: .6px; }
+    .tabular { font-variant-numeric: tabular-nums; }
+    .muted { color: var(--glass-on-variant); }
+    .strong { color: var(--glass-on); }
+    p { margin: 0; }
+
+    /* ── glass surface ─────────────────────────────────────────────────── */
+    .glass {
+      position: relative; border-radius: var(--radius-glass);
+      background: var(--glass-tint);
+      box-shadow: 0 8px 15px var(--glass-shadow), inset 0 1px 0 rgba(255,255,255,.55);
+      -webkit-backdrop-filter: blur(18px) saturate(180%);
+      backdrop-filter: blur(18px) saturate(180%);
+    }
+    .glass > * { position: relative; z-index: 1; }
+    .glass::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: rgba(120,130,150,.5); opacity: .035; pointer-events: none; }
+    .glass::after  { content: ""; position: absolute; inset: 0; border-radius: inherit; border: 1px solid var(--glass-rim); pointer-events: none; z-index: 2; }
+
+    /* ── chrome (SectionChrome) ────────────────────────────────────────── */
+    .chrome { display: flex; align-items: center; gap: 12px; flex: none; padding: calc(var(--phone-safe-top) + 12px) 20px 12px; }
+    .back {
+      width: 44px; height: 44px; border-radius: var(--radius-full); border: 0; background: var(--primary-solid);
+      display: grid; place-items: center; cursor: pointer; flex: none;
+      box-shadow: 0 8px 15px var(--glass-shadow);
+    }
+    .title-card {
+      flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 5px 16px; border-radius: var(--radius-full);
+      background: var(--primary-solid); display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+      box-shadow: 0 8px 15px var(--glass-shadow);
+    }
+    .chrome-title { color: var(--on-primary); margin: 0; }
+    .chrome-sub { color: var(--on-primary); margin: 1px 0 0; }
+
+    /* ── section header (SectionHeader) ────────────────────────────────── */
+    .sec-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 20px; margin-bottom: 12px; }
+    .sec-title { color: var(--glass-on-variant); margin: 0; }
+    .text-action { border: 0; background: none; padding: 0 4px; min-height: 48px; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; color: var(--glass-accent-primary); font-family: inherit; flex: none; }
+    .text-action .label-s { color: inherit; }
+    /* Hover must not lighten the label — the only change is a rule under it,
+       so the 6.9:1 default is also the hover contrast. */
+    .text-action:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+    /* ── status card: the four-way state machine ───────────────────────── */
+    .status-card { padding: 20px; }
+    .status-card .st-eyebrow { color: var(--glass-on-variant); }
+    .status-card .st-title { color: var(--glass-on); margin: 8px 0 0; }
+    .status-card .st-detail { color: var(--glass-on-variant); margin: 4px 0 0; }
+    .status-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 12px; }
+    /* Amber is reserved for the one thing a conductor registers without
+       reading: a trip that is running right now. Dark-on-amber measures
+       7.4:1 for the title and 5.8:1 for the detail line, where the pale
+       containers would sit at ~1.5:1. */
+    .amber-btn {
+      min-height: 48px; padding: 0 20px; border: 0; border-radius: var(--radius-full);
+      background: var(--secondary); color: var(--on-secondary); cursor: pointer; font-family: inherit;
+      display: inline-flex; align-items: center; gap: 8px;
+    }
+    .glass.status-solid { background: var(--secondary); }
+    .glass.status-solid::before, .glass.status-solid::after { display: none; }
+    .status-solid .st-eyebrow, .status-solid .st-title { color: var(--on-secondary); }
+    .status-solid .st-detail { color: var(--on-secondary-detail); }
+    .status-solid .st-pill { background: var(--on-secondary); }
+    .status-solid .st-pill-text { color: var(--secondary); }
+    .status-solid .st-dot { background: var(--secondary); }
+    .st-head { display: flex; align-items: center; gap: 12px; }
+    .st-icon { width: 48px; height: 48px; border-radius: var(--radius-md); display: grid; place-items: center; flex: none; }
+    .status-solid .st-icon { background: var(--on-secondary); }
+    .st-head-text { flex: 1 1 auto; min-width: 0; }
+    /* The pill is a container, so the label is its on-color. Pairing it with
+       --on-secondary-container on a --on-secondary-container fill made the
+       text the same brown as its own background: 1.0:1, invisible. */
+    .st-pill { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 3px 10px; border-radius: var(--radius-full); background: var(--secondary-container); }
+    .st-pill-text { color: var(--on-secondary-container); }
+    .status-solid .st-pill-text { color: var(--secondary); }
+    .st-dot { width: 6px; height: 6px; border-radius: 3px; background: var(--on-secondary-container); flex: none; }
+    .st-route { margin: 8px 0 0; color: var(--glass-on); }
+    .st-meta { margin: 12px 0 0; color: var(--glass-on-variant); font-variant-numeric: tabular-nums; }
+    .data-chip { display: inline-flex; align-items: center; margin-top: 10px; padding: 3px 10px; border-radius: var(--radius-full); background: var(--tertiary-container); color: var(--on-tertiary-container); }
+
+    /* ── period control (shared with History) ──────────────────────────── */
+    .range-card { padding: 14px 14px 16px; }
+    .range-top { display: flex; align-items: center; gap: 10px; }
+    .segment { flex: 1 1 auto; min-width: 0; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border-radius: var(--radius-full); background: rgba(255,255,255,.55); border: 1px solid var(--outline-variant); }
+    .seg-btn { min-height: 44px; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--glass-on-variant); cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; justify-content: center; }
+    .seg-btn[aria-checked="true"] { background: var(--primary-solid); color: var(--on-primary); }
+    .seg-btn[aria-checked="true"] .label-l { font-weight: 700; }
+    .cal-btn { width: 48px; min-height: 48px; border-radius: var(--radius-full); border: 1px solid var(--outline-variant); background: rgba(255,255,255,.55); color: var(--glass-accent-primary); cursor: pointer; flex: none; display: grid; place-items: center; }
+    .cal-btn.on { background: var(--primary-container); border: 2px solid var(--primary); color: var(--on-primary-container); }
+    .range-nav { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+    .nav-btn { width: 48px; height: 48px; border-radius: var(--radius-full); border: 1px solid var(--outline-variant); background: rgba(255,255,255,.55); color: var(--glass-on); cursor: pointer; flex: none; display: grid; place-items: center; }
+    .nav-btn:disabled { opacity: .4; cursor: default; }
+    .range-now { flex: 1 1 auto; min-width: 0; text-align: center; }
+    .range-now-main { display: block; color: var(--glass-on); }
+    .range-now-sub { display: block; color: var(--glass-on-variant); margin-top: 2px; }
+    .range-caption { margin: 10px 0 0; display: flex; align-items: flex-start; gap: 8px; color: var(--glass-on-variant); }
+    .range-caption .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--primary); flex: none; margin-top: 7px; }
+
+    /* ── summary disclosure ────────────────────────────────────────────── */
+    .summary { padding: 18px 20px; }
+    .summary-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+    .summary-eyebrow { color: var(--glass-on-variant); }
+    .detail-btn { border: 0; background: none; cursor: pointer; min-height: 44px; padding: 0 2px; display: inline-flex; align-items: center; gap: 4px; color: var(--glass-accent-primary); font-family: inherit; flex: none; }
+    .detail-btn svg { transition: transform .2s ease; }
+    .summary.open .detail-btn svg { transform: rotate(180deg); }
+    .hero { margin-top: 12px; }
+    .hero-label { color: var(--glass-on-variant); }
+    .hero-value { margin: 4px 0 0; color: var(--glass-on); }
+    .hero-meta { margin: 8px 0 0; color: var(--glass-on-variant); display: flex; flex-wrap: wrap; gap: 4px 14px; }
+    .hero-meta b { color: var(--glass-on); font-weight: 600; }
+    .summary-details { display: none; margin-top: 20px; }
+    .summary.open .summary-details { display: block; }
+    .summary-details .rule { height: 1px; background: var(--outline-variant); opacity: .7; margin: 18px 0; }
+    .stat-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+    .stat-grid.stacked { grid-template-columns: minmax(0,1fr); }
+    .stat-tile { padding: 16px; }
+    .stat-icon { width: 40px; height: 40px; border-radius: var(--radius-md); display: grid; place-items: center; }
+    .stat-label { margin: 12px 0 0; color: var(--glass-on-variant); }
+    .stat-value { margin: 4px 0 0; color: var(--glass-on); }
+    .breakdown { margin-top: 14px; display: grid; gap: 12px; }
+    .bd-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 12px; align-items: baseline; }
+    .bd-name { color: var(--glass-on); }
+    .bd-count { color: var(--glass-on); font-weight: 600; }
+    .bd-track { grid-column: 1 / -1; height: 8px; border-radius: var(--radius-full); background: var(--surface-container); overflow: hidden; }
+    .bd-fill { height: 100%; border-radius: inherit; background: var(--primary-solid); }
+
+    /* ── rows ──────────────────────────────────────────────────────────── */
+    .list { display: grid; gap: 12px; }
+    .row-card { padding: 20px; }
+    /* font-size: inherit is load-bearing here, and the four sibling screens are
+       all missing it. A button inherits the UA's 13.333px control size, so a
+       ledger row that is a <button> painted its bare .cat at 13.33px while the
+       very same row as a locked <div> painted it at 16px — one ledger, two
+       sizes, switching with the recording gate. */
+    .row-btn { border: 0; margin: 0; width: 100%; text-align: left; font-family: inherit; font-size: inherit; color: inherit; cursor: pointer; border-radius: var(--radius-glass); display: block; }
+    .row-btn:active { transform: scale(.995); }
+    /* flex-start, not center: the route column is 199px and the longest pair
+       ("Baclaran \u2192 Monumento") is 197px in Poppins 600/16, so a wider build
+       of Poppins still adds a line. Centring would then float the 40px icon and
+       the money block in the middle of a 106px card. Top-aligned, the icon and
+       the peso sit on the route's cap line whether the row is one line or two.
+       Gap is 8, not 12: measured, the 12px gap left the route 6px short of its
+       longest pair. ponytail: 2px of slack - shorten station names (or drop the
+       spaces around the arrow) if the font is ever swapped. */
+    .trip-head { display: flex; align-items: flex-start; gap: 8px; }
+    .trip-icon { width: 40px; height: 40px; border-radius: var(--radius-md); background: var(--tertiary-container); display: grid; place-items: center; flex: none; }
+    .trip-body { flex: 1 1 auto; min-width: 0; }
+    .trip-route { display: block; color: var(--glass-on); }
+    .trip-sub { display: block; margin: 4px 0 0; color: var(--glass-on-variant); }
+    .status { padding: 3px 10px; border-radius: var(--radius-full); flex: none; }
+    .status.active { background: var(--secondary-container); color: var(--on-secondary-container); }
+    .status.done { background: var(--tertiary-container); color: var(--on-tertiary-container); }
+    /* Structural dividers use --outline, not --outline-variant: the variant
+       sits at 1.7:1 on this field and the 6-row list loses its structure. */
+    .meta-line { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--outline); display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--glass-on-variant); }
+    .fare { display: inline-flex; align-items: baseline; gap: 6px; color: var(--glass-on); white-space: nowrap; }
+    .meta-line .fare { margin-left: auto; }
+    .fare b { font-weight: 700; }
+    .ticket-row { display: flex; align-items: flex-start; gap: 12px; }
+    .ticket-id { min-width: 62px; flex: none; }
+    .ticket-id .when { display: block; color: var(--glass-on-variant); }
+    .ticket-mid { flex: 1 1 auto; min-width: 0; }
+    .ticket-route { color: var(--glass-on); }
+    .ticket-meta { margin: 4px 0 0; color: var(--glass-on-variant); display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+    .cat { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: var(--radius-full); }
+    .cat.regular { background: var(--primary-container); color: var(--on-primary-container); }
+    .cat.student, .cat.senior, .cat.pwd { background: var(--tertiary-container); color: var(--on-tertiary-container); }
+    .ticket-fare { text-align: right; color: var(--glass-on); flex: none; }
+    .ticket-fare .each { display: block; color: var(--glass-on-variant); }
+    .ticket-fare b { font-weight: 700; }
+    .rows-stacked .ticket-row { flex-wrap: wrap; }
+    .rows-stacked .ticket-fare { text-align: left; width: 100%; }
+    .rows-stacked .ticket-fare .each { display: inline; margin-left: 6px; }
+    .rows-stacked .meta-line { flex-direction: column; align-items: flex-start; }
+    .rows-stacked .meta-line .fare { margin-left: 0; }
+
+    /* ── inline empty + storage ────────────────────────────────────────── */
+    .inline-empty { padding: 16px 18px; border: 1px solid var(--outline-variant); border-radius: var(--radius-xl); background: rgba(255,255,255,.5); }
+    .inline-empty p { color: var(--glass-on-variant); }
+    .storage { margin-top: 20px; padding: 12px 20px; display: flex; align-items: center; gap: 8px; }
+    .storage p { color: var(--glass-on-variant); }
+
+    /* ── states ────────────────────────────────────────────────────────── */
+    .state { padding: 20px; border-radius: var(--radius-xl); border: 1px solid var(--outline-variant); background: rgba(255,255,255,.55); }
+    .state.error { border-color: var(--error); background: var(--error-container); }
+    .state h3 { margin: 0; color: var(--glass-on); }
+    .state p { margin: 8px 0 0; color: var(--glass-on-variant); }
+    .state.error p { color: var(--on-error-container); }
+    .primary-btn { margin-top: 14px; min-height: 48px; padding: 0 20px; border-radius: var(--radius-lg); border: 0; background: var(--primary-solid); color: var(--on-primary); cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 8px; }
+    .primary-btn:hover { background: var(--primary-solid-hover); }
+    .skeleton { padding: 16px; }
+    .sk { border-radius: 8px; background: linear-gradient(90deg, rgba(0,0,0,.05) 25%, rgba(0,0,0,.09) 37%, rgba(0,0,0,.05) 63%); background-size: 400% 100%; animation: shim 1.4s ease infinite; }
+    @keyframes shim { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+    @media (prefers-reduced-motion: reduce) { .sk { animation: none; } .detail-btn svg { transition: none; } }
+
+    /* ── overlays (calendar modal / detail sheet) ──────────────────────── */
+    .overlay-root { position: absolute; inset: 0; z-index: 30; pointer-events: none; }
+    /* grid-template-rows: minmax(0, 1fr) is load-bearing, not tidiness. With an
+       auto row the grid area is indefinite in the block axis, so the sheet's
+       max-height: 100% resolved against nothing and computed to none: the trip
+       picker measured 924px and the all-groups sheet 1223px inside an 844px
+       phone, hanging 80px and 379px past the bottom edge with their last rows
+       unreachable — .sheet-body never scrolled because it was never given a
+       height to scroll inside. A definite 1fr row fixes the percentage, and the
+       two rules below fix the flex side of the same bug. */
+    .scrim { position: absolute; inset: 0; background: var(--scrim); display: grid; grid-template-rows: minmax(0, 1fr); pointer-events: auto; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
+    .scrim.center { place-items: center; padding: 16px; }
+    /* The 17-row stop list is tall enough to hit max-height: 100%, so its sheet
+       fills the phone top to bottom and .sheet-head landed at y=0 — the sheet
+       title painted underneath the fake clock and the notch. The scrim's
+       background still covers the padding (background-clip defaults to
+       border-box), only the sheet is pushed below the status bar. */
+    .scrim.bottom { align-items: end; padding-top: var(--phone-safe-top); }
+    .sheet { width: 100%; max-width: 360px; margin: 0 auto; background: var(--surface-lowest); border-radius: var(--radius-xl); pointer-events: auto; max-height: 100%; display: flex; flex-direction: column; }
+    .sheet.bottom-sheet { border-radius: var(--radius-xl) var(--radius-xl) 0 0; max-width: 720px; animation: slideUp .22s ease; }
+    @keyframes slideUp { from { transform: translateY(14px); opacity: .6; } to { transform: none; opacity: 1; } }
+    /* flex: none so the title can never be squeezed, and min-height: 0 on the
+       body so it can — a flex item defaults to min-height: auto, which pins it
+       to its content height and makes the sheet overflow instead of scrolling. */
+    .sheet-head { display: flex; align-items: center; gap: 12px; padding: 16px 20px 8px; flex: none; }
+    .sheet-titles { flex: 1 1 auto; min-width: 0; }
+    .sheet-head h2 { margin: 0; color: var(--on-surface); }
+    .sheet-titles p { margin: 2px 0 0; }
+    .sheet-body { padding: 0 20px var(--phone-safe-bottom); overflow-y: auto; min-height: 0; }
+    .icon-btn { width: 44px; height: 44px; border-radius: var(--radius-full); border: 1px solid var(--outline-variant); background: transparent; color: var(--on-surface-variant); display: grid; place-items: center; cursor: pointer; flex: none; }
+    .icon-btn:hover { background: var(--surface-container); }
+    .cal-head { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+    .cal-month { color: var(--on-surface); }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-top: 8px; }
+    .cal-dow { text-align: center; color: var(--on-surface-variant); padding: 6px 0; }
+    .cal-cell { position: relative; height: 44px; border: 0; background: none; cursor: pointer; border-radius: var(--radius-md); color: var(--on-surface); font-family: inherit; }
+    .cal-cell.out { color: var(--outline); }
+    .cal-cell.inrange { background: var(--primary-container); border-radius: 0; }
+    .cal-cell.edge { background: var(--primary-solid); color: var(--on-primary); border-radius: var(--radius-md); font-weight: 600; }
+    .cal-cell.today::after { content: ""; position: absolute; left: 50%; bottom: 5px; width: 4px; height: 4px; transform: translateX(-50%); border-radius: 50%; background: var(--primary); }
+    .cal-cell.edge.today::after { background: var(--on-primary); }
+    .cal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px; }
+    .cal-actions .ghost { min-height: 48px; padding: 0 12px; border: 0; background: none; color: var(--on-surface-variant); cursor: pointer; font-family: inherit; }
+    .cal-actions .apply { min-height: 48px; padding: 0 20px; border-radius: var(--radius-lg); border: 0; background: var(--primary-solid); color: var(--on-primary); cursor: pointer; font-family: inherit; }
+    .cal-error { margin: 10px 0 0; color: var(--error); }
+    .range-preview { margin: 12px 0 0; color: var(--on-surface-variant); }
+    .detail-row { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--outline); }
+    .detail-row:last-child { border-bottom: 0; }
+    .detail-row .k { color: var(--on-surface-variant); flex: none; }
+    .detail-row .v { color: var(--on-surface); font-weight: 600; text-align: right; }
+    /* The card insets its own rows so every key in the sheet starts at the
+       same 20px column as the title, instead of drifting in by 14px. */
+    .detail-card { border: 1px solid var(--outline-variant); border-radius: var(--radius-lg); margin-top: 12px; }
+    .detail-card .detail-row { padding-inline: 12px; }
+
+    /* ── add trip: two terminals, one road, and what that road will bill ── */
+    /* Author display rules beat the UA [hidden] rule on cascade origin, so a
+       hidden attribute on any of the flex/grid elements this screen toggles
+       would not hide it. One guard covers all of them. */
+    [hidden] { display: none !important; }
+    /* The chrome carries the trip number and the road, and the road string
+       changes length with the choice. Never let it wrap to a second line inside
+       the pill and push the title card taller than its neighbours. */
+    .chrome-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .card { margin-top: 20px; padding: 20px; border: 1px solid var(--outline-variant); border-radius: var(--radius-xl); background: rgba(255,255,255,.55); }
+    /* A .sec-head is a sibling margin, but the card already has 20px of padding,
+       so margin collapse cannot reach it: left alone it lands its title 40px
+       down. Every card on this screen has a header, so the rule is
+       unconditional here. */
+    .card > .sec-head:first-child { margin-top: 0; }
+    /* font-size: inherit is load-bearing on a <button> for the reason it is on
+       .row-btn: a button inherits the UA's 13.333px control size, and neither
+       .f-label nor .f-value sets a size, so the label and the value inside one
+       field would paint two steps apart from the sizes they declare. */
+    .field { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 60px; padding: 8px 14px; border: 1px solid var(--outline); border-radius: var(--radius-lg); background: var(--surface); color: var(--on-surface); font-family: inherit; font-size: inherit; text-align: left; cursor: pointer; }
+    .field:hover { background: var(--surface-container); }
+    .f-icon { width: 36px; height: 36px; border-radius: var(--radius-sm); display: grid; place-items: center; flex: none; background: var(--tertiary-container); color: var(--on-tertiary-container); }
+    .f-body { flex: 1 1 auto; min-width: 0; }
+    .f-label { display: block; color: var(--on-surface-variant); }
+    .f-value { display: block; color: var(--on-surface); font-weight: 600; }
+    /* --outline is a 1px border token, specified for the 3:1 non-text floor. On
+       16px text it measured 4.24:1 against the field's own surface, under AA, on
+       the one line that tells a first-time driver what this control wants. The
+       placeholder still reads as a placeholder on weight alone (500 vs 600). */
+    .f-value.empty { color: var(--on-surface-variant); font-weight: 500; }
+    .f-chev { flex: none; color: var(--on-surface-variant); display: inline-flex; }
+    /* No .field + .field rule here, and there must not be one: the leg sits
+       between the two fields and owns the space. A sibling margin would put 8px
+       of daylight above the destination and 8px below the origin, so the swap
+       control would be the only thing in the card that is off-axis. */
+
+    /* The leg between the two ends carries the swap, not a legend. A trip runs
+       one way and the direction is the thing being corrected, so the control
+       sits ON the axis joining the two ends, where it reads as the reverse of
+       the leg rather than as a third input. Note what it does NOT change: the
+       quoted distance is Math.abs(km difference), so it reads the same in
+       both directions. Only the direction of travel differs, and only the
+       direction is stored. */
+    /* 12 top AND bottom, not 12 0 0: with the bottom at 0 the swap circle's
+       edge landed on the destination's border, and two 1px borders meeting
+       read as one broken rule with the control welded to the field. */
+    /* 1fr auto 1fr, not flex with the distance as a fourth sibling: the quoted
+       distance is a CAPTION on the leg, not a rung of it. As a flex sibling it
+       took 49px off the right-hand line and pushed the swap circle 27px left of
+       the card's axis, so the control that reverses the trip was off the line
+       joining the two ends it reverses. The two 1fr columns are equal by
+       construction, so the circle is on the axis to the subpixel and the lines
+       stay mirror images. */
+    .leg { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; column-gap: 8px; row-gap: 8px; margin: 12px 0; color: var(--on-surface-variant); }
+    .leg .leg-line { height: 1px; background: var(--outline); }
+    .leg .leg-dist { grid-column: 1 / -1; text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    /* padding: 0 for the same reason .row-btn carries it: a 44x44 border-box
+       button survives the UA's 1px/6px padding in size, but the 1px top and
+       bottom push the glyph off centre in a grid-placed control. */
+    .swap-btn { width: 44px; height: 44px; flex: none; padding: 0; border-radius: var(--radius-full); border: 1px solid var(--outline); background: var(--surface); color: var(--on-surface); font-family: inherit; display: grid; place-items: center; cursor: pointer; }
+    .swap-btn:hover { background: var(--surface-container); }
+    /* .45 put the glyph at 2.82:1, under the 3:1 this screen holds everything
+       else to. .55 lands at 3.77:1 and still reads unmistakably disabled. */
+    .swap-btn:disabled { opacity: .55; cursor: default; }
+    .swap-btn:disabled:hover { background: var(--surface); }
+    .leg-hint { margin: 8px 0 0; color: var(--error); }
+
+    /* Two roads, so a two-way switch and not a chip row: a chip implies
+       filtering a set, and this is one choice between two exclusive options
+       where the second bills materially more per kilometre. */
+    .seg-route { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
+    .seg-route button { min-height: 44px; padding: 8px 10px; border: 1px solid var(--outline); border-radius: var(--radius-lg); background: var(--surface); color: var(--on-surface); font-family: inherit; font-size: inherit; text-align: left; cursor: pointer; }
+    .seg-route button:hover { background: var(--surface-container); }
+    .seg-route button[aria-pressed="true"] { border: 2px solid var(--primary-solid); background: var(--primary-container); color: var(--on-primary-container); padding: 7px 9px; }
+    .seg-route .sr-name { display: block; font-weight: 600; }
+    .seg-route .sr-note { display: block; margin-top: 2px; color: var(--on-surface-variant); }
+    .seg-route button[aria-pressed="true"] .sr-note { color: var(--on-primary-container); }
+    /* The consequence of picking the express way, stated rather than implied. The
+       adjustment is real configuration (sctex_km_adjustment_milli) and it adds
+       distance the driver is not driving but is billed for, on every boarding on
+       the trip, and it also swaps the rate. */
+    .road-note { margin: 12px 0 0; padding: 12px; border-radius: var(--radius-md); background: var(--secondary-container); color: var(--on-secondary-container); }
+
+    /* A trip has no fare, so this card has no total. It is the four inputs every
+       boarding on the trip will be priced from, and the rows reuse .detail-row —
+       the same key/value recipe the sheets use — so a figure here and a figure in
+       a ticket sheet are the same object. The wrapper exists for one reason:
+       :last-child cannot see past the footnote that follows the last row, so
+       without it the final row keeps a rule that means nothing. */
+    .est-rows > .detail-row:last-child { border-bottom: 0; }
+
+    /* ── shared with add-ticket.html and passenger.html ────────────────── */
+    /* Copied rather than renamed, so a picker row and a handoff are the same
+       56px object on all eight screens. */
+    .pick-row { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 12px; border: 1px solid var(--outline); border-radius: var(--radius-lg); background: var(--surface); color: var(--on-surface); font-family: inherit; font-size: inherit; text-align: left; cursor: pointer; margin-top: 8px; width: 100%; }
+    .pick-row:hover { background: var(--surface-container); }
+    /* 2px border on the current terminal and 1px less padding, so choosing a row
+       does not resize the list under the finger. */
+    .pick-row[aria-current="true"] { border: 2px solid var(--primary-solid); background: var(--primary-container); color: var(--on-primary-container); padding: 7px 11px; }
+    .pick-row .pk-body { flex: 1 1 auto; min-width: 0; }
+    .pick-row .pk-name { display: block; }
+    .pick-row .pk-sub { display: block; margin-top: 2px; color: var(--on-surface-variant); }
+    .pick-row[aria-current="true"] .pk-sub { color: var(--on-primary-container); opacity: .85; }
+    .pick-more { margin: 12px 0 0; padding: 12px 16px; border: 1px dashed var(--outline); border-radius: var(--radius-lg); color: var(--on-surface-variant); }
+    .handoff { margin: 16px 0 0; padding: 12px 20px; border: 1px dashed var(--outline); border-radius: var(--radius-lg); background: rgba(255,255,255,.42); }
+    .handoff p { color: var(--on-surface-variant); }
+    .handoff .nb-title { color: var(--on-surface); margin: 0 0 4px; }
+    :focus-visible { outline: 2px solid var(--primary-solid); outline-offset: 2px; border-radius: 6px; }
+
+    /* ── the one committing action ────────────────────────────────────── */
+    /* Solid, and the only solid primary in the viewport. It is also the only
+       thing on this screen that leaves it, so it gets the only amber... which
+       it does not: amber on these screens means a trip is already RUNNING, and
+       this is the screen that makes one. The commit stays --primary-solid. */
+    /* The 20px section margin belongs to the SECTION here, and .primary-btn's own
+       14px is zeroed inside it. Left alone, the button was the only thing on the
+       screen with a margin, so the estimate card and the CTA sat 14px apart while
+       every other pair of sections sat 20 — a 6px break in the rhythm at the
+       place the eye lands last. Adjacent margins collapse, so the two cannot be
+       added to reach 20; one of them has to go. This is the local version, and
+       the other seven screens keep the shell's 14px. The blocked branch states a
+       reason above the button, so it hands the gap back to .block-reason. */
+    [data-od-id="at-commit"] { margin-top: 20px; }
+    [data-od-id="at-commit"] > .primary-btn { margin-top: 0; }
+    [data-od-id="at-commit"] > .block-reason { margin-bottom: 12px; }
+
+    /* The shared shell styles .primary-btn and never once styles it disabled, so
+       on this screen a dead CTA painted as a live solid-orange button with a
+       pointer cursor — in four validation states, on the no-fare-rules state, and
+       behind the scrim after the press. Two solid primaries in one viewport is
+       the thing the one-CTA rule exists to prevent, and a conductor aiming at a
+       button that cannot fire is a tap that does nothing and looks like a bug.
+       opacity would be the wrong repair here: it blends the fill toward the page
+       and takes the white label under AA with it. Dropping the fill is the M3
+       treatment and it also settles the count, because a grey button is not a
+       primary. Local to this screen; the other seven prototypes still need it. */
+    .primary-btn:disabled { background: var(--surface-container); color: var(--on-surface-variant); cursor: default; }
+    .primary-btn:disabled:hover { background: var(--surface-container); }
+    /* "Clear" is 41px wide and "Rules" is 41px, and a 41px tap target is a
+       miss rather than a press. min-width only, and centred so the word does not
+       sit off-axis in the wider box. */
+    .card .text-action { min-width: 44px; justify-content: center; }
+
+    /* The loading branch is a card of grey bars, and a screen of grey bars read
+       out loud as nothing at all. One visually-hidden line gives it a name. */
+    .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+    .primary-btn.wide { width: 100%; justify-content: center; }
+    .block-reason { margin-top: 20px; color: var(--on-surface-variant); }
+    .commit-hint { margin: 12px 0 0; color: var(--on-surface-variant); }
+
+
+
+    /* prototype state control (outside the phone) */
+    .proto-states { position: fixed; left: 18px; bottom: 18px; z-index: 50; display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 16px; background: rgba(255,255,255,.9); border: 1px solid #dcdde1; box-shadow: 0 10px 24px rgba(20,22,28,.12); font-family: var(--font); }
+    .proto-states span { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #6b6e75; font-weight: 600; }
+    .proto-states .seg { display: flex; flex-wrap: wrap; gap: 6px; max-width: 232px; }
+    .proto-states button { font: inherit; font-size: 12px; padding: 7px 10px; border-radius: 999px; border: 1px solid #d4d5d9; background: #fff; color: #33363c; cursor: pointer; }
+    .proto-states button:hover { background: #F1F2F4; }
+    .proto-states button[aria-pressed="true"]:hover { background: #A93A09; border-color: #A93A09; }
+    .proto-states button[aria-pressed="true"] { background: #C2410C; border-color: #C2410C; color: #fff; }
+
+    @media (max-width: 480px) {
+      body { padding: 0; display: block; }
+      .phone-frame { width: 100%; height: 100dvh; padding: 0; border-radius: 0; background: none; box-shadow: none; }
+      .phone-frame::before, .phone-frame::after, .hardware-button { display: none; }
+      .phone-screen { width: 100%; height: 100%; border-radius: 0; }
+      .proto-states { display: none; }
+    }
+    @media (max-height: 927px) { .phone-frame { zoom: .9; } }
+    @media (max-height: 840px) { .phone-frame { zoom: .82; } }
+    @media (max-height: 771px) { .phone-frame { zoom: .74; } }
+    @media (max-height: 702px) { .phone-frame { zoom: .66; } }
+  
+
+    /* ── current trip: one running run, and the control that closes it ─── */
+    /* The RUNNING card is an amber CONTAINER, not a solid amber panel. Amber is
+       the app's one signal for a trip that is running, and this card is 180px of
+       content — solid amber that size would fight the one solid CTA in the
+       action bar for the same attention. A 4px amber rail plus the amber
+       container says "running" at the card's edge and leaves the fill alone for
+       the figures. Dark-on-amber measures 7.4:1 for a figure and 5.8:1 for a
+       detail row, where the pale containers would sit near 1.5:1. */
+    .run-card { position: relative; overflow: hidden; margin-top: 20px; padding: 20px; border: 1px solid #E8C97A; border-radius: var(--radius-xl); background: var(--secondary-container); }
+    .run-card::before { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 4px; background: var(--secondary); }
+    .run-card > * { position: relative; z-index: 1; }
+    .run-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    /* The road flag is the honest answer to a value the app cannot supply. It is
+       a flag and not a value because there is no column to read: this pill is the
+       first thing a port deletes, and it should be impossible to mistake for one
+       that stays. */
+    .flag { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: var(--radius-full); background: #F3DCAA; color: #4A3600; }
+    .flag b { font-weight: 700; }
+    .run-figs { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 16px; align-items: end; margin-top: 16px; }
+    .run-fig-l { grid-column: 1; color: #4A3600; }
+    .run-fig { display: block; margin-top: 2px; color: var(--on-secondary); font-variant-numeric: tabular-nums; }
+    .run-fig-l2 { grid-column: 2; text-align: right; }
+    /* One track, three fills. History already owns this shape as .bd-track with a
+       single .bd-fill, and a three-colour chart would be a new visual language in
+       the ninth screen. Three fills in one track is the same object, and it is
+       the only place on this screen where three things are compared at once. */
+    .mixbar { display: flex; height: 8px; margin-top: 16px; border-radius: var(--radius-full); background: rgba(74,54,0,.16); overflow: hidden; }
+    .mixbar i { display: block; height: 100%; }
+    .mixbar i.regular { background: #9A3D00; }
+    .mixbar i.student { background: #44636F; }
+    .mixbar i.disc { background: #6B4B00; }
+    .mix-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 12px; color: #4A3600; }
+    .mix-legend b { color: var(--on-secondary); font-weight: 700; }
+    .run-rows { margin-top: 16px; }
+    .run-rows > .detail-row:last-child { border-bottom: 0; }
+    .run-rows .detail-row { border-bottom-color: #E0C489; }
+    .run-note { margin: 12px 0 0; color: #4A3600; }
+
+    /* ── the ledger ───────────────────────────────────────────────────── */
+    /* A row is a <div>, not a <button>: it opens nothing, edits nothing and
+       deletes nothing (CurrentTripScreen.tsx:356-384 says so in its own
+       docblock), so a button would advertise an affordance that is not there.
+       That also keeps .row-btn's load-bearing resets out of the picture.
+       The store's order is created_at DESC, id DESC and is set in SQL; nothing
+       here re-sorts. */
+    /* Two lines of scalars on one baseline, then the journey, then the who.
+       The three-column flex this replaced spent its middle column on 68px and
+       wrapped "Subic Bay Freeport → Norzagaray" onto ten lines, because the
+       fare sub-line held the column open at 150px and the clock held 62px more.
+       Grid inverts the priority: the only prose in a boarding gets the whole
+       width, and the two figures a conductor adds up land on a strict pitch. */
+    .tk { display: grid; grid-template-columns: 1fr auto; align-items: baseline; column-gap: 12px; row-gap: 4px; padding: 12px 16px; border: 1px solid var(--outline-variant); border-radius: var(--radius-xl); background: rgba(255,255,255,.55); }
+    /* Baseline, not flex-start plus a nudge: a 12px clock on a 16px fare that
+       shares the fare's baseline reads as the sub-figure it is. Centring it
+       against a 23px line instead would need a half-pixel nudge per size. */
+    .tk-time { grid-area: 1 / 1; color: var(--glass-on-variant); font-variant-numeric: tabular-nums; }
+    .tk-fare { grid-area: 1 / 2; text-align: right; color: var(--glass-on); font-variant-numeric: tabular-nums; }
+    .tk-route { grid-area: 2 / 1 / 2 / -1; color: var(--glass-on); overflow-wrap: anywhere; }
+    .tk-meta { grid-area: 3 / 1 / 3 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; color: var(--glass-on-variant); }
+
+    /* ── the action bar: the one control that closes the run ───────────── */
+    /* A sibling of .app-scroll, not a footer inside it, so it never scrolls away.
+       A 15-row ledger puts a ListFooterComponent's button below the fold, and
+       this is the one irreversible action on the screen. It is the only solid
+       control in the viewport and it is --error rather than --primary-solid,
+       because ending a trip cannot be undone and starting one can. */
+    .action-bar { flex: none; padding: 12px 20px calc(var(--phone-safe-bottom) + 8px); }
+    .end-btn { width: 100%; min-height: 48px; padding: 0; border: 0; border-radius: var(--radius-lg); background: var(--error); color: #fff; font-family: inherit; font-size: inherit; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+    .end-btn:hover { background: #8F1515; }
+    /* The shared shell never styles a disabled button, and opacity would drag the
+       white label under AA on a fill that is already the darkest thing here. The
+       fill drops instead, which is the M3 treatment and the only repair that
+       keeps the label readable. */
+    .end-btn:disabled { background: #E7C7C4; color: #6E2B28; cursor: default; }
+    .end-btn:disabled:hover { background: #E7C7C4; }
+    .end-count { margin: 8px 0 0; text-align: center; color: var(--glass-on-variant); }
+
+    .caution { margin: 16px 0 0; padding: 12px 16px; border-radius: var(--radius-lg); background: rgba(255,255,255,.5); border: 1px solid var(--outline-variant); color: var(--glass-on-variant); }
+
+    /* The sheet's two actions. .cal-actions already styles the calendar's pair
+       with the same recipe, but it is scoped to that class and named for that
+       sheet, so this screen names its own rather than borrowing by accident. The
+       confirm is --error filled and the cancel is nothing: the one irreversible
+       write on the screen is the one that gets the fill. */
+    .sheet-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px; }
+    .sheet-actions .ghost { min-height: 48px; padding: 0 12px; border: 0; background: none; color: var(--on-surface-variant); font-family: inherit; font-size: inherit; cursor: pointer; }
+    .sheet-actions .ghost:hover { color: var(--on-surface); }
+    .sheet-actions .destructive { min-height: 48px; padding: 0 20px; border: 0; border-radius: var(--radius-lg); background: var(--error); color: #fff; font-family: inherit; font-size: inherit; font-weight: 600; cursor: pointer; }
+    .sheet-actions .destructive:hover { background: #8F1515; }
+
+
+    /* ── settings: four modules, and what each one currently holds ────── */
+    /* One shape, four times, at one height. The cards were ragged because a
+       description that runs to three lines cannot fit beside a 48px chip in a
+       104px min-height, so the box was a guess and four cards came out four
+       heights. A value is short by construction: title 23 + 2 + value 21 = 46px
+       of text against a 48px chip, so the card is 20 + 48 + 20 plus its two 1px
+       borders = 90px and nothing in the list can push past it. The value is
+       14px, not 12: it is the answer to the question the row raises, and at 12px
+       it was quieter than the chrome subtitle three hundred pixels up.
+
+       font-family/font-size/color: inherit for the reason .row-btn carries it.
+       A <button> does not inherit the family, so without this the four cards
+       render in Arial while the chrome above them renders in Poppins. */
+    .mod {
+      display: flex; align-items: center; gap: 12px; width: 100%; min-height: 90px;
+      padding: 20px; border: 1px solid var(--outline-variant);
+      border-radius: var(--radius-xl); background: rgba(255,255,255,.55);
+      text-align: left; cursor: pointer;
+      font-family: inherit; font-size: inherit; color: inherit;
+    }
+    .mod:hover { background: rgba(255,255,255,.74); }
+    .mod:active { transform: scale(.995); }
+    /* tertiary, four times. The chip is a CATEGORY — where you go — and no
+       category here outranks another, so there is no accent to differ. The
+       advanced card wore error here; the error token moves to the one card that
+       is genuinely an error, which is the fare card when nothing is saved. */
+    .mod-chip { width: 48px; height: 48px; border-radius: var(--radius-md); background: var(--tertiary-container); color: var(--on-tertiary-container); display: grid; place-items: center; flex: none; }
+    .mod-body { flex: 1 1 auto; min-width: 0; }
+    .mod-title { display: block; color: var(--on-surface); }
+    .mod-value { display: block; margin-top: 2px; color: var(--on-surface-variant); }
+    .mod-chev { flex: none; color: var(--on-surface-variant); display: inline-flex; }
+    /* The one error on the screen, and the one place error belongs. theme.ts
+       reserves it for real errors and validation, and "no fare rules" is both:
+       it is the state addTicketFare.ts:334 refuses to price through. The border
+       and the value carry it; the chip stays tertiary, because the chip is
+       still a category. */
+    .mod.alert { border-color: var(--error); background: var(--error-container); }
+    .mod.alert .mod-value { color: var(--on-error-container); font-weight: 600; }
+    .sec-block { margin-top: 20px; }
+    /* 12, the card gap: the note is the last line of this section, not a new
+       section, so it sits one card-gap below the list. */
+    .sec-note { margin-top: 12px; color: var(--glass-on-variant); }
+    /* The offline statement is metadata about all four modules, not a fifth
+       module. At LocalStorageCard's radius and padding in this same column it
+       read as one more row to push into, with the one thing on the screen that
+       opens nothing. It loses the card and keeps the lock and the copy. */
+    .note-lock { margin-top: 20px; display: flex; align-items: flex-start; gap: 8px; }
+    .note-lock > svg { flex: none; margin-top: 2px; }
+    .note-lock p { color: var(--glass-on-variant); }
+    .note-lock .nl-label { margin-bottom: 2px; }
+    a.back { text-decoration: none; }
+
+    /* ── fare configuration: ten numbers, and what they charge ──────────── */
+    /* The shipped FieldRow is 185px per field — a 48px icon, a label, a 60px
+       input and 32px of padding — so ten fields are 1858px inside an 844px
+       phone and the only CTA is on the second screen. The 48px fieldIcon is
+       480px of that, across ten glyphs of which two are identical (grid, for
+       the two discounts) and none can tell "Deluxe rate per km" from "SCTEX
+       Deluxe rate per km" at the one moment the difference matters. So: no
+       per-field icon, 48px inputs, the unit moved out of the label and into the
+       control, and the labels shortened to what the field is. A field is now
+       16 + 6 + 48 = 70px, and the ten this screen sets sit in four cards; the
+       whole column, price card and storage footer included, is 1409px in an
+       844px phone - 1.67 screens (fc-spacing.js 3, 4, 7). Both rate grids
+       resolve to the same three tracks, 47.48 / 120.25 / 120.27, so the
+       discounted half is the ordinary half rather than a second shape. Still
+       two screens. Still one CTA, and still at the bottom of both.
+
+       font: inherit on the input is load-bearing for the reason .row-btn
+       carries it — an <input> inherits the UA control size, not the app's. */
+    .fx-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+    .fx-grid.one { grid-template-columns: minmax(0,1fr); }
+    .fx { display: grid; gap: 8px; align-content: start; min-width: 0; }
+    /* 12/600, not .label-s's 11: these are the labels of the only ten numbers
+       on the screen, and they are short enough now that 12 costs nothing. */
+    .fx-label { display: block; font-size: 12px; line-height: 16px; font-weight: 600; color: var(--on-surface-variant); }
+    .fx-wrap { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 12px; border: 1px solid var(--outline); border-radius: var(--radius-lg); background: var(--surface-lowest); }
+    /* --outline, not --outline-variant, for the reason .meta-line uses it: the
+       variant is a 1.7:1 hairline on this field and the ten inputs lose their
+       structure. The focus ring replaces the :focus-visible outline rather than
+       removing it — 2px of --primary-container is still a visible indication. */
+    .fx-wrap:focus-within { border-color: var(--primary-solid); box-shadow: 0 0 0 2px var(--primary-container); }
+    /* align-self: stretch is load-bearing, not tidiness. .fx-wrap carries the
+       48px, so without it the visible field is 48px tall while the only
+       element that takes focus is the 23px line of text inside it: a tap in
+       the top or bottom 12px of the field does nothing at all. Stretching the
+       input to the wrapper hands the whole 48px to the tap target and lets
+       align-items: center on the wrapper do the vertical centring. */
+    .fx-in { flex: 1 1 auto; align-self: stretch; min-width: 0; width: 100%; border: 0; padding: 0; background: none; color: var(--on-surface); font: inherit; font-size: 16px; font-weight: 600; line-height: 23px; text-align: right; font-variant-numeric: tabular-nums; }
+    .fx-in:focus { outline: none; }
+    /* Right-aligned, not left: the inputs sit in a 2-column grid and a right
+       edge gives every figure in the block one pitch, so 1.75 and 2.25 line up
+       on the decimal and the column can be scanned. */
+    .fx-unit { flex: none; font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: .6px; color: var(--on-surface-variant); }
+    .fx-wrap.bad { border-color: var(--error); background: var(--error-container); }
+    .fx-wrap.bad .fx-in, .fx-wrap.bad .fx-unit { color: var(--on-error-container); }
+    .fx-err { margin-top: 0; font-size: 11px; line-height: 16px; color: var(--error); }
+    /* The app's field error is bodySmall at 12/18; at 11/16 it fits under a 48px
+       input without pushing the grid row, and it is the only 11px red text on
+       the screen. */
+    .mx { display: grid; grid-template-columns: auto repeat(2, minmax(0,1fr)); gap: 12px 10px; align-items: start; }
+    .mx-head { font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: .6px; color: var(--on-surface-variant); text-align: right; }
+    .mx-row { font-size: 12px; line-height: 16px; font-weight: 600; color: var(--on-surface); align-self: center; }
+
+    /* The price. One card, because it is one number the conductor is looking
+       for, and the two figures it holds are the same question asked of two
+       passenger types.
+
+       Solid amber, the operator's ask: this is the one card on the screen that
+       answers the question the form exists to ask, so it is the one card that
+       is a surface rather than a pane. The pairing is the one already shipped
+       on Home and Dashboard - amber fill, --on-secondary for what must read
+       and --on-secondary-detail for what may sit back. Both are AA on
+       #FFB300 (7.4:1 and 5.8:1); --on-secondary-faint is 4.9:1 and is for
+       disabled states only, so no rule here may reach for it. The hairline is
+       --on-secondary at 28%, because an amber border in --outline-variant
+       reads as a separate object's edge rather than this card's own. */
+    .px { margin-top: 20px; padding: 20px; border: 1px solid var(--on-secondary-rim); border-radius: var(--radius-xl); background: var(--secondary); color: var(--on-secondary); }
+    /* Stacked, not one row. Squeezed beside a 213px route caption the eyebrow
+       had 83px to live in, which is under the width of almost any sentence, so
+       it wrapped to two lines and the baseline pulled the caption up beside the
+       first one. The eyebrow is the card's label and the caption is its data;
+       on their own lines neither has to be shortened to fit the other, and
+       either can grow without this breaking. */
+    .px-head { display: flex; flex-direction: column; gap: 2px; }
+    .px-eyebrow { color: var(--on-secondary); margin: 0; }
+    .px-cap { color: var(--on-secondary-detail); }
+    .px-figs { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; margin-top: 16px; }
+    .px-fig { display: grid; gap: 2px; min-width: 0; }
+    .px-fig .px-label { color: var(--on-secondary); }
+    /* headline-s geometry, 600 at 20/27: not muted and not smaller, because
+       this is the answer the screen exists to give. -0.3px tracking is a
+       display/headline rule and is deliberately not borrowed here. */
+    .px-val { color: var(--on-secondary); font-variant-numeric: tabular-nums; font-size: 20px; line-height: 27px; font-weight: 600; }
+    .px-val.none { color: var(--on-secondary-detail); font-size: 16px; line-height: 23px; }
+    .px-wide { grid-column: 1 / -1; }
+    .px-sub { color: var(--on-secondary-detail); font-size: 12px; line-height: 18px; }
+    .px-gap { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--on-secondary-rim); }
+    .px-gap:empty { display: none; }
+    .px-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 8px; }
+    .px-row:first-child { margin-top: 0; }
+    .px-row-label { color: var(--on-secondary-detail); }
+    .px-row-val { flex: none; color: var(--on-secondary); font-variant-numeric: tabular-nums; }
+    .px-note { margin-top: 12px; color: var(--on-secondary-detail); }
+    .px-note:empty { display: none; }
+
+    /* .card carries margin-top: 20px because most cards start a section, and
+       .sec-head already put 12px under itself - so a head followed by a card
+       lands 32px apart. Collapsed here, and only here. */
+    .sec-head + .card { margin-top: 0; }
+
+    /* The two branches that own the body, the way FareSettingsScreen.tsx:204-241
+       does: a screen that cannot read its configuration has nothing to edit. */
+    .fc-center { padding: 36px 20px; text-align: center; }
+    .fc-center p { margin: 0; color: var(--glass-on-variant); }
+    .fc-center h2 { margin-bottom: 8px; }
+    .fc-center .primary-btn { margin-top: 20px; }
+    .fc-spin { width: 28px; height: 28px; margin: 0 auto 16px; border: 3px solid var(--outline-variant); border-top-color: var(--primary-solid); border-radius: var(--radius-full); animation: fc-spin 900ms linear infinite; }
+    @keyframes fc-spin { to { transform: rotate(360deg); } }
+    /* Under the same query as the shell's other motion, so the loader is not
+       the one thing on the screen that still moves. */
+    @media (prefers-reduced-motion: reduce) { .fc-spin { animation: none; border-top-color: var(--outline); } }
+
+    /* The app's messageBanner, with the two things ten scattered red lines do
+       not have: a count, and which fields. --surface-high is the token
+       palette.surfaceContainerHigh resolves to. */
+    .fc-banner { margin-top: 20px; padding: 12px 20px; border-radius: var(--radius-lg); background: var(--surface-high); }
+    .fc-banner .fc-lead { display: block; color: var(--on-surface); }
+    .fc-banner .fc-lead.bad { color: var(--error); }
+    .fc-banner p { margin: 4px 0 0; color: var(--on-surface-variant); }
+    .fc-list { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+    .fc-list li { display: flex; gap: 6px; font-size: 12px; line-height: 18px; color: var(--on-surface-variant); }
+    .fc-list b { flex: none; color: var(--on-surface); font-weight: 600; }
+
+    /* The white cards the operator asked to read as glass. Tint, shadow and
+       blur are .glass's own three declarations, repeated here rather than
+       tagging each card with class="glass": .glass also fixes
+       border-radius: var(--radius-glass) and paints ::before/::after, and
+       every one of these cards is a --radius-xl surface that already has a
+       hairline border to keep it defined against the peach stage.
+
+       Deliberately NOT in this group:
+         .sheet and .detail-card - a sliding sheet must stay solid white so it
+           reads as something laid OVER the glass, which is the whole reason
+           the earlier popups were asked to stay white;
+         .fc-banner - it is the one transient message, on --surface-high, and
+           a message that blurs into the page is a message nobody reads;
+         .px - solid amber, above;
+         .proto-states, .field, .fx-wrap, .row-card - controls and the
+           prototype shelf, not card surfaces.
+       Declared last, so it overrides the four earlier background declarations
+       instead of fighting them for source order. */
+    .card, .state:not(.error), .inline-empty {
+      background: var(--glass-tint);
+      box-shadow: 0 8px 15px var(--glass-shadow), inset 0 1px 0 rgba(255,255,255,.55);
+      -webkit-backdrop-filter: blur(18px) saturate(180%);
+      backdrop-filter: blur(18px) saturate(180%);
+    }
+
+    /* —— the Deluxe switch ————————————————————————————————————————————————
+       Four of the ten fields price nothing (toFareRules omits them), so an
+       operator who does not run a Deluxe service has no reason to fill four
+       boxes and no reason to be told four of them are wrong. One switch, in
+       the head of the grid it belongs to, because Deluxe is a service level
+       across both roads and both fare grids - a second switch on the grid
+       below would be the same decision asked twice.
+
+       OFF is the only place on this screen allowed to sit back, and it is
+       disabled state, which the contrast rule exempts. The state word is
+       mandatory: pressed-ness conveyed by fill colour alone fails for anyone
+       who cannot see the fill. */
+    .deluxe-toggle {
+      display: inline-flex; align-items: center; gap: 8px; flex: none;
+      min-height: 44px; padding: 0 8px 0 14px;
+      border: 1px solid var(--outline); border-radius: var(--radius-full);
+      background: transparent; color: var(--glass-on-variant);
+      font: inherit; font-size: inherit; cursor: pointer;
+    }
+    .deluxe-toggle:hover { background: rgba(120,130,150,.1); }
+    .deluxe-toggle:active { background: var(--primary-solid); border-color: var(--primary-solid); color: var(--on-primary); }
+    .deluxe-toggle[aria-pressed="true"] { background: var(--primary-solid); border-color: var(--primary-solid); color: var(--on-primary); }
+    .deluxe-toggle[aria-pressed="true"]:hover { background: var(--primary-solid-hover); border-color: var(--primary-solid-hover); }
+    .dt-state { padding: 3px 9px; border-radius: var(--radius-full); background: var(--surface-container); color: var(--on-surface-variant); }
+    .deluxe-toggle[aria-pressed="true"] .dt-state { background: var(--on-primary); color: var(--primary-solid); }
+    /* The off state: the row's name, and the two boxes under it. The box takes
+       a dropped fill instead of a faded one, for the reason .save-btn:disabled
+       drops - opacity drags an already-dark value under AA on a fill that is
+       still light. The row's label goes to 55% because it is the name of a
+       disabled row, and disabled is the one state allowed to sit back. */
+    .mx-row.is-off { opacity: .55; }
+    .fx-wrap.off { background: var(--surface-container); border-color: var(--outline-variant); }
+    .fx-wrap.off .fx-unit { color: var(--outline); }
+    .fx-in:disabled { color: var(--on-surface-variant); cursor: default; -webkit-text-fill-color: var(--on-surface-variant); opacity: 1; }
+
+    /* The one solid primary in the viewport, and the one thing that leaves the
+       screen. --primary-solid, not amber: amber on these screens means a trip is
+       already RUNNING, and this is the screen that makes one. The disabled fill
+       drops rather than fading, for the reason settings.html:584 and
+       .end-btn:disabled both say: opacity drags the white label under AA on a
+       fill that is already the darkest thing on the page. */
+    .save-btn { width: 100%; min-height: 48px; padding: 0 20px; border: 0; border-radius: var(--radius-lg); background: var(--primary-solid); color: var(--on-primary); font: inherit; font-size: 15px; font-weight: 600; letter-spacing: .8px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+    .save-btn:hover { background: var(--primary-solid-hover); }
+    .save-btn:disabled { background: var(--surface-container); color: var(--on-surface-variant); cursor: default; }
+    .save-btn:disabled:hover { background: var(--surface-container); }
+    .save-count { margin: 8px 0 0; text-align: center; color: var(--glass-on-variant); }
+  </style>
+
+<body>
+  <div class="phone-frame" data-phone-shell data-platform="neutral">
+    <span class="hardware-button volume" aria-hidden="true"></span>
+    <span class="hardware-button power" aria-hidden="true"></span>
+
+    <section class="phone-screen" data-od-id="phone-screen" data-phone-screen>
+      <main class="phone-content" data-phone-content>
+        <!-- APP CONTENT START -->
+        <div id="app">
+          <!-- 0. Section chrome. The subtitle is the one thing this screen can say
+               that no card below it can: whether this device can price a boarding
+               at all. fareStore.ts seeds no rows, so a fresh install opens with
+               nine blank fields and a disabled button. -->
+          <header class="chrome readable" data-od-id="fc-chrome">
+            <a class="back" href="settings.html" data-od-id="fc-back" aria-label="Back to settings">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+            </a>
+            <div class="title-card">
+              <h1 class="chrome-title title-m">Fare Configuration</h1>
+              <p class="chrome-sub body-s" id="chromeSub">10 of 10 filled in</p>
+            </div>
+          </header>
+
+          <div class="app-scroll" id="scroll">
+            <div class="readable">
+              <!-- 1. The load-error and loading branches own the whole body, the
+                   way FareSettingsScreen.tsx:204-233 does — a screen that cannot
+                   read its configuration has nothing to edit. -->
+              <div id="bodySlot" data-od-id="fc-body"></div>
+
+              <div id="formSlot">
+                <!-- 2. The price. Derived from the live field text on every
+                     keystroke, so it moves while the conductor types and cannot
+                     fight them the way a second store read would. Two distances,
+                     because the two floors in FLOORS below bind on the short one
+                     and never on the long one. -->
+                <section class="px" data-od-id="fc-preview" id="previewCard" aria-labelledby="previewEyebrow">
+                  <div class="px-head">
+                    <h2 class="px-eyebrow label-s" id="previewEyebrow">WHAT IT COSTS</h2>
+                    <p class="px-cap body-s" id="previewCap">Iba &rarr; Caloocan &middot; 217.4 km &middot; Express way</p>
+                  </div>
+                  <div class="px-figs" id="previewFigs"></div>
+                  <div class="px-gap" id="previewHop"></div>
+                  <p class="px-note body-s" id="previewNote"></p>
+                </section>
+
+                <!-- 3. Transient messages: exactly one, never queued. The saved
+                     string is the app's own; the failed one gains the count and
+                     the list, which is what ten scattered red lines do not have. -->
+                <div class="fc-banner" id="bannerSlot" data-od-id="fc-banner" aria-live="polite" hidden></div>
+
+                <!-- 4. The two bounds. The only two numbers here that do not
+                     scale with distance, and the only two with an order. Both
+                     are the same idea said twice: a trip is never charged less
+                     than this. -->
+                <section data-od-id="fc-floors">
+                  <div class="sec-head">
+                    <h3 class="sec-title label-s">MINIMUM CHARGES</h3>
+                  </div>
+                  <div class="card">
+                    <div class="fx-grid">
+                      <div class="fx">
+                        <label class="fx-label" for="fc-minFare">Lowest fare</label>
+                        <div class="fx-wrap"><input class="fx-in tabular" id="fc-minFare" data-key="minimumFare" inputmode="decimal" autocomplete="off" data-od-id="fc-min-fare"><span class="fx-unit">PHP</span></div>
+                        <p class="fx-err body-s" id="err-minimumFare" hidden></p>
+                      </div>
+                      <div class="fx">
+                        <label class="fx-label" for="fc-minDist">Lowest distance</label>
+                        <div class="fx-wrap"><input class="fx-in tabular" id="fc-minDist" data-key="minimumDistance" inputmode="decimal" autocomplete="off" data-od-id="fc-min-dist"><span class="fx-unit">km</span></div>
+                        <p class="fx-err body-s" id="err-minimumDistance" hidden></p>
+                      </div>
+                    </div>
+                    <p class="sec-note body-s">A trip shorter than the lowest distance is billed as if the bus travelled that far, and if the total still comes to less than the lowest fare, the lowest fare is charged instead. That order never changes.</p>
+                  </div>
+                </section>
+
+                <!-- 5. The four rates, as the 2x2 the schema already is:
+                     ratePerKm / sctexRatePerKm over deluxeRatePerKm /
+                     sctexDeluxeRatePerKm. Four unrelated pills could not say
+                     that Regular and SCTEX are the same row. -->
+                <section data-od-id="fc-rates">
+                  <div class="sec-head">
+                    <h3 class="sec-title label-s">FARE PER KM</h3>
+                    <button type="button" class="deluxe-toggle" id="deluxeToggle" aria-pressed="true" data-od-id="fc-deluxe-toggle">
+                      <span class="label-s">DELUXE</span>
+                      <span class="dt-state label-s" id="deluxeState" aria-hidden="true">ON</span>
+                    </button>
+                  </div>
+                  <div class="card">
+                    <div class="mx">
+                      <span></span>
+                      <span class="mx-head">ORDINARY ROAD</span>
+                      <span class="mx-head">EXPRESS WAY</span>
+
+                      <span class="mx-row">Regular</span>
+                      <div class="fx">
+                        <div class="fx-wrap"><input class="fx-in tabular" data-key="ratePerKm" aria-label="Regular fare per km, ordinary road, pesos" inputmode="decimal" autocomplete="off" data-od-id="fc-rate-ord"><span class="fx-unit">PHP</span></div>
+                        <p class="fx-err body-s" id="err-ratePerKm" hidden></p>
+                      </div>
+                      <div class="fx">
+                        <div class="fx-wrap"><input class="fx-in tabular" data-key="sctexRatePerKm" aria-label="Regular fare per km, express way, pesos" inputmode="decimal" autocomplete="off" data-od-id="fc-rate-sctex"><span class="fx-unit">PHP</span></div>
+                        <p class="fx-err body-s" id="err-sctexRatePerKm" hidden></p>
+                      </div>
+
+                      <span class="mx-row" data-mx="deluxe">Deluxe</span>
+                      <div class="fx">
+                        <div class="fx-wrap"><input class="fx-in tabular" data-key="deluxeRatePerKm" aria-label="Deluxe fare per km, ordinary road, pesos" inputmode="decimal" autocomplete="off" data-od-id="fc-rate-deluxe"><span class="fx-unit">PHP</span></div>
+                        <p class="fx-err body-s" id="err-deluxeRatePerKm" hidden></p>
+                      </div>
+                      <div class="fx">
+                        <div class="fx-wrap"><input class="fx-in tabular" data-key="sctexDeluxeRatePerKm" aria-label="Deluxe fare per km, express way, pesos" inputmode="decimal" autocomplete="off" data-od-id="fc-rate-deluxe-sctex"><span class="fx-unit">PHP</span></div>
+                        <p class="fx-err body-s" id="err-sctexDeluxeRatePerKm" hidden></p>
+                      </div>
+                    </div>
+                    <p class="sec-note body-s">Read the two the app charges from, down the Regular row. Both are multiplied by the distance, so an express way trip is always the more expensive half. <span id="deluxeNoteA">The Deluxe row is saved with the rest but nothing charges from it yet.</span></p>
+                  </div>
+                </section>
+
+                <!-- 6. The same 2x2 again, for the discounted fares. takesSpecialRate
+                     (addTicketFare.ts:60-62) is "everything except REGULAR", so PWD,
+                     Student and Senior all read these four, between them, and the
+                     column is picked by the road the trip is on - the one thing the
+                     single rate this replaces could not express. The rows and
+                     columns are named identically to the grid above on purpose:
+                     an operator setting both should not have to re-learn the
+                     shape halfway down the screen. -->
+                <section data-od-id="fc-concession">
+                  <div class="sec-head">
+                    <h3 class="sec-title label-s">DISCOUNTED FARE PER KM</h3>
+                  </div>
+                  <div class="card">
+                    <div class="mx">
+                      <span></span>
+                      <span class="mx-head">ORDINARY ROAD</span>
+                      <span class="mx-head">EXPRESS WAY</span>
+
+                      <span class="mx-row">Regular</span>
+                      <div class="fx">
+                        <div class="fx-wrap"><input class="fx-in tabular" data-key="specialRate" aria-label="Discounted fare per km, ordinary road, pesos" inputmode="decimal" autocomplete="off" data-od-id="fc-conc-ord"><span class="fx-unit">PHP</span></div>
+                        <p class="fx-err body-s" id="err-specialRate" hidden></p>
+                      </div>
+                      <div class="fx">
+                        <div class="fx-wrap"><input class="fx-in tabular" data-key="specialExpressRate" aria-label="Discounted fare per km, express way, pesos" inputmode="decimal" autocomplete="off" data-od-id="fc-conc-express"><span class="fx-unit">PHP</span></div>
+                        <p class="fx-err body-s" id="err-specialExpressRate" hidden></p>
+                      </div>
+
+                      <span class="mx-row" data-mx="deluxe">Deluxe</span>
+                      <div class="fx">
+                        <div class="fx-wrap"><input class="fx-in tabular" data-key="specialDeluxeRate" aria-label="Discounted Deluxe fare per km, ordinary road, pesos" inputmode="decimal" autocomplete="off" data-od-id="fc-conc-deluxe"><span class="fx-unit">PHP</span></div>
+                        <p class="fx-err body-s" id="err-specialDeluxeRate" hidden></p>
+                      </div>
+                      <div class="fx">
+                        <div class="fx-wrap"><input class="fx-in tabular" data-key="specialExpressDeluxeRate" aria-label="Discounted Deluxe fare per km, express way, pesos" inputmode="decimal" autocomplete="off" data-od-id="fc-conc-deluxe-express"><span class="fx-unit">PHP</span></div>
+                        <p class="fx-err body-s" id="err-specialExpressDeluxeRate" hidden></p>
+                      </div>
+                    </div>
+                    <p class="sec-note body-s">PWD, Student and Senior passengers all use these four, between them. Each one is the whole discounted rate, not a reduction of the fare above it, so the column is chosen by the road the trip runs on. <span id="deluxeNoteB">The Deluxe row is saved with the rest and nothing charges from it yet, for the same reason as the row above.</span></p>
+                  </div>
+                </section>
+              </div>
+
+              <div class="note-lock" data-od-id="fc-storage">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--glass-on-variant)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>
+                <div>
+                  <p class="label-s nl-label">SAVED ON THIS DEVICE</p>
+                  <p class="body-s">Your fares are saved on this device and keep working without internet.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 9. A sibling of .app-scroll, so it never scrolls away. Measured,
+               not asserted: the ten fields plus three headings, three notes,
+               four cards and the storage footer run 1409px in an 844px column
+               (1.67 screens, fc-spacing.js 3 and 7), so this is a two-screen form
+               and the count under the button is the only thing telling the
+               conductor how much of it is still outstanding. The last field
+               clears the bar by 262px at the bottom of the scroll
+               (fc-spacing.js 3b), which is why the shell's 29px home-indicator
+               padding is enough here. -->
+          <div class="action-bar" id="actionBar" data-od-id="fc-action">
+            <button type="button" class="save-btn" id="saveBtn" data-act="save" data-od-id="fc-save">SAVE</button>
+            <p class="save-count body-s" id="saveCount" data-od-id="fc-save-count"></p>
+          </div>
+        </div>
+        <!-- APP CONTENT END -->
+      </main>
+
+      <div class="status-bar" aria-hidden="true">
+        <span class="status-time">9:41</span>
+        <span class="status-cutout-zone"></span>
+        <span class="status-icons">
+          <svg class="connectivity" viewBox="0 0 15 12"><path d="M1.5 10.5v-2m4 2v-4.5m4 4.5v-7m4 7v-9"/></svg>
+          <svg class="wifi" viewBox="0 0 16 12"><path d="M1.5 4.7a9.2 9.2 0 0 1 13 0M4.2 7.3a5.4 5.4 0 0 1 7.6 0M6.9 10a1.55 1.55 0 0 1 2.2 0"/></svg>
+          <svg class="battery" viewBox="0 0 20 11"><rect x=".75" y="1.25" width="16.5" height="8.5" rx="2"/><path d="M18.5 4v3M3.2 3.4h10.4v4.2H3.2z" fill="currentColor" stroke="none"/></svg>
+        </span>
+      </div>
+      <div class="camera-dot" aria-hidden="true"></div>
+      <div class="gesture-indicator" aria-hidden="true"></div>
+    </section>
+  </div>
+
+  <div class="proto-states" role="group" aria-label="Prototype state preview">
+    <span>Prototype states</span>
+    <div class="seg" id="protoSeg">
+      <button type="button" data-state="configured" aria-pressed="true">All set</button>
+      <button type="button" data-state="fresh" aria-pressed="false">Empty</button>
+      <button type="button" data-state="invalid" aria-pressed="false">Wrong values</button>
+      <button type="button" data-state="loading" aria-pressed="false">Loading</button>
+      <button type="button" data-state="loaderror" aria-pressed="false">Read error</button>
+    </div>
+  </div>
+  <script>
+﻿  (function () {
+  'use strict';
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const plural = (n, one, many) => n + '\u00A0' + (n === 1 ? one : many);
+  const PESO = '\u20B1';
+  const ARROW = '\u2192';
+  const DOT = '\u00B7';
+
+  /* —— the app's own units ————————————————————————————————————————————————————
+     fareFormat.ts:1-60, in behaviour and in spirit: money is centavos, a
+     distance is thousandths of a km, and every conversion is string arithmetic
+     so 1.75 becomes 175 on every device instead of 174.99999 on the one with a
+     different FPU. fareFormat.ts defines a percent scale too and nothing on
+     this screen uses it now - see FIELDS. */
+  const SCALE_PESO = 2;
+  const SCALE_KM = 3;
+
+  function parseScaled(text, scale) {
+    const trimmed = String(text).trim();
+    if (trimmed === '') return null;
+    if (!/^\d+(\.\d+)?$/.test(trimmed)) return null;
+    const parts = trimmed.split('.');
+    const wholePart = parts[0];
+    const fracPart = parts.length > 1 ? parts[1] : '';
+    /* Pad one past the scale so the first dropped digit survives the slice: it
+       is what decides the half-away-from-zero round. */
+    const padded = fracPart + '0'.repeat(scale + 1);
+    const kept = padded.slice(0, scale);
+    const dropped = padded.charAt(scale);
+    let scaled = Number(wholePart) * Math.pow(10, scale) + Number(kept || '0');
+    if (Number(dropped) >= 5) scaled += 1;
+    return scaled;
+  }
+
+  function formatScaled(value, scale) {
+    const pow = Math.pow(10, scale);
+    const abs = Math.abs(Math.trunc(value));
+    const whole = Math.floor(abs / pow);
+    const frac = String(abs % pow).padStart(scale, '0').replace(/0+$/, '');
+    const out = frac === '' ? String(whole) : whole + '.' + frac;
+    return value < 0 ? '-' + out : out;
+  }
+
+  const pesos = centavos => {
+    const whole = Math.floor(centavos / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return PESO + whole + '.' + String(centavos % 100).padStart(2, '0');
+  };
+  const rateText = centavos => PESO + formatScaled(centavos, SCALE_PESO);
+  /* formatKm (addTicketFare.ts:130-132): always one decimal, because the rates
+     are pesos per km and "217 km" is not the same number as "217.4 km". */
+  const kmText = milli => (milli / 1000).toFixed(1) + ' km';
+
+  /* —— the ten fields ————————————————————————————————————————————————————————
+     FARE_FIELDS (fareFormat.ts:110-195) in the app's own order, because
+     validateFareFields iterates that array and the error banner is built in
+     that order too. `appLabel` and `error` are the app's own strings,
+     character for character, and the banner quotes both, so a report about a
+     field names it the way the app names it. There is deliberately no `label`
+     here: the wording this screen shows is the markup's (.fx-label, .mx-row,
+     .mx-head), and a second copy of it in this table was two places to keep in
+     step for nothing that reads it.
+
+     FARE_FIELDS is ten long. Two of the ten keys below are this screen's, not
+     the app's: specialExpressRate, specialDeluxeRate and specialExpressDeluxeRate
+     have no column in the schema. Only special_rate_per_km exists, so the
+     discounted side of the operator's business is one number wide where the
+     ordinary side is four, and an operator who charges PWD, Student and Senior
+     differently on the express way has nowhere to put that. The prototype adds
+     the three columns the 2x2 needs and keeps the one that exists under the
+     name it has. That is a schema change, and it is the honest cost of the
+     operator's request, not a detail of the drawing.
+
+     Three of the app's ten are not here. deluxeDiscount and sctexDiscount are a
+     percent, the only scale in fareFormat.ts with no reader anywhere in the app,
+     so a reserved discount is a number nobody can set and nothing can read.
+     sctexKmAdjustment is distance a driver is billed for rather than distance
+     the bus drove, and the operator took it off this form: no screen sets it any
+      more, so there is nothing here for a conductor to get wrong. The two Deluxe
+      rates in each grid stay, where the 2x2 the schema already is keeps them next
+      to the two that do charge, with the note that says they do not - and with the
+      switch above them that takes them off the form entirely for an operator who
+      does not run Deluxe at all. */
+  const FIELDS = [
+    { key: 'minimumFare', appLabel: 'Minimum fare (PHP)', scale: SCALE_PESO, error: 'Enter a valid minimum fare.' },
+    { key: 'minimumDistance', appLabel: 'Minimum distance (km)', scale: SCALE_KM, error: 'Enter a valid minimum distance.' },
+    { key: 'ratePerKm', appLabel: 'Regular rate per km (PHP)', scale: SCALE_PESO, error: 'Enter a valid rate per km.' },
+    { key: 'sctexRatePerKm', appLabel: 'SCTEX rate per km (PHP)', scale: SCALE_PESO, error: 'Enter a valid SCTEX rate per km.' },
+    { key: 'deluxeRatePerKm', appLabel: 'Deluxe rate per km (PHP)', scale: SCALE_PESO, error: 'Enter a valid Deluxe rate per km.' },
+    { key: 'sctexDeluxeRatePerKm', appLabel: 'SCTEX Deluxe rate per km (PHP)', scale: SCALE_PESO, error: 'Enter a valid SCTEX Deluxe rate per km.' },
+    { key: 'specialRate', appLabel: 'PWD / Student / Senior rate per km (PHP)', scale: SCALE_PESO, error: 'Enter a valid passenger rate per km.' },
+    { key: 'specialExpressRate', appLabel: 'PWD / Student / Senior SCTEX rate per km (PHP)', scale: SCALE_PESO, error: 'Enter a valid passenger rate per km.' },
+    { key: 'specialDeluxeRate', appLabel: 'PWD / Student / Senior Deluxe rate per km (PHP)', scale: SCALE_PESO, error: 'Enter a valid passenger rate per km.' },
+    { key: 'specialExpressDeluxeRate', appLabel: 'PWD / Student / Senior SCTEX Deluxe rate per km (PHP)', scale: SCALE_PESO, error: 'Enter a valid passenger rate per km.' }
+  ];
+  const FIELD_BY_KEY = {};
+  FIELDS.forEach(function (f) { FIELD_BY_KEY[f.key] = f; });
+
+  /* The four columns the Deluxe switch owns. They are exactly the four keys
+     toFareRules leaves out, which is the whole reason a switch for them is a
+     statement about the form rather than about the calculator: switching them
+     off cannot change a price, only whether an operator who does not run
+     Deluxe is asked for four numbers and told four of them are wrong. */
+  const DELUXE_KEYS = ['deluxeRatePerKm', 'sctexDeluxeRatePerKm', 'specialDeluxeRate', 'specialExpressDeluxeRate'];
+  const isDeluxe = f => DELUXE_KEYS.indexOf(f.key) !== -1;
+  /* Every count on this screen - filled-in, blank, errors, dirty - runs off
+     this and only this, so a disabled Deluxe field is not merely greyed: it is
+     not a field. There is one exception, and it is deliberate: CALC_KEYS
+     never contained a Deluxe key, so the price was never computed from them
+     and does not need to be told. */
+  const activeFields = () => state.deluxe ? FIELDS : FIELDS.filter(function (f) { return !isDeluxe(f); });
+
+  /* toFareRules (addTicketFare.ts:89-101) projects six calculator inputs out of
+     the ten columns. This form holds five of the six: the sixth,
+     sctex_km_adjustment_milli, is off the screen, so it contributes nothing here
+     and the price below is worked out on the distance alone. The four Deluxe
+     rates are the other columns of that same table the calculator leaves out, and
+     their absence from this list is what the two rate grids' notes are about.
+     specialExpressRate is the one rate this screen added that the calculator
+     reaches: priceTicket picks it instead of specialRate when the trip is on
+     the express way, which is the whole reason the discounted side is a 2x2. */
+
+  const CALC_KEYS = ['minimumFare', 'minimumDistance', 'ratePerKm', 'sctexRatePerKm', 'specialRate', 'specialExpressRate'];
+
+  /* —— the corridor this screen prices ———————————————————————————————————————
+     Trip #7, Iba to Caloocan on the express way, 217.4 km - the same run
+     settings.html, add-trip.html, add-ticket.html and current-trip.html carry,
+     so eleven screens cannot disagree about the money. The second distance is
+     Cubao to Meycauayan at 3.2 km on the ordinary road, which is the only
+     thing here that can make both floors visible at once. */
+  const TRIP = { label: 'Iba ' + ARROW + ' Caloocan', distanceMilli: 217400, usesSctex: true };
+  const HOP = { label: 'Cubao ' + ARROW + ' Meycauayan', distanceMilli: 3200, usesSctex: false };
+
+  /* The configured device. The form is the test suite's own `good` object
+     (fareFormat.test.ts:76-87) verbatim, in the stored units toStoredFareValues
+     writes: 5000, 4500, 175, 225, 250, 300, 100. The two 2000s that object
+     also holds are the deleted percent columns, and the 500 is the km
+     adjustment this form no longer carries.
+
+     The last three values are this screen's own. The schema has one discounted
+     column, so 1.30, 1.40 and 1.70 are not read from the app: they are the
+     prototype's stand-ins for the three columns the discounted 2x2 adds, chosen
+     to sit below the ordinary rate in the same cell so the grid reads as a
+     discount rather than a surcharge. Nothing downstream depends on them. */
+  const FARE_TEXT = {
+    minimumFare: '50', minimumDistance: '4.5',
+    ratePerKm: '1.75', sctexRatePerKm: '2.25',
+    deluxeRatePerKm: '2.50', sctexDeluxeRatePerKm: '3.00',
+    specialRate: '1.00', specialExpressRate: '1.30',
+    specialDeluxeRate: '1.40', specialExpressDeluxeRate: '1.70'
+  };
+
+  /* A fresh install, verbatim from EMPTY_VALUES (FareSettingsScreen.tsx:62-65):
+     fareStore.ts creates its two tables and seeds no rows, so nine of the ten
+     app fields are empty and the adjustment alone arrives as '0'. On this screen
+     that is ten blanks out of ten: the adjustment has no input to arrive in, the
+     two percent columns are gone, and the three columns the discounted 2x2 adds
+     have no default to seed either. */
+  const EMPTY_TEXT = {};
+  FIELDS.forEach(function (f) { EMPTY_TEXT[f.key] = ''; });
+
+  /* The Invalid state breaks the four Deluxe rates, and only those. Every error
+     is one a real device can hold: the input filter (fareFormat.ts:172-176)
+     drops a minus sign and a letter, so the reachable failures are empty and a
+     second decimal point. The price above therefore does not move once, which is
+     the sharpest way to show what four inert columns cost a conductor. */
+  const INVALID_TEXT = Object.assign({}, FARE_TEXT, {
+    deluxeRatePerKm: '', sctexDeluxeRatePerKm: '3.0.0',
+    specialDeluxeRate: '', specialExpressDeluxeRate: '1.7.0'
+  });
+
+  const SEEDS = {
+    configured: FARE_TEXT,
+    fresh: EMPTY_TEXT,
+    invalid: INVALID_TEXT,
+    loading: FARE_TEXT,
+    loaderror: FARE_TEXT
+  };
+
+  const ownedByBody = v => v === 'loading' || v === 'loaderror';
+
+  /* —— state ——————————————————————————————————————————————————————————————— */
+  const state = {
+    preview: 'configured',
+    values: Object.assign({}, FARE_TEXT),
+    baseline: Object.assign({}, FARE_TEXT),
+    banner: null,
+    /* The Deluxe switch, and the value the last save recorded it at. The
+       schema has no column for it yet, so this is the prototype holding a
+       decision the store cannot: it participates in dirty exactly the way a
+       field value does, because a switch the SAVE button cannot reach is a
+       switch that does not exist. ponytail: upgrade path is one
+       `deluxe_enabled INTEGER DEFAULT 1` on fare_rules, or dropping the four
+       Deluxe columns entirely - which is the version where this switch goes
+       with them. */
+    deluxe: true,
+    deluxeBase: true,
+    /* The app only ever sets fieldErrors inside onSave (:161-168), so a loaded
+       screen shows no red at all, even on a device with nothing set. The gate
+       is kept, and the "not configured" case is answered by the count under the
+       button rather than by painting ten empty inputs red on arrival. */
+    showErrors: false
+  };
+
+  /* —— validation ———————————————————————————————————————————————————————————
+     validateFareFields (fareFormat.ts:205-224): all errors at once, never the
+     first alone, and an empty field IS an error at save. The app's percent
+     range check has no subject on this screen, so it has no code here either. */
+  function validate(values, fields) {
+    const bad = [];
+    (fields || FIELDS).forEach(function (f) {
+      const text = values[f.key];
+      if (String(text).trim() === '') { bad.push(f); return; }
+      if (parseScaled(text, f.scale) === null) { bad.push(f); return; }
+    });
+    return bad;
+  }
+
+  const scaled = (values, key) => parseScaled(values[key], FIELD_BY_KEY[key].scale);
+
+  /* —— the calculator, ported ————————————————————————————————————————————————
+     priceTicket (addTicketFare.ts:161-193) with one line taken out and one
+     taken the other way. The app adds the express way adjustment to the billable
+     distance after the distance floor, and this form has no number for it, so
+     the adjustment term is gone. What the app reads as one special_rate column,
+     this form reads as a pair and picks between them on the same test the
+     ordinary pair already used: the road. The order that remains is the app's
+     own - the distance floor applies BEFORE anything else, the fare floor
+     applies AFTER rounding, and the round is integer half-up. The prototype
+     prices nothing of its own. */
+  function priceTicket(distanceMilli, usesSctex, discount, r) {
+    const rate = discount
+      ? (usesSctex ? r.specialExpressRate : r.specialRate)
+      : (usesSctex ? r.sctexRate : r.rate);
+    const distanceFloorApplied = distanceMilli < r.minimumDistance;
+    const billable = distanceFloorApplied ? r.minimumDistance : distanceMilli;
+    const raw = Math.floor((rate * billable + 500) / 1000);
+    const fareFloorApplied = raw < r.minimumFare;
+    return {
+      rate: rate,
+      billable: billable,
+      raw: raw,
+      fare: fareFloorApplied ? r.minimumFare : raw,
+      distanceFloorApplied: distanceFloorApplied,
+      fareFloorApplied: fareFloorApplied
+    };
+  }
+
+  /* —— derive —————————————————————————————————————————————————————————————— */
+  function compute() {
+    const c = { view: state.preview, values: state.values, banner: state.banner, deluxe: state.deluxe };
+    const active = activeFields();
+    c.total = active.length;
+    c.errors = validate(state.values, active);
+    c.blank = active.filter(function (f) { return String(state.values[f.key]).trim() === ''; }).length;
+    c.set = c.total - c.blank;
+    c.dirty = active.some(function (f) { return state.values[f.key] !== state.baseline[f.key]; }) ||
+      state.deluxe !== state.deluxeBase;
+
+    const missing = CALC_KEYS.filter(function (k) { return scaled(state.values, k) === null; });
+    c.blankCalc = missing.length;
+
+    if (missing.length === 0) {
+      c.rules = {
+        minimumFare: scaled(state.values, 'minimumFare'),
+        minimumDistance: scaled(state.values, 'minimumDistance'),
+        rate: scaled(state.values, 'ratePerKm'),
+        sctexRate: scaled(state.values, 'sctexRatePerKm'),
+        specialRate: scaled(state.values, 'specialRate'),
+        specialExpressRate: scaled(state.values, 'specialExpressRate')
+      };
+      c.regular = priceTicket(TRIP.distanceMilli, TRIP.usesSctex, false, c.rules);
+      c.concession = priceTicket(TRIP.distanceMilli, TRIP.usesSctex, true, c.rules);
+      c.hop = priceTicket(HOP.distanceMilli, HOP.usesSctex, false, c.rules);
+    }
+    return c;
+  }
+
+  /* —— chrome —————————————————————————————————————————————————————————————— */
+  function renderChrome(c) {
+    let sub;
+    if (c.view === 'loading') sub = 'Reading your saved fares';
+    else if (c.view === 'loaderror') sub = 'Saved fares unavailable';
+    else if (state.showErrors && c.errors.length) sub = plural(c.errors.length, 'field needs', 'fields need') + ' fixing';
+    else sub = c.set + ' of ' + c.total + ' filled in';
+    $('chromeSub').textContent = sub;
+  }
+
+  /* —— the two branches that own the body —————————————————————————————————
+     FareSettingsScreen.tsx:204-241 does this for real: a load failure owns the
+     body with a Go Back, and the form is never rendered. The action bar goes
+     with it, because a save button over an empty body is a lie. */
+  function renderBody(c) {
+    const owns = ownedByBody(c.view);
+    $('formSlot').hidden = owns;
+    $('actionBar').hidden = owns;
+    if (!owns) { $('bodySlot').innerHTML = ''; return; }
+    if (c.view === 'loading') {
+      $('bodySlot').innerHTML =
+        '<div class="fc-center" data-od-id="fc-loading">' +
+        '<div class="fc-spin" aria-hidden="true"></div>' +
+        '<h2 class="title-m">Loading fare settings</h2>' +
+        '<p class="body-s">Reading the local fare configuration.</p>' +
+        '</div>';
+      return;
+    }
+    /* The title and the button are the app's (:229, :236-241). The sentence is
+       not, and says the one thing a conductor in this state needs: nothing here
+       has been touched, so the fault is not something they did. */
+    $('bodySlot').innerHTML =
+      '<div class="fc-center" data-od-id="fc-loaderror">' +
+      '<h2 class="title-m">Fare settings unavailable</h2>' +
+      '<p class="body-s">The stored fare configuration could not be read, so there is nothing to edit here. Nothing on this device has been changed.</p>' +
+      '<a class="primary-btn wide" href="settings.html" data-od-id="fc-goback">GO BACK</a>' +
+      '</div>';
+  }
+
+  /* —— the price ———————————————————————————————————————————————————————————
+     Derived from the live field text on every keystroke, so it moves while the
+     conductor types and cannot fight them the way a second store subscription
+     could - the load-once rule at :96-100 exists for exactly that reason, and
+     a value that is a function of what is typed is safe against it. */
+  function renderPreview(c) {
+    if (c.blankCalc > 0) {
+      $('previewFigs').innerHTML =
+        '<p class="px-val none px-wide">No fare to show yet</p>' +
+        '<p class="px-sub px-wide">' + (c.blankCalc === 1
+          ? 'One of the ' + CALC_KEYS.length + ' numbers a fare is worked out from is still empty.'
+          : c.blankCalc + ' of the ' + CALC_KEYS.length + ' numbers a fare is worked out from are still empty.') + '</p>';
+      $('previewHop').innerHTML = '';
+      /* The four Deluxe rates are the only values here the app never charges
+         from, so the note has to name them: otherwise a conductor who has typed
+         every number that counts and still has no price has no way to learn
+         why. */
+      $('previewNote').textContent = state.deluxe
+        ? 'Not the four Deluxe fares — nothing uses those yet.'
+        : 'Deluxe is off, so its four fares are not part of this count either way.';
+      return;
+    }
+
+    function fig(label, fare, sub) {
+      return '<div class="px-fig">' +
+        '<span class="px-label label-s">' + esc(label) + '</span>' +
+        '<span class="px-val">' + pesos(fare) + '</span>' +
+        '<span class="px-sub">' + esc(sub) + '</span>' +
+        '</div>';
+    }
+    $('previewFigs').innerHTML =
+      fig('REGULAR', c.regular.fare, rateText(c.regular.rate) + ' / km ' + ARROW + ' ' + kmText(c.regular.billable)) +
+      fig('PWD, STUDENT, SENIOR', c.concession.fare, rateText(c.concession.rate) + ' / km ' + ARROW + ' ' + kmText(c.concession.billable) +
+        ', express way rate');
+
+    /* The short hop is the second distance the price card prints: 3.2 km is
+       below both floors at once, so it is the only row on the screen that shows
+       them binding. */
+    $('previewHop').innerHTML = '<p class="px-row"><span class="px-row-label body-s">' + esc(HOP.label) + ', ' +
+      kmText(HOP.distanceMilli) + ', ordinary road</span>' +
+      '<span class="px-row-val label-s">' + pesos(c.hop.fare) +
+      (c.hop.fareFloorApplied ? ' lowest fare' : '') + '</span></p>';
+
+    /* The note exists because the two minimums are the only numbers on this
+       screen that bind rather than scale, and nothing else on it connects them
+       to a fare. It prints the order in the words a conductor would use, then
+       the arithmetic the lowest fare overrode, so the short hop is not a mystery
+       number. */
+    const how = 'Every fare is worked out the same way: charge for at least ' +
+      kmText(c.rules.minimumDistance) + ', then make sure the total is at least ' +
+      pesos(c.rules.minimumFare) + '.';
+    $('previewNote').textContent = c.hop.distanceFloorApplied && c.hop.fareFloorApplied
+      ? how + ' ' + HOP.label + ' is only ' + kmText(HOP.distanceMilli) + ', so it is billed as ' +
+        kmText(c.rules.minimumDistance) + '. That comes to ' + pesos(c.hop.raw) +
+        ', and the ' + pesos(c.rules.minimumFare) + ' lowest fare brings it to ' + pesos(c.hop.fare) + '.'
+      : how;
+  }
+
+  /* —— the banner —————————————————————————————————————————————————————————
+     One banner, never a queue, exactly as the app intends (:277-288) - with the
+     two things ten scattered red lines cannot do: a count, and the list of
+     which fields, so a 1224px form reports in one place. */
+  function renderBanner(c) {
+    const slot = $('bannerSlot');
+    const b = c.banner;
+    if (!b) { slot.hidden = true; slot.innerHTML = ''; return; }
+    slot.hidden = false;
+    if (b.kind === 'ok') {
+      slot.innerHTML = '<span class="fc-lead title-m">' + esc(b.text) + '</span>';
+      return;
+    }
+    slot.innerHTML =
+      '<span class="fc-lead title-m bad">' + esc(b.lead) + '</span>' +
+      '<p class="body-s">' + plural(c.errors.length, 'field is', 'fields are') +
+      ' blank or wrong. Nothing is saved unless every field is right.</p>' +
+      '<ul class="fc-list">' + c.errors.map(function (f) {
+        return '<li><b>' + esc(f.appLabel) + '</b><span>' + esc(f.error) + '</span></li>';
+      }).join('') + '</ul>';
+  }
+
+  /* —— fields ——————————————————————————————————————————————————————————————
+     Written only where the text differs, so a re-render never moves a caret out
+     from under a hand that is mid-number. */
+  function renderFields(c) {
+    const inputs = document.querySelectorAll('.fx-in[data-key]');
+    Array.prototype.forEach.call(inputs, function (el) {
+      const key = el.dataset.key;
+      const next = c.values[key];
+      if (el.value !== next) el.value = next;
+      const wrap = el.closest('.fx-wrap');
+      /* Off is settled before bad: a disabled Deluxe field is not validated,
+         so the two can never both be true, but the box has to be cleared on
+         the way out of an error the switch has just taken away. */
+      const off = !c.deluxe && isDeluxe(FIELD_BY_KEY[key]);
+      el.disabled = off;
+      if (wrap) wrap.classList.toggle('off', off);
+      const err = $('err-' + key);
+      if (!err) return;
+      const bad = !off && state.showErrors && c.errors.indexOf(FIELD_BY_KEY[key]) !== -1;
+      err.hidden = !bad;
+      if (bad) err.textContent = FIELD_BY_KEY[key].error;
+      if (wrap) wrap.classList.toggle('bad', bad);
+    });
+  }
+
+  /* —— the Deluxe switch —————————————————————————————————————————————————
+     One switch, both grids. The state word rides alongside it because
+     pressed-ness shown as a fill alone is a state nobody who cannot see the
+     fill can read, and because the grid below has no switch of its own to
+     point at - its note does that instead. */
+  function renderDeluxe(c) {
+    const on = c.deluxe;
+    $('deluxeToggle').setAttribute('aria-pressed', on ? 'true' : 'false');
+    $('deluxeState').textContent = on ? 'ON' : 'OFF';
+    Array.prototype.forEach.call(document.querySelectorAll('.mx-row[data-mx="deluxe"]'), function (el) {
+      el.classList.toggle('is-off', !on);
+    });
+    $('deluxeNoteA').textContent = on
+      ? 'The Deluxe row is saved with the rest but nothing charges from it yet.'
+      : 'Deluxe is off: those two rates are not read, not counted and not saved while it is.';
+    $('deluxeNoteB').textContent = on
+      ? 'The Deluxe row is saved with the rest and nothing charges from it yet, for the same reason as the row above.'
+      : 'Deluxe is off here too — the switch on the grid above covers both grids.';
+  }
+
+  /* —— the one control that leaves the screen —————————————————————————————
+     The shipped button is disabled={!hasChanges || isSaving} (:323) and
+     hasChanges only ever becomes true on a keystroke (:151). That makes onSave
+     UNREACHABLE in both states where it is the only useful thing on the
+     screen: a fresh device with nine blanks, and a loaded device whose stored
+     values fail validateFareFields. The button is therefore dead exactly when
+     there is something to fix, and the nine messages onSave would have
+     produced are dead code. Enabled here whenever the form is dirty OR has
+     anything wrong in it, which is the only way the validator can be reached. */
+  function renderSave(c) {
+    const btn = $('saveBtn');
+    const disabled = ownedByBody(c.view) || (!c.dirty && c.errors.length === 0);
+    btn.disabled = disabled;
+
+    let reason = '';
+    if (c.errors.length) {
+      /* "still empty" and "needs fixing" are different sentences and a fresh
+         device deserves the first one: nothing is wrong, ten things are
+         missing, and that is not the conductor's fault. */
+      const allBlank = c.errors.every(function (f) { return String(c.values[f.key]).trim() === ''; });
+      const what = allBlank
+        ? plural(c.errors.length, 'field is still empty.', 'fields are still empty.')
+        : plural(c.errors.length, 'field needs fixing.', 'fields need fixing.');
+      reason = (c.banner && c.banner.kind === 'fail' ? 'Not saved. ' : '') + what;
+    } else if (!c.dirty) {
+      reason = 'No changes to save yet.';
+    }
+    $('saveCount').textContent = reason;
+    /* The app's own disabled label is "Save. No changes to save yet." (:326),
+       which is wrong on a fresh device: there is a great deal to change, all
+       of it unset. The reason the button is dead is the reason this screen
+       cannot be left, so it rides in the label whether the button is live or
+       not - when live it says what pressing it will do. */
+    btn.setAttribute('aria-label', 'Save. ' + (reason || 'The configuration is valid as it stands.'));
+  }
+
+  /* —— one render ————————————————————————————————————————————————————————— */
+  function render() {
+    const c = compute();
+    renderChrome(c);
+    renderBody(c);
+    renderPreview(c);
+    renderBanner(c);
+    renderFields(c);
+    renderDeluxe(c);
+    renderSave(c);
+  }
+
+  /* —— prototype states, outside the phone ————————————————————————————————— */
+  function syncProto() {
+    Array.prototype.forEach.call($('protoSeg').querySelectorAll('button'), function (b) {
+      b.setAttribute('aria-pressed', b.dataset.state === state.preview ? 'true' : 'false');
+    });
+  }
+
+  function setPreview(v) {
+    state.preview = v;
+    /* Cloned, never aliased: SEEDS is the fixture and typing must not be able
+       to rewrite it, or a conductor who edits the configured state could change
+       what the fresh device opens as. */
+    state.values = Object.assign({}, SEEDS[v]);
+    state.baseline = Object.assign({}, SEEDS[v]);
+    state.banner = null;
+    state.showErrors = v === 'invalid';
+    /* Each prototype state is a fixture, and a fixture that opens part-way
+       through a toggle is not the same fixture twice. */
+    state.deluxe = true;
+    state.deluxeBase = true;
+    syncProto();
+    render();
+  }
+
+  /* —— wiring ————————————————————————————————————————————————————————————— */
+  document.addEventListener('click', function (e) {
+    const t = e.target;
+    const proto = t.closest && t.closest('#protoSeg button');
+    if (proto) { setPreview(proto.dataset.state); return; }
+    const delx = t.closest && t.closest('#deluxeToggle');
+    if (delx) { state.deluxe = !state.deluxe; render(); return; }
+    const act = t.closest && t.closest('[data-act]');
+    if (!act || act.dataset.act !== 'save' || $('saveBtn').disabled) return;
+
+    /* onSave (FareSettingsScreen.tsx:157-195): every error at once, nothing
+       written, the form untouched. The banner is the redesign's addition, not a
+       change of behaviour - the app simply had nowhere to put the count. */
+    if (validate(state.values, activeFields()).length) {
+      state.showErrors = true;
+      state.banner = { kind: 'fail', lead: 'Nothing was saved.' };
+      render();
+      return;
+    }
+    state.baseline = Object.assign({}, state.values);
+    state.deluxeBase = state.deluxe;
+    state.showErrors = false;
+    state.banner = { kind: 'ok', text: 'Fare configuration saved.' };
+    render();
+  });
+
+  document.addEventListener('input', function (e) {
+    const el = e.target;
+    if (!el.classList || !el.classList.contains('fx-in')) return;
+    const key = el.dataset.key;
+    if (!key) return;
+    /* applyFareInputFilter (fareFormat.ts:172-176). A browser input is more
+       permissive than the app's TextInput, so the app's filter is what makes
+       the two agree: anything that is not a digit or a point reverts, and a
+       second point is kept, so it can be refused at save rather than silently
+       rewritten under a hand that is still typing. */
+    if (!/^[\d.]*$/.test(el.value)) { el.value = state.values[key]; return; }
+    state.values[key] = el.value;
+    /* First keystroke anywhere marks the form dirty and clears every message
+       (:150-154), errors included. */
+    state.banner = null;
+    state.showErrors = false;
+    render();
+  });
+
+  syncProto();
+  render();
+
+  })();
+  </script>
+</body>
+</html>

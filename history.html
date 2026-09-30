@@ -1,0 +1,1227 @@
+<!doctype html>
+<!--
+  Kondukt · History screen (corrected) — Open Design prototype.
+  Handset shell is the platform-neutral OD shell (restrained camera dot and
+  symmetric side keys), used because the brief named no platform. The app lives
+  inside the APP CONTENT slot and carries kondukt's own M3 warm tokens.
+-->
+<html lang="en">
+<head><script type="application/json" data-od-external-dependencies>["https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap"]</script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kondukt · History</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    @layer od-layout {
+      .od-stack   { display: flex; flex-direction: column; gap: var(--od-gap, 8px); }
+      .od-row     { display: flex; align-items: center; gap: var(--od-gap, 8px); }
+      .od-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--od-gap, 8px); }
+      .od-fill    { flex: 1 1 0; min-width: 0; }
+      .od-grid    { display: grid; gap: var(--od-gap, 12px); grid-template-columns: repeat(var(--od-cols, 3), minmax(0, 1fr)); }
+      :where(.od-stack,.od-row,.od-cluster,.od-grid,.od-stat) > :where(*) { min-width: 0; }
+      .od-stat { display: grid; gap: var(--od-gap, 2px); }
+      .od-truncate { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+      .od-clamp-2 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
+    }
+
+    :root {
+      /* ── kondukt M3 warm palette (src/theme.ts) ───────────────────────── */
+      --primary:#E65100; --on-primary:#FFFFFF; --primary-container:#FFE6D2; --on-primary-container:#4E2200;
+      --primary-solid:#C2410C;
+      --secondary:#FFB300; --on-secondary:#3D2E00; --secondary-container:#FFEFC7; --on-secondary-container:#4A3600;
+      --secondary-fg:#8A6100;
+      --tertiary:#546E7A; --on-tertiary:#FFFFFF; --tertiary-container:#DDE6EA; --on-tertiary-container:#162B33;
+      --error:#BA1A1A; --on-error:#FFFFFF; --error-container:#FFDAD6; --on-error-container:#410002;
+      --background:#FDF7F3; --surface:#FDF7F3; --surface-lowest:#FFFFFF; --surface-low:#F7EFE9;
+      --surface-container:#F2E9E2; --surface-high:#ECE3DC;
+      --on-surface:#221A15; --on-surface-variant:#53433B; --outline:#85736B; --outline-variant:#D7C2B7;
+      --scrim:rgba(34,26,21,.32);
+
+      /* glass layer */
+      --glass-tint:rgba(255,255,255,.58);
+      --glass-rim:rgba(255,255,255,.85);
+      --glass-on:#1A2029; --glass-on-variant:#4A5568;
+      --glass-accent-primary:#8F3A00; --glass-accent-secondary:#6B4B00; --glass-accent-tertiary:#334A56;
+      --glass-shadow:rgba(90,106,130,.16);
+
+      --radius-sm:8px; --radius-md:12px; --radius-lg:16px; --radius-xl:24px; --radius-glass:28px; --radius-full:999px;
+      --font: 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+      /* shell vars (from the neutral OD handset) */
+      --phone-screen-width:390px; --phone-screen-height:844px; --phone-bezel:10px;
+      --phone-outer-radius:52px; --phone-screen-radius:42px;
+      --phone-safe-top:50px; --phone-safe-bottom:29px;
+      --phone-system-fg:#17181a; --phone-screen-bg:#f8f8f9; --phone-stage-bg:#eaebee;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      min-height: 100dvh; display: grid; place-items: center; padding: 32px;
+      background: radial-gradient(circle at 50% 15%, rgba(255,255,255,.94), transparent 35%), var(--phone-stage-bg);
+      color: #191a1d; font-family: var(--font);
+    }
+
+    /* ── handset shell ─────────────────────────────────────────────────── */
+    .phone-frame {
+      position: relative;
+      width: calc(var(--phone-screen-width) + var(--phone-bezel) * 2);
+      height: calc(var(--phone-screen-height) + var(--phone-bezel) * 2);
+      padding: var(--phone-bezel); border-radius: var(--phone-outer-radius);
+      background: linear-gradient(145deg, rgba(255,255,255,.2), transparent 17%), linear-gradient(160deg, #3f4146 0%, #202227 48%, #0b0c0f 100%);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.13), inset 0 0 0 2px rgba(0,0,0,.85), 0 32px 68px -20px rgba(10,12,16,.52), 0 10px 24px -10px rgba(10,12,16,.32);
+      isolation: isolate;
+    }
+    .phone-frame::before, .phone-frame::after {
+      content: ""; position: absolute; z-index: -1; top: 96px; bottom: 96px; width: 2px;
+      background: linear-gradient(to bottom, transparent, rgba(255,255,255,.13) 16%, transparent 30%, transparent 72%, rgba(255,255,255,.07) 88%, transparent);
+    }
+    .phone-frame::before { left: 0; } .phone-frame::after { right: 0; }
+    .hardware-button { position: absolute; width: 4px; border-radius: 3px; background: linear-gradient(90deg,#08090b,#2a2d33 60%,#08090b); box-shadow: inset 0 1px rgba(255,255,255,.08); }
+    .hardware-button.volume { left: -3px; top: 222px; height: 86px; }
+    .hardware-button.power { right: -3px; top: 270px; height: 82px; }
+
+    .phone-screen {
+      position: relative; width: var(--phone-screen-width); height: var(--phone-screen-height);
+      overflow: hidden; border-radius: var(--phone-screen-radius); background: var(--phone-screen-bg);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.05);
+    }
+    .phone-content {
+      position: absolute; inset: 0; overflow: hidden; padding: 0; background: transparent;
+    }
+
+    .status-bar { position: absolute; z-index: 40; inset: 0 0 auto; height: var(--phone-safe-top); display: grid; grid-template-columns: minmax(0,1fr) 56px minmax(0,1fr); align-items: start; padding: 14px 20px 0; color: var(--phone-system-fg); opacity: .8; pointer-events: none; }
+    .status-time { justify-self: start; display: flex; align-items: center; height: 15px; font-size: 14px; font-weight: 560; line-height: 1; letter-spacing: .01em; font-family: system-ui, sans-serif; }
+    .status-cutout-zone { width: 56px; }
+    .status-icons { justify-self: end; display: inline-flex; align-items: center; height: 15px; gap: 6px; }
+    .status-icons svg { display: block; flex: none; fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
+    .status-icons .connectivity { width: 15px; height: 12px; } .status-icons .wifi { width: 15px; height: 12px; } .status-icons .battery { width: 19px; height: 11px; }
+    .camera-dot { position: absolute; z-index: 45; top: 13px; left: 50%; width: 10px; height: 10px; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(circle at 38% 35%, #344154 0 12%, #0a0c10 34%, #000 76%); box-shadow: 0 0 0 1px rgba(255,255,255,.06); pointer-events: none; }
+    .gesture-indicator { position: absolute; z-index: 45; left: 50%; bottom: 8px; width: 96px; height: 4px; transform: translateX(-50%); border-radius: 99px; background: var(--phone-system-fg); opacity: .86; pointer-events: none; }
+
+    /* ── app root ──────────────────────────────────────────────────────── */
+    #app {
+      position: relative; height: 100%; display: flex; flex-direction: column;
+      color: var(--glass-on);
+      background:
+        radial-gradient(125% 82% at 6% -4%, #FBC9A8 0%, rgba(246,227,212,.78) 32%, rgba(244,247,251,0) 63%),
+        radial-gradient(130% 88% at 104% 104%, #C6D9E8 0%, rgba(228,233,242,.72) 34%, rgba(244,247,251,0) 66%),
+        #F4F7FB;
+    }
+    .app-scroll {
+      flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch; scrollbar-width: none;
+      padding-bottom: var(--phone-safe-bottom);
+    }
+    .app-scroll::-webkit-scrollbar { display: none; }
+
+    .readable { width: 100%; max-width: 720px; margin-inline: auto; padding-inline: 20px; }
+    .pad-x { padding-inline: 20px; }
+
+    /* ── typography roles ──────────────────────────────────────────────── */
+    .display-s { font-weight: 700; font-size: 28px; line-height: 36px; letter-spacing: -.3px; }
+    .headline-s { font-weight: 600; font-size: 20px; line-height: 27px; letter-spacing: -.3px; }
+    .title-m { font-weight: 600; font-size: 16px; line-height: 23px; letter-spacing: 0; }
+    .body-m { font-weight: 400; font-size: 14px; line-height: 21px; }
+    .body-s { font-weight: 400; font-size: 12px; line-height: 18px; }
+    .label-l { font-weight: 600; font-size: 15px; line-height: 20px; }
+    .label-s { font-weight: 600; font-size: 11px; line-height: 16px; letter-spacing: .6px; }
+    .tabular { font-variant-numeric: tabular-nums; }
+    .muted { color: var(--glass-on-variant); }
+    .strong { color: var(--glass-on); }
+
+    /* ── glass surface ─────────────────────────────────────────────────── */
+    .glass {
+      position: relative; border-radius: var(--radius-glass);
+      background: var(--glass-tint);
+      box-shadow: 0 8px 15px var(--glass-shadow), inset 0 1px 0 rgba(255,255,255,.55);
+      -webkit-backdrop-filter: blur(18px) saturate(180%);
+      backdrop-filter: blur(18px) saturate(180%);
+    }
+    .glass > * { position: relative; z-index: 1; }
+    .glass::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: rgba(120,130,150,.5); opacity: .035; pointer-events: none; }
+    .glass::after  { content: ""; position: absolute; inset: 0; border-radius: inherit; border: 1px solid var(--glass-rim); pointer-events: none; z-index: 2; }
+
+    /* ── chrome (SectionChrome) ────────────────────────────────────────── */
+    .chrome { display: flex; align-items: center; gap: 12px; flex: none; padding: calc(var(--phone-safe-top) + 12px) 20px 12px; }
+    .chrome.readable { padding-inline: 20px; }
+    .back {
+      width: 44px; height: 44px; border-radius: var(--radius-full); border: 0; background: var(--primary-solid);
+      display: grid; place-items: center; cursor: pointer; flex: none;
+      box-shadow: 0 8px 15px var(--glass-shadow);
+    }
+    .title-card {
+      flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 6px 16px; border-radius: var(--radius-full);
+      background: var(--primary-solid); display: flex; flex-direction: column; align-items: center; justify-content: center;
+      box-shadow: 0 8px 15px var(--glass-shadow); text-align: center;
+    }
+    .chrome-title { color: var(--on-primary); margin: 0; }
+    .chrome-sub { color: var(--on-primary); margin: 0; }
+
+    /* ── section header (SectionHeader) ────────────────────────────────── */
+    .sec-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 20px; margin-bottom: 12px; }
+    .sec-head.stack { flex-direction: column; align-items: flex-start; }
+    .sec-title { color: var(--glass-on-variant); margin: 0; }
+    .text-action { border: 0; background: none; padding: 0 4px; min-height: 48px; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; color: var(--glass-accent-primary); }
+    .text-action .label-s { color: inherit; }
+    .sec-head.stack .text-action { align-self: flex-end; margin-top: -8px; }
+
+    /* ── date range: period control ────────────────────────────────────── */
+    .range-card { padding: 14px 14px 16px; margin-top: 4px; }
+    .range-top { display: flex; align-items: center; gap: 10px; }
+    .segment {
+      flex: 1 1 auto; min-width: 0; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px;
+      padding: 4px; border-radius: var(--radius-full); background: rgba(255,255,255,.55); border: 1px solid var(--outline-variant);
+    }
+    .seg-btn {
+      min-height: 44px; border: 0; border-radius: var(--radius-full); background: transparent;
+      color: var(--glass-on-variant); cursor: pointer; font-family: inherit;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .seg-btn[aria-checked="true"] { background: var(--primary-solid); color: var(--on-primary); }
+    .seg-btn[aria-checked="true"] .label-l { font-weight: 700; }
+    .cal-btn {
+      width: 48px; min-height: 48px; border-radius: var(--radius-full); border: 1px solid var(--outline-variant);
+      background: rgba(255,255,255,.55); color: var(--glass-accent-primary); cursor: pointer; flex: none;
+      display: grid; place-items: center;
+    }
+    .cal-btn.on { background: var(--primary-container); border: 2px solid var(--primary); color: var(--on-primary-container); }
+    .range-nav { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+    .nav-btn {
+      width: 48px; height: 48px; border-radius: var(--radius-full); border: 1px solid var(--outline-variant);
+      background: rgba(255,255,255,.55); color: var(--glass-on); cursor: pointer; flex: none; display: grid; place-items: center;
+    }
+    .nav-btn:disabled { opacity: .38; cursor: default; }
+    .range-now { flex: 1 1 auto; min-width: 0; text-align: center; }
+    .range-now-main { display: block; color: var(--glass-on); }
+    .range-now-sub { display: block; color: var(--glass-on-variant); margin-top: 2px; }
+    /* generic chip — the ledger filters still use this */
+    .chip {
+      min-height: 44px; padding: 0 14px; border-radius: var(--radius-full);
+      border: 1px solid var(--outline-variant); background: rgba(255,255,255,.5);
+      color: var(--glass-on-variant); cursor: pointer; font-family: inherit;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .chip.sel { background: var(--primary-solid); border: 1px solid var(--primary-solid); color: var(--on-primary); }
+    .chip.sel .chip-check { display: inline-flex; }
+    .chip-check { display: none; }
+    .range-caption { margin: 10px 0 0; display: flex; align-items: center; gap: 8px; color: var(--glass-on-variant); }
+    .range-caption .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--primary); flex: none; }
+
+    /* ── summary disclosure ────────────────────────────────────────────── */
+    .summary { padding: 18px 20px; margin-top: 4px; }
+    .summary-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; }
+    .summary-eyebrow { color: var(--glass-on-variant); margin: 0; }
+    /* both sides of the head are 44px boxes, so the label sits level with Show details */
+    .summary-head .summary-eyebrow { min-height: 44px; display: flex; align-items: center; }
+    .detail-btn {
+      border: 0; background: none; cursor: pointer; min-height: 44px; padding: 0 2px;
+      display: inline-flex; align-items: center; gap: 4px; color: var(--glass-accent-primary); font-family: inherit;
+    }
+    .detail-btn svg { transition: transform .2s ease; }
+    .summary.open .detail-btn svg { transform: rotate(180deg); }
+    .hero { margin-top: 12px; }
+    .hero-label { color: var(--glass-on-variant); margin: 0; }
+    .hero-value { margin: 4px 0 0; color: var(--glass-on); }
+    .hero-meta { margin: 8px 0 0; color: var(--glass-on-variant); display: flex; flex-wrap: wrap; gap: 6px 14px; }
+    .hero-meta b { color: var(--glass-on); font-weight: 600; }
+    .summary-details { display: none; margin-top: 20px; }
+    .summary.open .summary-details { display: block; }
+    .summary-details .rule { height: 1px; background: var(--outline-variant); opacity: .7; margin: 18px 0; }
+
+    .stat-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+    .stat-grid.stacked { grid-template-columns: minmax(0,1fr); }
+    .stat-tile { padding: 16px; }
+    .stat-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; }
+    .stat-label { margin: 12px 0 0; color: var(--glass-on-variant); }
+    .stat-value { margin: 4px 0 0; color: var(--glass-on); }
+
+    .breakdown { margin: 14px 0 0; display: grid; gap: 12px; }
+    .bd-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 12px; align-items: baseline; }
+    .bd-name { color: var(--glass-on); }
+    .bd-count { color: var(--glass-on); font-weight: 600; }
+    .bd-track { grid-column: 1 / -1; height: 8px; border-radius: var(--radius-full); background: var(--surface-container); overflow: hidden; }
+    .bd-fill { height: 100%; border-radius: inherit; background: var(--primary-solid); }
+
+    /* ── ledger ────────────────────────────────────────────────────────── */
+    /* control card: segmented track + one filter rail, rhyming with .segment */
+    .ledger-card { padding: 12px 12px 14px; margin-top: 4px; }
+    .tabs {
+      display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px;
+      padding: 4px; border-radius: var(--radius-full);
+      background: rgba(255,255,255,.55); border: 1px solid var(--outline-variant);
+    }
+    .tab {
+      min-height: 44px; border-radius: var(--radius-full); border: 0;
+      background: transparent; color: var(--glass-on-variant); cursor: pointer; font-family: inherit;
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .tab[aria-selected="true"] { background: var(--primary-solid); color: var(--on-primary); }
+    .tab[aria-selected="true"] .label-l { font-weight: 700; }
+    .filters {
+      display: flex; flex-wrap: nowrap; gap: 8px; margin-top: 12px;
+      overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch;
+      scrollbar-width: none; padding-bottom: 2px;
+    }
+    .filters::-webkit-scrollbar { display: none; }
+    .filters .chip { flex: none; }
+    /* minmax(0,1fr): an auto track would grow to a day-group's min-content (long nowrap route + status + chev) and push the count past the screen edge */
+    .list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-top: 12px; }
+
+    /* every trip / ticket / earning is its own glass card: the day head is a slim bar, rows stay separated by the group gap */
+    .day-group { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    .day-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 16px; background: var(--secondary); box-shadow: none; }
+    .day-head::before, .day-head::after { display: none; }
+    .day-head .label-s { color: var(--on-secondary); font-weight: 700; }
+    .day-head .cnt { color: var(--on-secondary); font-weight: 700; }
+
+    .row-card { padding: 16px; }
+    .row-btn { border: 0; background: none; padding: 0; margin: 0; width: 100%; text-align: left; font-family: inherit; color: inherit; cursor: pointer; border-radius: var(--radius-glass); }
+    .row-btn:active { transform: scale(.995); }
+    /* gap 8 (not 12): inside a day-group the trip-body keeps just enough width for the longest route to render uncut */
+    .trip-head { display: flex; align-items: center; gap: 8px; }
+    .trip-icon { width: 40px; height: 40px; border-radius: var(--radius-md); background: var(--tertiary-container); display: grid; place-items: center; flex: none; }
+    .trip-body { flex: 1 1 auto; min-width: 0; }
+    /* wrap, not ellipsis: a card row is too narrow for the longest route, and an ellipsis would clip the destination */
+    .trip-route { margin: 0; color: var(--glass-on); white-space: normal; overflow: visible; }
+    .trip-sub { margin: 2px 0 0; color: var(--glass-on-variant); }
+    .status { padding: 3px 8px; border-radius: var(--radius-full); flex: none; }
+    .status.active { background: var(--secondary-container); color: var(--on-secondary-container); }
+    .status.done { background: var(--tertiary-container); color: var(--on-tertiary-container); }
+    .chev { color: var(--outline); flex: none; }
+    .meta-line { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--outline-variant); display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--glass-on-variant); }
+    .fare { display: inline-flex; align-items: baseline; gap: 6px; color: var(--glass-on); }
+    .fare b { font-weight: 700; }
+
+    .ticket-row { display: flex; align-items: center; gap: 12px; }
+    .ticket-id { min-width: 62px; color: var(--glass-on); }
+    .ticket-mid { flex: 1 1 auto; min-width: 0; }
+    .ticket-route { margin: 0; color: var(--glass-on); }
+    .ticket-meta { margin: 2px 0 0; color: var(--glass-on-variant); }
+    .cat { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: var(--radius-full); }
+    .cat.regular { background: var(--primary-container); color: var(--on-primary-container); }
+    .cat.student { background: var(--secondary-container); color: var(--on-secondary-container); }
+    .cat.senior { background: var(--tertiary-container); color: var(--on-tertiary-container); }
+    .cat.pwd { background: var(--tertiary-container); color: var(--on-tertiary-container); }
+    .ticket-fare { text-align: right; color: var(--glass-on); flex: none; }
+    .ticket-fare .each { display: block; color: var(--glass-on-variant); }
+
+    .day-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .day-label { color: var(--glass-on); }
+    .day-econ { text-align: right; }
+    .day-econ .val { color: var(--glass-on); }
+    .day-econ .cnt { color: var(--glass-on-variant); }
+
+    /* stacked row variants */
+    .rows-stacked .ticket-row { flex-wrap: wrap; }
+    .rows-stacked .ticket-fare { text-align: left; width: 100%; }
+    .rows-stacked .meta-line { flex-direction: column; align-items: flex-start; }
+
+    /* load more + storage */
+    .load-more-wrap { display: flex; justify-content: center; margin-top: 16px; }
+    .load-more {
+      min-height: 48px; padding: 0 20px; border-radius: var(--radius-full); border: 1px solid var(--outline-variant);
+      background: rgba(255,255,255,.5); color: var(--glass-accent-primary); cursor: pointer;
+      display: inline-flex; align-items: center; gap: 8px; font-family: inherit;
+    }
+    .storage { margin-top: 16px; padding: 12px 16px; display: flex; align-items: center; gap: 10px; }
+    .storage p { margin: 0; color: var(--glass-on-variant); }
+
+    /* states */
+    .state { margin: 16px 0; padding: 20px; border-radius: var(--radius-xl); border: 1px solid var(--outline-variant); background: rgba(255,255,255,.55); }
+    .state.error { border-color: var(--error); background: var(--error-container); }
+    .state h3 { margin: 0; color: var(--glass-on); }
+    .state p { margin: 8px 0 0; color: var(--glass-on-variant); }
+    .state.error p { color: var(--on-error-container); }
+    .primary-btn {
+      margin-top: 14px; min-height: 48px; padding: 0 20px; border-radius: var(--radius-lg); border: 0;
+      background: var(--primary-solid); color: var(--on-primary); cursor: pointer; font-family: inherit;
+      display: inline-flex; align-items: center; gap: 8px;
+    }
+    .skeleton { padding: 16px; }
+    .sk { border-radius: 8px; background: linear-gradient(90deg, rgba(0,0,0,.05) 25%, rgba(0,0,0,.09) 37%, rgba(0,0,0,.05) 63%); background-size: 400% 100%; animation: shim 1.4s ease infinite; }
+    @keyframes shim { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+    @media (prefers-reduced-motion: reduce) { .sk { animation: none; } .row-card { transition: none; } }
+
+    /* ── overlays (modal / sheet) ──────────────────────────────────────── */
+    .overlay-root { position: absolute; inset: 0; z-index: 30; pointer-events: none; }
+    /* grid-template-rows: minmax(0, 1fr) is load-bearing, not tidiness. With an
+       auto row the grid area is indefinite in the block axis, so the sheet's
+       max-height: 100% resolved against nothing and computed to none: sheets grew
+       past the 844px phone with their last rows unreachable, and .sheet-body never
+       scrolled because it was never given a height to scroll inside. A definite 1fr
+       row fixes the percentage; the two rules below fix the flex side of the same
+       bug. Observed in passenger.html, where the picker measured 924px and the
+       all-groups sheet 1223px. Do not drop this while tidying the rule. */
+    .scrim { position: absolute; inset: 0; background: var(--scrim); display: grid; grid-template-rows: minmax(0, 1fr); pointer-events: auto; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
+    .scrim.center { place-items: center; padding: 16px; }
+    .scrim.bottom { align-items: end; }
+
+    .sheet {
+      width: 100%; max-width: 360px; margin: 0 auto; background: var(--surface-lowest); border-radius: var(--radius-xl);
+      pointer-events: auto; max-height: 100%; display: flex; flex-direction: column;
+    }
+    .sheet.bottom-sheet { border-radius: var(--radius-xl) var(--radius-xl) 0 0; max-width: 720px; animation: slideUp .22s ease; }
+    @keyframes slideUp { from { transform: translateY(14px); opacity: .6; } to { transform: none; opacity: 1; } }
+    /* flex: none so the title can never be squeezed, and min-height: 0 on the
+       body so it can — a flex item defaults to min-height: auto, which pins it
+       to its content height and makes the sheet overflow instead of scrolling. */
+    .sheet-head { display: flex; align-items: center; gap: 12px; padding: 16px 20px 8px; flex: none; }
+    .sheet-head h2 { margin: 0; flex: 1 1 auto; color: var(--on-surface); }
+    .sheet-body { padding: 0 20px 24px; overflow-y: auto; min-height: 0; }
+    .icon-btn { width: 44px; height: 44px; border-radius: var(--radius-full); border: 1px solid var(--outline-variant); background: transparent; display: grid; place-items: center; cursor: pointer; flex: none; }
+
+    .cal-head { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+    .cal-month { color: var(--on-surface); }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-top: 8px; }
+    .cal-dow { text-align: center; color: var(--on-surface-variant); padding: 6px 0; }
+    .cal-cell { position: relative; height: 44px; border: 0; background: none; cursor: pointer; border-radius: var(--radius-md); color: var(--on-surface); font-family: inherit; }
+    .cal-cell.out { color: var(--outline); }
+    .cal-cell.inrange { background: var(--primary-container); border-radius: 0; }
+    .cal-cell.edge { background: var(--primary-solid); color: var(--on-primary); border-radius: var(--radius-md); font-weight: 600; }
+    .cal-cell.today::after { content: ""; position: absolute; left: 50%; bottom: 5px; width: 4px; height: 4px; transform: translateX(-50%); border-radius: 50%; background: var(--primary); }
+    .cal-cell.edge.today::after { background: var(--on-primary); }
+    .cal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px; }
+    .cal-actions .ghost { min-height: 48px; padding: 0 12px; border: 0; background: none; color: var(--on-surface-variant); cursor: pointer; font-family: inherit; }
+    .cal-actions .apply { min-height: 48px; padding: 0 20px; border-radius: var(--radius-lg); border: 0; background: var(--primary-solid); color: var(--on-primary); cursor: pointer; font-family: inherit; }
+    .cal-error { margin: 10px 0 0; color: var(--error); }
+    .range-preview { margin: 12px 0 0; color: var(--on-surface-variant); }
+
+    .detail-row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--outline-variant); }
+    .detail-row:last-child { border-bottom: 0; }
+    .detail-row .k { color: var(--on-surface-variant); }
+    .detail-row .v { color: var(--on-surface); font-weight: 600; }
+    .detail-card { border: 1px solid var(--outline-variant); border-radius: var(--radius-lg); padding: 0 14px; margin-top: 12px; }
+
+    :focus-visible { outline: 2px solid var(--primary-solid); outline-offset: 2px; border-radius: 6px; }
+
+    /* prototype state control (outside the phone) */
+    .proto-states { position: fixed; left: 18px; bottom: 18px; z-index: 50; display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 16px; background: rgba(255,255,255,.9); border: 1px solid #dcdde1; box-shadow: 0 10px 24px rgba(20,22,28,.12); font-family: var(--font); }
+    .proto-states span { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #6b6e75; font-weight: 600; }
+    .proto-states .seg { display: flex; gap: 6px; }
+    .proto-states button { font: inherit; font-size: 12px; padding: 7px 10px; border-radius: 999px; border: 1px solid #d4d5d9; background: #fff; color: #33363c; cursor: pointer; }
+    .proto-states button[aria-pressed="true"] { background: #C2410C; border-color: #C2410C; color: #fff; }
+
+    @media (max-width: 480px) {
+      body { padding: 0; display: block; }
+      .phone-frame { width: 100%; height: 100dvh; padding: 0; border-radius: 0; background: none; box-shadow: none; }
+      .phone-frame::before, .phone-frame::after, .hardware-button { display: none; }
+      .phone-screen { width: 100%; height: 100%; border-radius: 0; }
+      .proto-states { display: none; }
+    }
+    @media (max-height: 927px) { .phone-frame { zoom: .9; } }
+    @media (max-height: 840px) { .phone-frame { zoom: .82; } }
+    @media (max-height: 771px) { .phone-frame { zoom: .74; } }
+    @media (max-height: 702px) { .phone-frame { zoom: .66; } }
+  </style>
+</head>
+<body>
+  <div class="phone-frame" data-phone-shell data-platform="neutral">
+    <span class="hardware-button volume" aria-hidden="true"></span>
+    <span class="hardware-button power" aria-hidden="true"></span>
+
+    <section class="phone-screen" data-od-id="phone-screen" data-phone-screen>
+      <main class="phone-content" data-phone-content>
+        <!-- APP CONTENT START -->
+        <div id="app">
+          <header class="chrome readable" id="chrome" data-od-id="hi-chrome">
+            <button class="back" id="backBtn" aria-label="Back to home" data-od-id="hi-back">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5 8 12l7 7"/></svg>
+            </button>
+            <div class="title-card">
+              <h1 class="chrome-title headline-s">History</h1>
+              <p class="chrome-sub label-s" id="chromeSub" data-od-id="hi-sub">Trip and ticket history</p>
+            </div>
+          </header>
+
+          <div class="app-scroll" id="scroll" data-od-id="hi-scroll">
+            <div class="readable">
+              <!-- Date range -->
+              <section aria-labelledby="rangeHead" data-od-id="hi-range">
+                <div class="sec-head" id="rangeHead">
+                  <h2 class="sec-title label-s">DATE RANGE</h2>
+                </div>
+                <div class="glass range-card" data-od-id="hi-range-card">
+                  <div class="range-top">
+                    <div class="segment" id="rangeSegment" role="radiogroup" aria-label="Date range length" data-od-id="hi-segment"></div>
+                    <button type="button" class="cal-btn" data-calopen="1" aria-label="Choose a custom date range" data-od-id="hi-cal">
+                      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="16" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg>
+                    </button>
+                  </div>
+                  <div class="range-nav">
+                    <button type="button" class="nav-btn" data-step="-1" id="rangePrev" aria-label="Previous period" data-od-id="hi-prev">
+                      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5 8 12l7 7"/></svg>
+                    </button>
+                    <div class="range-now">
+                      <span class="range-now-main title-m" id="rangeNowMain"></span>
+                      <span class="range-now-sub body-s" id="rangeNowSub"></span>
+                    </div>
+                    <button type="button" class="nav-btn" data-step="1" id="rangeNext" aria-label="Next period" data-od-id="hi-next">
+                      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+                    </button>
+                  </div>
+                </div>
+                <p class="range-caption body-s" id="rangeCaption" data-od-id="hi-range-caption"></p>
+              </section>
+
+              <!-- Summary (collapsed disclosure) -->
+              <section aria-labelledby="summaryHead" style="margin-top:20px" data-od-id="hi-summary">
+                <div class="sec-head" id="summaryHead">
+                  <h2 class="sec-title label-s" id="summaryEyebrow">SUMMARY</h2>
+                </div>
+                <div class="glass summary" id="summary" data-od-id="hi-summary-card">
+                  <div class="summary-head" data-od-id="hi-summary-head">
+                    <div>
+                      <p class="summary-eyebrow label-s" id="summaryScope" data-od-id="hi-summary-scope">TOTAL EARNINGS</p>
+                    </div>
+                    <button class="detail-btn" id="summaryToggle" aria-expanded="false" aria-controls="summaryDetails" data-od-id="hi-summary-toggle">
+                      <span class="label-l" id="summaryToggleLabel">Show details</span>
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+                    </button>
+                  </div>
+                  <div class="hero" data-od-id="hi-hero">
+                    <p class="hero-label label-s">TOTAL EARNINGS</p>
+                    <p class="hero-value display-s tabular" id="heroValue" data-od-id="hi-hero-value">₱0.00</p>
+                    <p class="hero-meta body-s" id="heroMeta" data-od-id="hi-hero-meta"></p>
+                  </div>
+                  <div class="summary-details" id="summaryDetails" data-od-id="hi-summary-details">
+                    <div class="stat-grid" id="statGrid" data-od-id="hi-stat-grid"></div>
+                    <div class="rule"></div>
+                    <p class="summary-eyebrow label-s" style="margin:0">PASSENGER BREAKDOWN</p>
+                    <div class="breakdown" id="breakdown" data-od-id="hi-breakdown"></div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Ledger -->
+              <section aria-labelledby="ledgerHead" style="margin-top:20px" data-od-id="hi-ledger">
+                <div class="sec-head" id="ledgerHead">
+                  <h2 class="sec-title label-s">RECORDS</h2>
+                </div>
+                <div class="glass ledger-card" data-od-id="hi-ledger-card">
+                  <div class="tabs" role="tablist" aria-label="Record type" id="tablist" data-od-id="hi-tablist"></div>
+                  <div class="filters" id="filters" role="group" aria-label="Filters" data-od-id="hi-filters"></div>
+                </div>
+                <div class="list" id="list" role="tabpanel" tabindex="0" aria-live="polite" data-od-id="hi-list"></div>
+                <div class="load-more-wrap" id="loadMoreWrap" data-od-id="hi-load-more"></div>
+              </section>
+
+              <div class="glass storage" data-od-id="hi-storage">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--glass-on-variant)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="7.5" ry="3.2"/><path d="M4.5 6v12c0 1.8 3.4 3.2 7.5 3.2s7.5-1.4 7.5-3.2V6"/><path d="M4.5 12c0 1.8 3.4 3.2 7.5 3.2s7.5-1.4 7.5-3.2"/></svg>
+                <p class="body-s">Trip and ticket records are stored locally on this device.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="overlay-root" id="overlayRoot" data-od-id="hi-overlay"></div>
+        </div>
+        <!-- APP CONTENT END -->
+      </main>
+
+      <div class="status-bar" aria-hidden="true">
+        <span class="status-time">9:41</span>
+        <span class="status-cutout-zone"></span>
+        <span class="status-icons">
+          <svg class="connectivity" viewBox="0 0 15 12"><path d="M1.5 10.5v-2m4 2v-4.5m4 4.5v-7m4 7v-9"/></svg>
+          <svg class="wifi" viewBox="0 0 16 12"><path d="M1.5 4.7a9.2 9.2 0 0 1 13 0M4.2 7.3a5.4 5.4 0 0 1 7.6 0M6.9 10a1.55 1.55 0 0 1 2.2 0"/></svg>
+          <svg class="battery" viewBox="0 0 20 11"><rect x=".75" y="1.25" width="16.5" height="8.5" rx="2"/><path d="M18.5 4v3M3.2 3.4h10.4v4.2H3.2z" fill="currentColor" stroke="none"/></svg>
+        </span>
+      </div>
+      <div class="camera-dot" aria-hidden="true"></div>
+      <div class="gesture-indicator" aria-hidden="true"></div>
+    </section>
+  </div>
+
+  <div class="proto-states" role="group" aria-label="Prototype state preview" data-od-id="hi-proto">
+    <span>Prototype states</span>
+    <div class="seg" id="protoSeg">
+      <button type="button" data-state="ready" aria-pressed="true">Ready</button>
+      <button type="button" data-state="loading" aria-pressed="false">Loading</button>
+      <button type="button" data-state="empty" aria-pressed="false">Empty</button>
+      <button type="button" data-state="error" aria-pressed="false">Error</button>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    "use strict";
+
+    /* ── icons ─────────────────────────────────────────────────────────── */
+    const ICONS = {
+      chevron: '<path d="M9 5l7 7-7 7"/>',
+      close: '<path d="M6 6l12 12M18 6L6 18"/>',
+      calendar: '<rect x="3.5" y="5" width="17" height="16" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/>',
+      bus: '<rect x="4" y="3.5" width="16" height="14.5" rx="3"/><path d="M4 11h16"/><path d="M8 20v-1.5M16 20v-1.5"/><circle cx="8" cy="14.6" r="1.1"/><circle cx="16" cy="14.6" r="1.1"/>',
+      ticket: '<path d="M4 8.5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v1a2.3 2.3 0 0 0 0 4.6v1a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-1a2.3 2.3 0 0 0 0-4.6z"/>',
+      route: '<circle cx="6" cy="6" r="2.4"/><circle cx="18" cy="18" r="2.4"/><path d="M8.2 7.4 15.8 16.6"/>',
+      wallet: '<rect x="3.5" y="6" width="17" height="13" rx="3"/><path d="M3.5 10h17"/><circle cx="16.5" cy="14.5" r="1.2"/>',
+      check: '<path d="M5 13l4 4L19 7"/>',
+      left: '<path d="M15 5 8 12l7 7"/>',
+      right: '<path d="M9 5l7 7-7 7"/>'
+    };
+    const icon = (name, size, color, sw) =>
+      '<svg viewBox="0 0 24 24" width="' + size + '" height="' + size + '" fill="none" stroke="' + color +
+      '" stroke-width="' + (sw || 1.9) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || '') + '</svg>';
+
+    /* ── formatters (src/lib/format.ts, tripTicketsFormat) ─────────────── */
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const LONG_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const LONG_DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const peso = n => '₱' + Number(n).toFixed(2);
+    const km = n => Number(n).toFixed(1) + ' km';
+    const mediumDate = d => DAYS[d.getDay()] + ', ' + MONTHS[d.getMonth()] + ' ' + d.getDate();
+    const longDate = d => MONTHS[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+    const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+    const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    const clock = d => { const h = d.getHours(); const h12 = h % 12 === 0 ? 12 : h % 12; return h12 + ':' + String(d.getMinutes()).padStart(2, '0') + ' ' + (h < 12 ? 'AM' : 'PM'); };
+    const TYPE_LABEL = { REGULAR: 'Regular', STUDENT: 'Student', SENIOR_CITIZEN: 'Senior citizen', PWD: 'PWD' };
+    const TYPE_FULL = { REGULAR: 'Regular', STUDENT: 'Student', SENIOR_CITIZEN: 'Senior citizen', PWD: 'Person with disability (PWD)' };
+    const typeClass = { REGULAR: 'regular', STUDENT: 'student', SENIOR_CITIZEN: 'senior', PWD: 'pwd' };
+
+    /* ── sample records ─────────────────────────────────────────────────── */
+    const ROUTES = [['Cubao','Divisoria'],['Divisoria','Cubao'],['Baclaran','Monumento'],['Cubao','Novaliches'],['Monumento','Baclaran'],['Quiapo','Fairview']];
+    const FARE = { REGULAR: 15, STUDENT: 13, SENIOR_CITIZEN: 12, PWD: 12 };
+    let seqTrip = 200, seqTicket = 1200;
+    function mkTrip(day, i, status) {
+      const r = ROUTES[(seqTrip + i) % ROUTES.length];
+      const tickets = 22 + ((seqTrip * 7 + i * 5) % 24);
+      const passengers = tickets + ((seqTrip + i) % 9);
+      const distance = 5 + ((seqTrip * 3 + i) % 9) + (i % 3) * 0.4;
+      const started = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 5 + i * 3, (seqTrip + i * 13) % 60);
+      return {
+        id: seqTrip++, trip_number: seqTrip - 1,
+        origin: r[0], destination: r[1], date: started,
+        status: status || 'COMPLETED', distance: Math.round(distance * 10) / 10,
+        tickets, passengers, earnings: 0
+      };
+    }
+    function mkTicketsFor(trip, day) {
+      const out = [];
+      const kinds = ['REGULAR', 'STUDENT', 'SENIOR_CITIZEN', 'PWD'];
+      const n = 2 + (trip.trip_number % 2);
+      for (let k = 0; k < n; k++) {
+        const type = kinds[(trip.trip_number + k) % 4];
+        const qty = 1 + ((trip.trip_number + k) % 3);
+        const each = FARE[type];
+        const at = new Date(day.getFullYear(), day.getMonth(), day.getDate(), trip.date.getHours(), (trip.date.getMinutes() + k * 7) % 60);
+        out.push({ id: seqTicket++, trip: trip.trip_number, created_at: at, origin: trip.origin, destination: trip.destination, passenger_type: type, qty, each, total: qty * each });
+      }
+      return out;
+    }
+    function buildData(startDay, days) {
+      const trips = [], tickets = [], daily = [];
+      for (let d = 0; d < days; d++) {
+        const day = addDays(startDay, d);
+        const count = 3 + (d % 2);
+        let dayEarnings = 0, dayTickets = 0;
+        for (let i = 0; i < count; i++) {
+          const isActive = sameDay(day, new Date()) && d === days - 1 && i === count - 1;
+          const t = mkTrip(day, i, isActive ? 'ACTIVE' : 'COMPLETED');
+          const tks = mkTicketsFor(t, day);
+          t.earnings = tks.reduce((s, x) => s + x.total, 0);
+          trips.push(t); tickets.push.apply(tickets, tks);
+          dayEarnings += t.earnings; dayTickets += tks.length;
+        }
+        daily.push({ dayStart: day.getTime(), label: mediumDate(day), earnings: dayEarnings, count: dayTickets });
+      }
+      trips.sort((a, b) => b.date - a.date || b.trip_number - a.trip_number);
+      tickets.sort((a, b) => b.created_at - a.created_at || b.id - a.id);
+      daily.reverse();
+
+      const completed = trips.filter(t => t.status === 'COMPLETED');
+      const earnings = tickets.reduce((s, t) => s + t.total, 0);
+      const passengerCount = tickets.reduce((s, t) => s + t.qty, 0);
+      const distance = Math.round(trips.reduce((s, t) => s + t.distance, 0) * 10) / 10;
+      const breakdown = { REGULAR: 0, STUDENT: 0, SENIOR_CITIZEN: 0, PWD: 0 };
+      tickets.forEach(t => { breakdown[t.passenger_type] += t.qty; });
+      return {
+        trips, tickets, daily,
+        summary: {
+          earnings, tripCount: completed.length, ticketCount: tickets.length,
+          passengerCount, distance,
+          avg: completed.length ? earnings / completed.length : 0
+        },
+        breakdown
+      };
+    }
+
+    /* ── state ──────────────────────────────────────────────────────────── */
+    const now = new Date();
+    const state = {
+      scope: 'day',
+      anchor: startOfDay(now).getTime(),
+      range: { start: startOfDay(now).getTime(), endExclusive: startOfDay(now).getTime() + 86400000 },
+      tab: 'trips',
+      tripFilter: 'ALL',
+      ticketFilter: 'ALL',
+      summaryOpen: false,
+      page: 1, perPage: 25,
+      load: 'ready',
+      preview: 'ready',
+      detailTrip: null,
+      detailTicket: null,
+      custom: { open: false, start: null, end: null, month: new Date(now.getFullYear(), now.getMonth(), 1), error: null },
+      data: null,
+      timer: 0
+    };
+    const data = () => state.data;
+
+    /* ── range resolution: a period control (scope + anchor) ───────────── */
+    const SCOPES = [
+      { scope: 'day', label: 'Day' },
+      { scope: 'week', label: 'Week' },
+      { scope: 'month', label: 'Month' }
+    ];
+    function periodStart(scope, anchor) {
+      const a = new Date(anchor);
+      if (scope === 'week') return addDays(startOfDay(a), -6);
+      if (scope === 'month') return new Date(a.getFullYear(), a.getMonth(), 1);
+      return startOfDay(a);
+    }
+    function periodEnd(scope, anchor) {
+      const a = new Date(anchor);
+      if (scope === 'week') return addDays(startOfDay(a), 1);
+      if (scope === 'month') return new Date(a.getFullYear(), a.getMonth() + 1, 1);
+      return addDays(startOfDay(a), 1);
+    }
+    function updateRangeFromScope() {
+      if (state.scope === 'custom') return;
+      state.range = {
+        start: periodStart(state.scope, state.anchor).getTime(),
+        endExclusive: periodEnd(state.scope, state.anchor).getTime()
+      };
+    }
+    function presentAnchor() {
+      const t = startOfDay(new Date());
+      return state.scope === 'month' ? new Date(t.getFullYear(), t.getMonth(), 1).getTime() : t.getTime();
+    }
+    const canNext = () => state.scope !== 'custom' && state.anchor < presentAnchor();
+    function normalizeAnchor() {
+      if (state.scope !== 'month') return;
+      const a = new Date(state.anchor);
+      state.anchor = new Date(a.getFullYear(), a.getMonth(), 1).getTime();
+    }
+    function scopeName() {
+      const today = startOfDay(new Date());
+      if (state.scope === 'custom') return 'Custom range';
+      if (state.scope === 'day') {
+        const a = startOfDay(new Date(state.anchor));
+        if (sameDay(a, today)) return 'Today';
+        if (sameDay(a, addDays(today, -1))) return 'Yesterday';
+        return mediumDate(a);
+      }
+      if (state.scope === 'week') {
+        if (sameDay(startOfDay(new Date(state.anchor)), today)) return 'Last 7 days';
+        const s = periodStart('week', state.anchor);
+        return 'Week of ' + MONTHS[s.getMonth()] + ' ' + s.getDate();
+      }
+      const a = new Date(state.anchor);
+      if (a.getFullYear() === today.getFullYear() && a.getMonth() === today.getMonth()) return 'This month';
+      return LONG_MONTHS[a.getMonth()] + ' ' + a.getFullYear();
+    }
+    const scopeLabel = () => scopeName().toUpperCase();
+    function rangeLabel() {
+      const s = new Date(state.range.start), e = new Date(state.range.endExclusive - 1);
+      if (state.scope === 'month') return LONG_MONTHS[s.getMonth()] + ' ' + s.getFullYear();
+      if (sameDay(s, e)) return mediumDate(s);
+      return MONTHS[s.getMonth()] + ' ' + s.getDate() + ' – ' + MONTHS[e.getMonth()] + ' ' + e.getDate() + ', ' + e.getFullYear();
+    }
+    function rangeCaptionText() {
+      const s = new Date(state.range.start), e = new Date(state.range.endExclusive - 1);
+      if (sameDay(s, e)) return mediumDate(s) + ' · 12:00 AM – 11:59 PM';
+      return rangeLabel() + ' · inclusive';
+    }
+    function rangeStartDay() { return startOfDay(new Date(state.range.start)); }
+    function rangeDayCount() {
+      const n = Math.round((state.range.endExclusive - state.range.start) / 86400000);
+      return Math.max(1, Math.min(n, 62));
+    }
+    function setScope(scope) {
+      state.scope = scope;
+      if (scope !== 'custom') { normalizeAnchor(); updateRangeFromScope(); }
+      state.page = 1;
+      beginLoad();
+    }
+    function stepScope(dir) {
+      const a = startOfDay(new Date(state.anchor));
+      if (state.scope === 'month') state.anchor = new Date(a.getFullYear(), a.getMonth() + dir, 1).getTime();
+      else if (state.scope === 'week') state.anchor = addDays(a, dir * 7).getTime();
+      else state.anchor = addDays(a, dir).getTime();
+      updateRangeFromScope();
+      state.page = 1;
+      beginLoad();
+    }
+    function setCustomRange(start, end) {
+      state.scope = 'custom';
+      state.range = { start: startOfDay(start).getTime(), endExclusive: addDays(startOfDay(end), 1).getTime() };
+      state.page = 1;
+      beginLoad();
+    }
+    function beginLoad() {
+      state.load = 'loading';
+      render();
+      clearTimeout(state.timer);
+      state.timer = setTimeout(() => {
+        state.data = buildData(rangeStartDay(), rangeDayCount());
+        state.load = 'ready';
+        render();
+      }, 420);
+    }
+
+    /* ── filtering ──────────────────────────────────────────────────────── */
+    function visibleRows() {
+      if (!data()) return { kind: state.tab, rows: [] };
+      if (state.preview === 'empty') return { kind: state.tab, rows: [] };
+      if (state.tab === 'trips') {
+        let rows = data().trips;
+        if (state.tripFilter !== 'ALL') rows = rows.filter(t => t.status === state.tripFilter);
+        return { kind: 'trips', rows };
+      }
+      if (state.tab === 'tickets') {
+        let rows = data().tickets;
+        if (state.ticketFilter !== 'ALL') rows = rows.filter(t => t.passenger_type === state.ticketFilter);
+        return { kind: 'tickets', rows };
+      }
+      return { kind: 'earnings', rows: data().daily };
+    }
+    const hasMore = () => { const v = visibleRows(); return state.load === 'ready' && v.rows.length > state.page * state.perPage; };
+
+    /* ── responsive algorithm (Dashboard parity) ───────────────────────── */
+    const STAT_STACK = 300, ROW_STACK = 400, HEADER_STACK = 360;
+    const layout = { contentWidth: 390, largeFont: false, stackStats: false, stackRows: false, stackHeader: false };
+    function measure() {
+      const probe = document.createElement('div');
+      probe.style.cssText = 'position:absolute;visibility:hidden;width:10rem;height:0';
+      document.body.appendChild(probe);
+      const tenRem = probe.getBoundingClientRect().width;
+      probe.remove();
+      layout.largeFont = (tenRem / 160) > 1.15;
+      const scroll = document.getElementById('scroll');
+      const w = scroll ? Math.min(scroll.clientWidth, 720) : 390;
+      layout.contentWidth = w;
+      layout.stackStats = layout.largeFont || w < STAT_STACK;
+      layout.stackRows = layout.largeFont || w < ROW_STACK;
+      layout.stackHeader = w < HEADER_STACK;
+    }
+
+    /* ── render ─────────────────────────────────────────────────────────── */
+    const $ = id => document.getElementById(id);
+
+    function render() {
+      measure();
+      renderRange();
+      renderSummary();
+      renderTabs();
+      renderFilters();
+      renderList();
+      renderLoadMore();
+    }
+
+    function renderRange() {
+      $('rangeSegment').innerHTML = SCOPES.map(s => {
+        const on = state.scope === s.scope;
+        return '<button type="button" class="seg-btn" role="radio" aria-checked="' + on + '" tabindex="' + (on ? 0 : -1) +
+          '" data-scope="' + s.scope + '" aria-label="' + s.label + ' range"><span class="label-l">' + s.label + '</span></button>';
+      }).join('');
+
+      const cal = document.querySelector('.cal-btn');
+      cal.classList.toggle('on', state.scope === 'custom');
+      cal.setAttribute('aria-pressed', String(state.scope === 'custom'));
+
+      $('rangeNowMain').textContent = scopeName();
+      $('rangeNowSub').textContent = rangeLabel();
+
+      const custom = state.scope === 'custom';
+      const unit = state.scope === 'day' ? 'day' : state.scope === 'week' ? '7 days' : 'month';
+      const prev = $('rangePrev'), next = $('rangeNext');
+      prev.disabled = custom;
+      next.disabled = custom || !canNext();
+      prev.setAttribute('aria-label', custom ? 'Previous period — choose a range length first' : 'Previous ' + unit);
+      next.setAttribute('aria-label', custom ? 'Next period — choose a range length first'
+        : (canNext() ? 'Next ' + unit : 'Already showing the most recent ' + unit));
+
+      $('rangeCaption').innerHTML = '<span class="dot" aria-hidden="true"></span>Showing <b class="strong">' + rangeCaptionText() + '</b>';
+    }
+
+    function renderSummary() {
+      const s = state.data ? state.data.summary : { earnings: 0, tripCount: 0, ticketCount: 0, passengerCount: 0, distance: 0, avg: 0 };
+      const loading = state.preview === 'loading' || state.load === 'loading';
+      const empty = state.preview === 'empty' || (state.load === 'ready' && state.data && s.tripCount === 0 && s.ticketCount === 0);
+      const ready = !loading && state.load === 'ready' && !!state.data && state.preview !== 'error' && !empty;
+
+      $('summaryEyebrow').textContent = 'SUMMARY — ' + scopeLabel();
+      $('summaryScope').textContent = 'TOTAL EARNINGS' + (scopeName() === 'Today' ? ' TODAY' : ' — ' + scopeLabel());
+      $('heroValue').textContent = ready ? peso(s.earnings) : '—';
+      $('heroMeta').innerHTML = ready
+        ? '<span><b>' + s.tripCount + '</b> trips</span><span><b>' + s.ticketCount + '</b> tickets</span><span><b>' + s.passengerCount + '</b> passengers</span>'
+        : (loading ? '<span>Loading…</span>' : '<span>No records in this range</span>');
+
+      const grid = $('statGrid');
+      grid.className = 'stat-grid' + (layout.stackStats ? ' stacked' : '');
+      const tiles = [
+        { icon: 'bus', tone: 'primary', label: 'COMPLETED TRIPS', value: String(s.tripCount) },
+        { icon: 'ticket', tone: 'secondary', label: 'TICKETS', value: String(s.ticketCount) },
+        { icon: 'route', tone: 'tertiary', label: 'DISTANCE', value: s.tripCount > 0 ? km(s.distance) : '—' },
+        { icon: 'wallet', tone: 'tertiary', label: 'AVG / TRIP', value: s.tripCount > 0 ? peso(s.avg) : '—' }
+      ];
+      grid.innerHTML = tiles.map(t => {
+        const bg = t.tone === 'primary' ? 'var(--primary-container)' : t.tone === 'secondary' ? 'var(--secondary-container)' : 'var(--tertiary-container)';
+        const fg = t.tone === 'primary' ? 'var(--primary)' : t.tone === 'secondary' ? 'var(--secondary-fg)' : 'var(--tertiary)';
+        return '<div class="glass stat-tile"><div class="stat-icon" style="background:' + bg + '">' + icon(t.icon, 22, fg) + '</div>' +
+          '<p class="stat-label label-s">' + t.label + '</p><p class="stat-value title-m tabular">' + (ready ? t.value : '—') + '</p></div>';
+      }).join('');
+
+      const bd = ready && state.data ? state.data.breakdown : { REGULAR: 0, STUDENT: 0, SENIOR_CITIZEN: 0, PWD: 0 };
+      const total = bd.REGULAR + bd.STUDENT + bd.SENIOR_CITIZEN + bd.PWD;
+      $('breakdown').innerHTML = ['REGULAR', 'STUDENT', 'SENIOR_CITIZEN', 'PWD'].map(k => {
+        const pct = total ? Math.round((bd[k] / total) * 100) : 0;
+        return '<div class="bd-row"><span class="bd-name body-s">' + TYPE_FULL[k] + '</span>' +
+          '<span class="bd-count title-m tabular">' + bd[k] + '</span>' +
+          '<span class="bd-track"><span class="bd-fill" style="width:' + pct + '%"></span></span></div>';
+      }).join('');
+      $('summary').classList.toggle('open', state.summaryOpen);
+      $('summaryToggle').setAttribute('aria-expanded', String(state.summaryOpen));
+      $('summaryToggleLabel').textContent = state.summaryOpen ? 'Hide details' : 'Show details';
+    }
+
+    const TABS = [
+      { tab: 'trips', label: 'Trips', icon: 'bus' },
+      { tab: 'tickets', label: 'Tickets', icon: 'ticket' },
+      { tab: 'earnings', label: 'Earnings', icon: 'wallet' }
+    ];
+    function renderTabs() {
+      $('tablist').innerHTML = TABS.map(t => {
+        const sel = state.tab === t.tab;
+        return '<button type="button" class="tab" role="tab" id="tab-' + t.tab + '" aria-selected="' + sel + '" tabindex="' + (sel ? 0 : -1) +
+          '" aria-label="' + t.label + ' records" data-tab="' + t.tab + '">' + icon(t.icon, 16, 'currentColor') +
+          '<span class="label-l">' + t.label + '</span></button>';
+      }).join('');
+      $('list').setAttribute('aria-labelledby', 'tab-' + state.tab);
+    }
+
+    function renderFilters() {
+      const wrap = $('filters');
+      if (state.tab === 'trips') {
+        wrap.innerHTML = [{ value: 'ALL', label: 'All trips' }, { value: 'COMPLETED', label: 'Completed' }, { value: 'ACTIVE', label: 'In progress' }]
+          .map(o => chip(o.value === state.tripFilter, 'trip-filter', o.value, o.label)).join('');
+        wrap.setAttribute('aria-label', 'Filter trips by status');
+      } else if (state.tab === 'tickets') {
+        wrap.innerHTML = [{ value: 'ALL', label: 'All types' }, { value: 'REGULAR', label: 'Regular' }, { value: 'STUDENT', label: 'Student' }, { value: 'SENIOR_CITIZEN', label: 'Senior citizen' }, { value: 'PWD', label: 'PWD' }]
+          .map(o => chip(o.value === state.ticketFilter, 'ticket-filter', o.value, o.label)).join('');
+        wrap.setAttribute('aria-label', 'Filter tickets by passenger type');
+      } else {
+        wrap.innerHTML = '';
+        wrap.setAttribute('aria-label', '');
+      }
+    }
+    function chip(sel, kind, value, label) {
+      return '<button type="button" class="chip label-s' + (sel ? ' sel' : '') + '" data-' + kind + '="' + value + '" aria-pressed="' + sel + '">' +
+        (sel ? '<span class="chip-check">' + icon('check', 13, 'currentColor', 2.4) + '</span>' : '') + label + '</button>';
+    }
+
+    const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+    function groupRows(rows, keyFn) {
+      const out = [];
+      rows.forEach(r => {
+        const k = keyFn(r), last = out[out.length - 1];
+        if (last && last.key === k) last.items.push(r);
+        else out.push({ key: k, items: [r] });
+      });
+      return out;
+    }
+    function dayCardHTML(heading, count, inner, odId) {
+      return '<div class="day-group"' + (odId ? ' data-od-id="hi-day-' + odId + '"' : '') + '><div class="glass day-head"><span class="label-s">' + heading +
+        '</span><span class="body-s cnt tabular">' + count + '</span></div>' + inner + '</div>';
+    }
+
+    function renderList() {
+      const list = $('list');
+      list.className = 'list' + (layout.stackRows ? ' rows-stacked' : '');
+
+      if (state.preview === 'error') {
+        list.innerHTML = '<div class="state error" role="alert"><h3 class="title-m">Records could not be read</h3>' +
+          '<p class="body-m">The records on this device could not be read. Check the local database and try again.</p>' +
+          '<button class="primary-btn label-l" data-action="retry">Retry</button></div>';
+        return;
+      }
+      if (state.preview === 'loading' || state.load === 'loading') {
+        list.innerHTML = skeletonRows(3);
+        return;
+      }
+      if (!state.data) { list.innerHTML = ''; return; }
+
+      const v = visibleRows();
+      const shown = v.rows.slice(0, state.page * state.perPage);
+
+      if (shown.length === 0) {
+        const msg = state.tab === 'trips' ? 'No trips match the selected date range and filters.'
+          : state.tab === 'tickets' ? 'No tickets match the selected date range and passenger type.'
+            : 'No earnings were recorded in the selected date range.';
+        list.innerHTML = '<div class="state"><h3 class="title-m">No records</h3>' +
+          '<p class="body-m">' + msg + '</p>' +
+          '<button class="primary-btn label-l" data-action="reset">' +
+          icon('calendar', 16, 'var(--on-primary)') + 'Show today</button></div>';
+        return;
+      }
+
+      if (v.kind === 'trips') list.innerHTML = groupRows(shown, t => startOfDay(t.date).getTime())
+        .map(g => dayCardHTML(mediumDate(new Date(g.key)).toUpperCase(), plural(g.items.length, 'trip'),
+          g.items.map(tripRowHTML).join(''), g.key)).join('');
+      else if (v.kind === 'tickets') list.innerHTML = groupRows(shown, t => startOfDay(t.created_at).getTime())
+        .map(g => dayCardHTML(mediumDate(new Date(g.key)).toUpperCase(), plural(g.items.length, 'ticket'),
+          g.items.map(ticketRowHTML).join(''), g.key)).join('');
+      else list.innerHTML = dayCardHTML('EARNINGS BY DAY', plural(shown.length, 'day'), shown.map(dayRowHTML).join(''), 'earnings');
+    }
+
+    function tripRowHTML(t) {
+      const done = t.status === 'COMPLETED';
+      const label = 'Trip number ' + t.trip_number + '. ' + t.origin + ' to ' + t.destination + '. ' +
+        (done ? 'Completed' : 'In progress') + '. Started ' + mediumDate(t.date) + ' at ' + clock(t.date) + '. ' +
+        km(t.distance) + '. ' + t.tickets + ' tickets, ' + t.passengers + ' passengers, ' + peso(t.earnings) + ' collected.';
+      return '<button type="button" class="row-btn" data-trip="' + t.id + '" data-od-id="hi-trip-' + t.id + '" aria-label="' + label + '" aria-haspopup="dialog">' +
+        '<div class="glass row-card"><div class="trip-head">' +
+        '<span class="trip-icon" aria-hidden="true">' + icon('bus', 20, 'var(--tertiary)') + '</span>' +
+        '<span class="trip-body"><span class="trip-route title-m od-truncate">' + t.origin + ' → ' + t.destination + '</span>' +
+        '<span class="trip-sub body-s">Trip #' + t.trip_number + ' · ' + clock(t.date) + '</span></span>' +
+        '<span class="status ' + (done ? 'done' : 'active') + ' label-s" aria-hidden="true">' + (done ? 'Completed' : 'In progress') + '</span>' +
+        '<span class="chev" aria-hidden="true">' + icon('chevron', 18, 'var(--outline)') + '</span>' +
+        '</div><div class="meta-line body-s"><span>' + t.tickets + ' tickets · ' + t.passengers + ' passengers · ' + km(t.distance) + '</span>' +
+        '<span class="fare">EARNINGS&nbsp;<b class="title-m tabular">' + peso(t.earnings) + '</b></span></div></div></button>';
+    }
+
+    function ticketRowHTML(t) {
+      const label = 'Ticket #' + t.id + '. ' + t.origin + ' to ' + t.destination + '. ' +
+        TYPE_FULL[t.passenger_type] + '. Quantity ' + t.qty + '. ' + peso(t.each) + ' each, ' + peso(t.total) + ' total. Trip number ' + t.trip + '.';
+      return '<button type="button" class="row-btn" data-ticket="' + t.id + '" data-od-id="hi-ticket-' + t.id + '" aria-label="' + label + '" aria-haspopup="dialog">' +
+        '<div class="glass row-card ticket-row">' +
+        '<span class="ticket-id"><span class="title-m tabular">#' + t.id + '</span><span class="body-s muted" style="display:block">' + clock(t.created_at) + '</span></span>' +
+        '<span class="ticket-mid"><span class="ticket-route body-m od-truncate">' + t.origin + ' → ' + t.destination + '</span>' +
+        '<span class="ticket-meta body-s">Trip #' + t.trip + ' · <span class="cat ' + typeClass[t.passenger_type] + ' label-s">' + TYPE_LABEL[t.passenger_type] + '</span> · Qty ' + t.qty + '</span></span>' +
+        '<span class="ticket-fare"><span class="title-m tabular">' + peso(t.total) + '</span><span class="each body-s">' + peso(t.each) + ' each</span></span>' +
+        '<span class="chev" aria-hidden="true">' + icon('chevron', 18, 'var(--outline)') + '</span></div></button>';
+    }
+
+    function dayRowHTML(d) {
+      return '<button type="button" class="row-btn" data-day="' + d.dayStart + '" data-od-id="hi-dayrow-' + d.dayStart + '" aria-label="' + d.label + ', ' + peso(d.earnings) + ' from ' + d.count + ' tickets. Show this day.">' +
+        '<div class="glass row-card day-row"><span class="day-label title-m">' + d.label + '</span>' +
+        '<span class="day-econ"><span class="val title-m tabular">' + peso(d.earnings) + '</span><span class="cnt body-s" style="display:block">' + d.count + ' tickets</span></span></div></button>';
+    }
+
+    function skeletonRows(n) {
+      let out = '';
+      for (let i = 0; i < n; i++) {
+        out += '<div class="glass skeleton" aria-hidden="true"><div class="sk" style="width:38%;height:14px"></div>' +
+          '<div class="sk" style="width:62%;height:12px;margin-top:10px"></div>' +
+          '<div class="sk" style="width:100%;height:10px;margin-top:14px"></div></div>';
+      }
+      return out + '<p class="body-s muted" style="text-align:center" role="status">Loading records…</p>';
+    }
+
+    function renderLoadMore() {
+      const wrap = $('loadMoreWrap');
+      wrap.innerHTML = hasMore()
+        ? '<button type="button" class="load-more label-l" data-action="more" aria-label="Load up to ' + state.perPage + ' more records">' +
+          'Load more' + icon('chevron', 16, 'currentColor') + '</button>'
+        : '';
+    }
+
+    /* ── overlays: date picker, trip detail, ticket detail ─────────────── */
+    function renderOverlay() {
+      const root = $('overlayRoot');
+      let html = '';
+      if (state.custom.open) html = calendarHTML();
+      else if (state.detailTrip) html = tripDetailHTML(state.detailTrip);
+      else if (state.detailTicket) html = ticketDetailHTML(state.detailTicket);
+      root.innerHTML = html;
+      root.style.pointerEvents = html ? 'auto' : 'none';
+    }
+
+    function calendarHTML() {
+      const m = state.custom.month;
+      const first = new Date(m.getFullYear(), m.getMonth(), 1);
+      const startPad = first.getDay();
+      const daysInMonth = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+      const prevDays = new Date(m.getFullYear(), m.getMonth(), 0).getDate();
+      const today = startOfDay(new Date());
+      const cellStart = state.custom.start ? startOfDay(state.custom.start).getTime() : null;
+      const cellEnd = state.custom.end ? startOfDay(state.custom.end).getTime() : null;
+      const cells = [];
+      for (let i = startPad - 1; i >= 0; i--) cells.push({ day: prevDays - i, out: true, date: new Date(m.getFullYear(), m.getMonth() - 1, prevDays - i) });
+      for (let d = 1; d <= daysInMonth; d++) cells.push({ day: d, out: false, date: new Date(m.getFullYear(), m.getMonth(), d) });
+      while (cells.length % 7 !== 0) {
+        const d = cells.length - startPad - daysInMonth + 1;
+        cells.push({ day: d, out: true, date: new Date(m.getFullYear(), m.getMonth() + 1, d) });
+      }
+      const body = cells.map(c => {
+        const t = startOfDay(c.date).getTime();
+        const edge = t === cellStart || t === cellEnd;
+        const inRange = cellStart !== null && cellEnd !== null && t > cellStart && t < cellEnd;
+        const cls = ['cal-cell', c.out ? 'out' : '', inRange ? 'inrange' : '', edge ? 'edge' : '', sameDay(c.date, today) ? 'today' : ''].filter(Boolean).join(' ');
+        return '<button type="button" class="' + cls + ' body-m" data-cal="' + t + '" ' +
+          (c.out ? 'aria-hidden="true" tabindex="-1"' : 'aria-label="' + longDate(c.date) + '"') + '>' + c.day + '</button>';
+      }).join('');
+
+      const prev = new Date(m.getFullYear(), m.getMonth() - 1, 1);
+      const next = new Date(m.getFullYear(), m.getMonth() + 1, 1);
+      return '<div class="scrim center" data-close="1"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="calTitle">' +
+        '<div class="sheet-head"><h2 class="title-m" id="calTitle">Custom date range</h2>' +
+        '<button class="icon-btn" data-close="1" aria-label="Close">' + icon('close', 18, 'var(--on-surface-variant)') + '</button></div>' +
+        '<div class="sheet-body"><div class="cal-head">' +
+        '<button class="icon-btn" data-calnav="' + prev.getTime() + '" aria-label="Previous month">' + icon('left', 18, 'var(--on-surface-variant)') + '</button>' +
+        '<span class="cal-month title-m">' + MONTHS[m.getMonth()] + ' ' + m.getFullYear() + '</span>' +
+        '<button class="icon-btn" data-calnav="' + next.getTime() + '" aria-label="Next month">' + icon('right', 18, 'var(--on-surface-variant)') + '</button></div>' +
+        '<p class="range-preview body-s" id="calPreview">' + (cellStart
+          ? 'Start ' + longDate(new Date(cellStart)) + (cellEnd ? ' · End ' + longDate(new Date(cellEnd)) : ' · pick the end date')
+          : 'Pick a start date, then an end date.') + '</p>' +
+        '<div class="cal-grid" role="grid" aria-label="Calendar">' +
+        ['S','M','T','W','T','F','S'].map(d => '<span class="cal-dow label-s">' + d + '</span>').join('') + body + '</div>' +
+        (state.custom.error ? '<p class="cal-error body-s" role="alert">' + state.custom.error + '</p>' : '') +
+        '<div class="cal-actions"><button class="ghost label-l" data-close="1">Cancel</button>' +
+        '<button class="apply label-l" data-calapply="1">Apply range</button></div></div></div></div>';
+    }
+
+    function tripDetailHTML(id) {
+      const t = data() && data().trips.find(x => x.id === id);
+      if (!t) return '';
+      const tks = data().tickets.filter(x => x.trip === t.trip_number);
+      return '<div class="scrim bottom" data-close="1"><div class="sheet bottom-sheet" role="dialog" aria-modal="true" aria-labelledby="tdTitle">' +
+        '<div class="sheet-head"><button class="icon-btn" data-close="1" aria-label="Back">' + icon('left', 18, 'var(--on-surface-variant)') + '</button>' +
+        '<h2 class="title-m" id="tdTitle">' + t.origin + ' → ' + t.destination + '</h2></div>' +
+        '<div class="sheet-body">' +
+        '<p class="body-s" style="color:var(--on-surface-variant);margin:2px 0 0">Trip #' + t.trip_number + ' · ' + (t.status === 'ACTIVE' ? 'In progress' : 'Completed') + ' · started ' + mediumDate(t.date) + ' ' + clock(t.date) + '</p>' +
+        '<div class="detail-card">' +
+        detailRow('Tickets', String(t.tickets)) + detailRow('Passengers', String(t.passengers)) +
+        detailRow('Distance', km(t.distance)) + detailRow('Earnings', peso(t.earnings)) + '</div>' +
+        '<p class="label-s" style="color:var(--on-surface-variant);margin:18px 0 6px">TICKETS (' + tks.length + ')</p>' +
+        (tks.length ? '<div class="detail-card">' + tks.map(x => '<div class="detail-row body-s"><span class="k">' + clock(x.created_at) + ' · ' + TYPE_FULL[x.passenger_type] + ' × ' + x.qty + '</span><span class="v tabular">' + peso(x.total) + '</span></div>').join('') + '</div>'
+          : '<p class="body-s" style="color:var(--on-surface-variant)">No tickets recorded on this trip.</p>') +
+        '</div></div></div>';
+    }
+
+    function ticketDetailHTML(id) {
+      const t = data() && data().tickets.find(x => x.id === id);
+      if (!t) return '';
+      return '<div class="scrim bottom" data-close="1"><div class="sheet bottom-sheet" role="dialog" aria-modal="true" aria-labelledby="tkTitle">' +
+        '<div class="sheet-head"><button class="icon-btn" data-close="1" aria-label="Back">' + icon('left', 18, 'var(--on-surface-variant)') + '</button>' +
+        '<h2 class="title-m" id="tkTitle">Ticket #' + t.id + '</h2></div>' +
+        '<div class="sheet-body">' +
+        '<p class="body-s" style="color:var(--on-surface-variant);margin:2px 0 0">' + mediumDate(t.created_at) + ' · ' + clock(t.created_at) + '</p>' +
+        '<div class="detail-card">' +
+        detailRow('Route', t.origin + ' → ' + t.destination) +
+        detailRow('Trip', '#' + t.trip) +
+        detailRow('Passenger', TYPE_FULL[t.passenger_type]) +
+        detailRow('Quantity', String(t.qty)) +
+        detailRow('Fare each', peso(t.each)) +
+        detailRow('Total', peso(t.total)) + '</div></div></div></div>';
+    }
+    function detailRow(k, v) {
+      return '<div class="detail-row body-s"><span class="k">' + k + '</span><span class="v tabular">' + v + '</span></div>';
+    }
+
+    /* ── events ─────────────────────────────────────────────────────────── */
+    document.addEventListener('click', e => {
+      const el = e.target.closest('[data-scope],[data-step],[data-calopen],[data-trip-filter],[data-ticket-filter],[data-tab],[data-action],[data-close],[data-cal],[data-calnav],[data-calapply],[data-trip],[data-ticket],[data-day]');
+      if (!el) return;
+
+      if (el.hasAttribute('data-scope')) { setScope(el.getAttribute('data-scope')); return; }
+      if (el.hasAttribute('data-step')) { stepScope(Number(el.getAttribute('data-step'))); return; }
+      if (el.hasAttribute('data-calopen')) { state.custom.open = true; state.custom.error = null; state.custom.start = state.custom.end = null; renderOverlay(); return; }
+      if (el.hasAttribute('data-trip-filter')) { state.tripFilter = el.getAttribute('data-trip-filter'); state.page = 1; render(); return; }
+      if (el.hasAttribute('data-ticket-filter')) { state.ticketFilter = el.getAttribute('data-ticket-filter'); state.page = 1; render(); return; }
+      if (el.hasAttribute('data-tab')) { state.tab = el.getAttribute('data-tab'); state.page = 1; render(); $('tab-' + state.tab).focus(); return; }
+      if (el.hasAttribute('data-trip')) { state.detailTrip = Number(el.getAttribute('data-trip')); renderOverlay(); return; }
+      if (el.hasAttribute('data-ticket')) { state.detailTicket = Number(el.getAttribute('data-ticket')); renderOverlay(); return; }
+      if (el.hasAttribute('data-day')) {
+        const d = new Date(Number(el.getAttribute('data-day')));
+        setCustomRange(d, d);
+        el.blur();
+        return;
+      }
+      if (el.hasAttribute('data-calnav')) { state.custom.month = new Date(Number(el.getAttribute('data-calnav'))); renderOverlay(); return; }
+      if (el.hasAttribute('data-cal')) {
+        const t = Number(el.getAttribute('data-cal'));
+        if (state.custom.start === null || state.custom.end !== null) { state.custom.start = t; state.custom.end = null; }
+        else if (t < state.custom.start) { state.custom.start = t; }
+        else { state.custom.end = t; }
+        state.custom.error = null;
+        renderOverlay();
+        return;
+      }
+      if (el.hasAttribute('data-calapply')) {
+        if (state.custom.start === null || state.custom.end === null) { state.custom.error = 'Pick both a start and an end date.'; renderOverlay(); return; }
+        const start = state.custom.start, end = state.custom.end;
+        state.custom.open = false; state.custom.error = null;
+        state.custom.start = state.custom.end = null;
+        renderOverlay();
+        setCustomRange(new Date(start), new Date(end));
+        return;
+      }
+      if (el.hasAttribute('data-action')) {
+        const a = el.getAttribute('data-action');
+        if (a === 'retry') { setPreview('ready'); beginLoad(); return; }
+        if (a === 'reset') { setPreview('ready'); state.scope = 'day'; state.anchor = startOfDay(new Date()).getTime(); state.page = 1; beginLoad(); return; }
+        if (a === 'more') { state.page += 1; render(); return; }
+      }
+      if (el.hasAttribute('data-close')) {
+        // The scrim only dismisses when the scrim itself is the target — a click
+        // that lands anywhere inside the sheet must not close it.
+        if (el.classList.contains('scrim') && e.target !== el) return;
+        state.custom.open = false; state.detailTrip = null; state.detailTicket = null;
+        renderOverlay();
+        return;
+      }
+    });
+
+    $('summaryToggle').addEventListener('click', () => { state.summaryOpen = !state.summaryOpen; render(); });
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        if (state.custom.open || state.detailTrip || state.detailTicket) { state.custom.open = false; state.detailTrip = null; state.detailTicket = null; renderOverlay(); }
+        return;
+      }
+      const el = document.activeElement;
+      if (!el || !el.hasAttribute || (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft')) return;
+
+      if (el.hasAttribute('data-tab')) {
+        e.preventDefault();
+        const i = TABS.findIndex(t => t.tab === state.tab);
+        const next = e.key === 'ArrowRight' ? (i + 1) % TABS.length : (i - 1 + TABS.length) % TABS.length;
+        state.tab = TABS[next].tab; state.page = 1; render(); $('tab-' + state.tab).focus();
+        return;
+      }
+      if (el.hasAttribute('data-scope')) {
+        e.preventDefault();
+        const i = Math.max(0, SCOPES.findIndex(s => s.scope === state.scope));
+        const next = e.key === 'ArrowRight' ? (i + 1) % SCOPES.length : (i - 1 + SCOPES.length) % SCOPES.length;
+        setScope(SCOPES[next].scope);
+        const target = $('rangeSegment').querySelector('[data-scope="' + SCOPES[next].scope + '"]');
+        if (target) target.focus();
+      }
+    });
+
+    const seg = $('protoSeg');
+    function setPreview(v) {
+      state.preview = v;
+      [].forEach.call(seg.children, b => b.setAttribute('aria-pressed', String(b.getAttribute('data-state') === v)));
+      if (v === 'loading') { state.load = 'loading'; render(); }
+      else if (v === 'error') { state.load = 'ready'; render(); }
+      else if (v === 'ready') { if (!state.data) beginLoad(); else { state.load = 'ready'; render(); } }
+      else { if (!state.data) { state.data = buildData(rangeStartDay(), rangeDayCount()); } state.load = 'ready'; render(); }
+    }
+    seg.addEventListener('click', e => { const b = e.target.closest('button'); if (b) setPreview(b.getAttribute('data-state')); });
+
+    let rz;
+    window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(render, 120); });
+
+    /* ── boot ───────────────────────────────────────────────────────────── */
+    updateRangeFromScope();
+    state.data = buildData(rangeStartDay(), rangeDayCount());
+    render();
+  })();
+  </script>
+</body>
+</html>

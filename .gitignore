@@ -39,3 +39,12 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# release signing credentials (never commit these)
+keystore.properties
+
+# local junk: build artifacts, logs, tool metadata
+/artifacts/
+*.log
+__pycache__/
+.freebuff/

@@ -1,0 +1,839 @@
+<!doctype html>
+<!--
+  Kondukt · Settings screen — Open Design prototype.
+  Same shell, tokens and glass layer as index.html (History), dashboard.html,
+  home.html, trip.html, trip-tickets.html, add-trip.html, add-ticket.html,
+  current-trip.html and passenger.html, so all ten screens read as one product.
+  The app lives in the APP CONTENT slot; content honours the top and bottom
+  safe areas.
+
+  Settings is a HUB. It navigates to four child screens and edits nothing: its
+  content is four doors and the values behind them, and that is all it claims to
+  be. Section order is reading order — is this device ready to work, what is
+  stored behind each door, and the one trust statement the app makes about all
+  of it.
+
+  ── the nine defects this redesign fixes ───────────────────────────────────
+  1. THE SCREEN CANNOT ANSWER THE ONE QUESTION THAT MATTERS ON A FRESH DEVICE.
+     SettingsScreen.tsx is 226 lines of navigator whose own docblock says it
+     "reads nothing, writes nothing, and loads nothing — no counts, no
+     previews, no configuration values" (:39-42). Meanwhile fareStore creates
+     the fare table and seeds NO rows, FareSettingsScreen's EMPTY_VALUES leaves
+     all ten fields blank, and addTicketFare.ts:334 refuses to price with "This
+     device has no fare rules yet, so a ticket cannot be priced." Settings is
+     the only screen that can fix that, and it said nothing. It now answers in
+     the chrome, on the card that owns the value, and in a block that names the
+     missing thing.
+  2. THE ERROR TOKEN WAS ON A BENIGN CARD. Advanced Settings carried
+     accentKey: 'error' (:87) and :25 widened the Accent union to admit it, even
+     though theme.ts:174-181 gives accent exactly three keys and theme.ts:4-7
+     reserves error for real errors and validation. The branch at :140 was
+     load-bearing because theme.accent['error'] does not exist. A tune icon over
+     a screen holding one theme switch is not an error.
+  3. THE ACCENTS CARRIED NO MEANING. fare tertiary, terminal primary, barangay
+     primary, advanced error — four rows of one shape, three accents, no rule.
+     Here the chip is a CATEGORY (where you go), and no category outranks
+     another, so all four are tertiary and there is no accent to differ.
+  4. THE CARDS WERE RAGGED BY CONSTRUCTION. minHeight: 104 (:201) with a 48px
+     chip (:211) and descriptions allowed three lines (:164) cannot hold both
+     "Additional application settings." and the 101-character fare sentence in
+     one box, so the four cards are four heights. This screen measures its rows
+     instead: every card is 90px, and 90 is the honest floor (20 + 48 + 20 plus
+     two 1px borders).
+  5. THE COLUMN WAS 4px NARROWER THAN THE CHROME ABOVE IT. SectionChrome pads
+     space(5) = 20 (:101) and the column pads space(4) = 16 (:184), so all four
+     cards and the heading sat 4px left of the back button on the same screen.
+     The card gap was space(4) = 16 where the family rhythm is 12. One column,
+     one 20px, one 12px gap.
+  6. THE OFFLINE CARD WAS A FIFTH THING YOU CANNOT PUSH. LocalStorageCard had
+     the same radius and the same 20px padding as the four modules above it, in
+     the same column, with no chevron — and it is the one row on the screen that
+     opens nothing. A row that looks like the other four and does not behave
+     like them is a trap. It loses the card and keeps the lock, the label and the
+     app's own copy.
+  7. "Settings Modules" NAMED A CONTAINER (:105), in sentence case, and it was
+     the only heading on a screen whose subject is four specific domains. It is
+     CONFIGURATION now: content, shared .label-s, no echo of the title above.
+  8. THE BACK BUTTON WAS JUST "Back." SectionChrome:63 falls back to
+     backLabel ?? 'Back' and Settings passed none, while Fare Settings and
+     Advanced Settings both name where they return to. It is a real anchor to
+     home.html labelled "Back to Home": a link with a destination, a focus ring
+     and middle-click.
+  9. ONE SETTING BEHIND A NAME THAT PROMISES MORE. Advanced Settings holds
+     exactly one setting. The count half of that finding is not fixed, so it is
+     not hidden: the card states what is behind the door, and its sheet says it
+     is the only preference the app stores.
+
+  ── the eight corrections carried by this file ────────────────────────────
+  1. A min-height on a bordered box counts its borders. The card's honest floor
+     is 90px, not 88. min-height, not height: a longer value should grow the
+     card rather than clip it.
+  2. .mod IS A <button> AND A BUTTON DOES NOT INHERIT THE FAMILY. Without
+     font-family/font-size/color: inherit the four cards render in ARIAL while
+     the chrome above them renders in Poppins. That was a real bug found during
+     verification, not a hypothetical — the same trap as the siblings' .row-btn,
+     which carries those three declarations for the same reason. Never re-add
+     padding: 0 / background: none to .mod either.
+  3. .nav-btn IS TAKEN — Dashboard owns a period stepper by that name and a
+     collision would silently restyle it. The names here are fresh: .mod,
+     .mod-chip, .mod-body, .mod-title, .mod-value, .mod-chev, .mod.alert,
+     .sec-block, .sec-note, .note-lock.
+  4. [hidden] { display: none !important } IS LOAD-BEARING. The readiness block
+     is toggled by the hidden attribute on #blockSection, and author display
+     rules beat the UA [hidden] rule on cascade origin.
+  5. COUNTS ARE FOLDED, NEVER TYPED. registry(stops) derives terminals, linked,
+     unlinked and municipalities from one stop list, so 17/8 and 5/3/1 all fall
+     out of it and none of them can disagree with another. A hardcoded 17 in the
+     render path is a defect.
+  6. renderOverlay() RUNS LAST IN THE render. state.sheet holds the sheet's
+     markup and re-emitting it is what keeps a sheet alive across the render
+     that opened it.
+  7. SCRIM CLOSE BY ATTRIBUTE TEST AND NEVER BY closest. The sheet markup
+     carries its own data-*, so a close that walks up from a node inside the
+     sheet dismisses the sheet on any tap that missed a control. Home already
+     lost a day to this.
+  8. THE BLOCK'S COPY IS THE APP'S OWN SENTENCE, QUOTED. "This device has no
+     fare rules yet, so a ticket cannot be priced." is what the conductor will
+     read mid-run at the ticket step, on a different screen. Rewording it here
+     would guarantee the two disagree, and the alert card carries
+     aria-describedby="setBlockBody" so a screen reader reaches the same
+     sentence from the row that raises the condition.
+
+  ── the 4px-grid allowlist for this file ──────────────────────────────────
+  Two recipes, both inherited rather than authored: .mod-chip (fixed 48×48,
+  flex: none) and .icon-btn (fixed 44×44, place-items: center, NO padding —
+  copy a sibling's and the padding arrives with it). Not spacing:
+  .app-scroll's 29px bottom and the shared shell's own .chrome / .title-card /
+  .back padding, which is handset chrome in all ten files. Every padding this
+  screen authors lands on 4: .mod 20 · the card's chip-to-body gap 12 ·
+  .sec-block 20 · .sec-note 12 · .note-lock 20 and 8. The 2px between a card's
+  title and its value is the optical nudge the family allowlists under a
+  16px/12px pair, not a rhythm step.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kondukt · Settings</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      /* ── kondukt M3 warm palette (src/theme.ts) ───────────────────────── */
+      --primary:#E65100; --on-primary:#FFFFFF; --primary-container:#FFE6D2; --on-primary-container:#4E2200;
+      --primary-solid:#C2410C; --primary-solid-hover:#A93A09;
+      --secondary:#FFB300; --on-secondary:#3D2E00; --secondary-container:#FFEFC7; --on-secondary-container:#4A3600;
+      --tertiary:#546E7A; --on-tertiary:#FFFFFF; --tertiary-container:#DDE6EA; --on-tertiary-container:#162B33;
+      --error:#BA1A1A; --on-error:#FFFFFF; --error-container:#FFDAD6; --on-error-container:#410002;
+      --background:#FDF7F3; --surface:#FDF7F3; --surface-lowest:#FFFFFF; --surface-low:#F7EFE9;
+      --surface-container:#F2E9E2; --surface-high:#ECE3DC;
+      --on-surface:#221A15; --on-surface-variant:#53433B; --outline:#85736B; --outline-variant:#D7C2B7;
+      --scrim:rgba(34,26,21,.32);
+
+      /* glass layer */
+      --glass-tint:rgba(255,255,255,.58);
+      --glass-rim:rgba(255,255,255,.85);
+      --glass-on:#1A2029; --glass-on-variant:#4A5568;
+      --glass-shadow:rgba(90,106,130,.16);
+      /* The hover lift. Near-white glass cannot be lightened into a hover, so
+         the only thing that moves is the background. */
+      --glass-tint-hover:rgba(255,255,255,.74);
+
+      --radius-sm:8px; --radius-md:12px; --radius-lg:16px; --radius-xl:24px; --radius-glass:28px; --radius-full:999px;
+      --font: 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+      /* shell vars (from the neutral OD handset) */
+      --phone-screen-width:390px; --phone-screen-height:844px; --phone-bezel:10px;
+      --phone-outer-radius:52px; --phone-screen-radius:42px;
+      --phone-safe-top:50px; --phone-safe-bottom:29px;
+      --phone-system-fg:#17181a; --phone-screen-bg:#f8f8f9; --phone-stage-bg:#eaebee;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      min-height: 100dvh; display: grid; place-items: center; padding: 32px;
+      background: radial-gradient(circle at 50% 15%, rgba(255,255,255,.94), transparent 35%), var(--phone-stage-bg);
+      color: #191a1d; font-family: var(--font);
+    }
+
+    /* ── handset shell ─────────────────────────────────────────────────── */
+    .phone-frame {
+      position: relative;
+      width: calc(var(--phone-screen-width) + var(--phone-bezel) * 2);
+      height: calc(var(--phone-screen-height) + var(--phone-bezel) * 2);
+      padding: var(--phone-bezel); border-radius: var(--phone-outer-radius);
+      background: linear-gradient(145deg, rgba(255,255,255,.2), transparent 17%), linear-gradient(160deg, #3f4146 0%, #202227 48%, #0b0c0f 100%);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.13), inset 0 0 0 2px rgba(0,0,0,.85), 0 32px 68px -20px rgba(10,12,16,.52), 0 10px 24px -10px rgba(10,12,16,.32);
+      isolation: isolate;
+    }
+    .phone-frame::before, .phone-frame::after {
+      content: ""; position: absolute; z-index: -1; top: 96px; bottom: 96px; width: 2px;
+      background: linear-gradient(to bottom, transparent, rgba(255,255,255,.13) 16%, transparent 30%, transparent 72%, rgba(255,255,255,.07) 88%, transparent);
+    }
+    .phone-frame::before { left: 0; } .phone-frame::after { right: 0; }
+    .hardware-button { position: absolute; width: 4px; border-radius: 3px; background: linear-gradient(90deg,#08090b,#2a2d33 60%,#08090b); box-shadow: inset 0 1px rgba(255,255,255,.08); }
+    .hardware-button.volume { left: -3px; top: 222px; height: 86px; }
+    .hardware-button.power { right: -3px; top: 270px; height: 82px; }
+
+    .phone-screen {
+      position: relative; width: var(--phone-screen-width); height: var(--phone-screen-height);
+      overflow: hidden; border-radius: var(--phone-screen-radius); background: var(--phone-screen-bg);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.05);
+    }
+    .phone-content { position: absolute; inset: 0; overflow: hidden; padding: 0; background: transparent; }
+
+    .status-bar { position: absolute; z-index: 40; inset: 0 0 auto; height: var(--phone-safe-top); display: grid; grid-template-columns: minmax(0,1fr) 56px minmax(0,1fr); align-items: start; padding: 14px 20px 0; color: var(--phone-system-fg); opacity: .8; pointer-events: none; }
+    .status-time { justify-self: start; display: flex; align-items: center; height: 15px; font-size: 14px; font-weight: 560; line-height: 1; letter-spacing: .01em; font-family: system-ui, sans-serif; }
+    .status-cutout-zone { width: 56px; }
+    .status-icons { justify-self: end; display: inline-flex; align-items: center; height: 15px; gap: 6px; }
+    .status-icons svg { display: block; flex: none; fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
+    .status-icons .connectivity { width: 15px; height: 12px; } .status-icons .wifi { width: 15px; height: 12px; } .status-icons .battery { width: 19px; height: 11px; }
+    .camera-dot { position: absolute; z-index: 45; top: 13px; left: 50%; width: 10px; height: 10px; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(circle at 38% 35%, #344154 0 12%, #0a0c10 34%, #000 76%); box-shadow: 0 0 0 1px rgba(255,255,255,.06); pointer-events: none; }
+    .gesture-indicator { position: absolute; z-index: 45; left: 50%; bottom: 8px; width: 96px; height: 4px; transform: translateX(-50%); border-radius: 99px; background: var(--phone-system-fg); opacity: .86; pointer-events: none; }
+
+    /* ── app root ──────────────────────────────────────────────────────── */
+    #app {
+      position: relative; height: 100%; display: flex; flex-direction: column;
+      color: var(--glass-on);
+      background:
+        radial-gradient(125% 82% at 6% -4%, #FBC9A8 0%, rgba(246,227,212,.78) 32%, rgba(244,247,251,0) 63%),
+        radial-gradient(130% 88% at 104% 104%, #C6D9E8 0%, rgba(228,233,242,.72) 34%, rgba(244,247,251,0) 66%),
+        #F4F7FB;
+    }
+    .app-scroll {
+      flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch; scrollbar-width: none;
+      padding-bottom: var(--phone-safe-bottom);
+    }
+    .app-scroll::-webkit-scrollbar { display: none; }
+
+    /* ONE column, 20px — the same inset the chrome above it uses. The shipped
+       screen padded the column 16 and every card another 20, so all four cards
+       and the heading sat 4px left of the back button on the same screen. */
+    .readable { width: 100%; max-width: 720px; margin-inline: auto; padding-inline: 20px; }
+
+    /* ── typography roles ──────────────────────────────────────────────── */
+    .display-s { font-weight: 700; font-size: 28px; line-height: 36px; letter-spacing: -.3px; }
+    .headline-s { font-weight: 600; font-size: 20px; line-height: 27px; letter-spacing: -.3px; }
+    .title-m { font-weight: 600; font-size: 16px; line-height: 23px; }
+    .body-m { font-weight: 400; font-size: 14px; line-height: 21px; }
+    .body-s { font-weight: 400; font-size: 12px; line-height: 18px; }
+    .label-l { font-weight: 600; font-size: 15px; line-height: 20px; }
+    .label-s { font-weight: 600; font-size: 11px; line-height: 16px; letter-spacing: .6px; }
+    .tabular { font-variant-numeric: tabular-nums; }
+    .muted { color: var(--glass-on-variant); }
+    .strong { color: var(--glass-on); }
+    p { margin: 0; }
+
+    /* ── glass surface ─────────────────────────────────────────────────── */
+    .glass {
+      position: relative; border-radius: var(--radius-glass);
+      background: var(--glass-tint);
+      box-shadow: 0 8px 15px var(--glass-shadow), inset 0 1px 0 rgba(255,255,255,.55);
+      -webkit-backdrop-filter: blur(18px) saturate(180%);
+      backdrop-filter: blur(18px) saturate(180%);
+    }
+    .glass > * { position: relative; z-index: 1; }
+    .glass::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: rgba(120,130,150,.5); opacity: .035; pointer-events: none; }
+    .glass::after  { content: ""; position: absolute; inset: 0; border-radius: inherit; border: 1px solid var(--glass-rim); pointer-events: none; z-index: 2; }
+
+    /* ── chrome (SectionChrome) ────────────────────────────────────────── */
+    .chrome { display: flex; align-items: center; gap: 12px; flex: none; padding: calc(var(--phone-safe-top) + 12px) 20px 12px; }
+    /* An ANCHOR, not a button: a back control with a real destination has a
+       real focus ring, a real middle-click and something to name. The shipped
+       screen fell back to SectionChrome's backLabel ?? 'Back'. */
+    .back {
+      width: 44px; height: 44px; border-radius: var(--radius-full); background: var(--primary-solid);
+      display: grid; place-items: center; flex: none; text-decoration: none;
+      box-shadow: 0 8px 15px var(--glass-shadow);
+    }
+    .back:hover { background: var(--primary-solid-hover); }
+    .title-card {
+      flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 5px 16px; border-radius: var(--radius-full);
+      background: var(--primary-solid); display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+      box-shadow: 0 8px 15px var(--glass-shadow);
+    }
+    .chrome-title { color: var(--on-primary); margin: 0; }
+    .chrome-sub { color: var(--on-primary); opacity: .9; margin: 1px 0 0; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+    /* ── section header (SectionHeader) ────────────────────────────────── */
+    .sec-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 20px; margin-bottom: 12px; }
+    .sec-title { color: var(--glass-on-variant); margin: 0; }
+
+    /* ── the readiness block: the one thing standing between this device and a
+          priced boarding, and the only error surface on the screen ─────── */
+    .sec-block { margin-top: 20px; padding: 20px; border-radius: var(--radius-xl); border: 1px solid var(--error); background: var(--error-container); }
+    .sec-block h3 { margin: 0; color: var(--on-error-container); }
+    .sec-block p { margin: 8px 0 0; color: var(--on-error-container); }
+
+    /* ── the four module cards ─────────────────────────────────────────── */
+    .mod-list { display: grid; gap: 12px; }
+    /* font-family/font-size/color: inherit are LOAD-BEARING: a button inherits
+       the UA's 13.333px control size and Arial, so the four cards rendered in
+       Arial while the chrome above them rendered in Poppins. Same trap as the
+       siblings' .row-btn, and never re-add padding: 0 / background: none. */
+    .mod {
+      display: flex; align-items: center; gap: 12px; width: 100%;
+      min-height: 90px; padding: 20px; text-align: left; cursor: pointer;
+      border: 1px solid var(--glass-rim); border-radius: var(--radius-glass);
+      background: var(--glass-tint); color: inherit; font-family: inherit; font-size: inherit;
+      box-shadow: 0 8px 15px var(--glass-shadow), inset 0 1px 0 rgba(255,255,255,.55);
+      -webkit-backdrop-filter: blur(18px) saturate(180%);
+      backdrop-filter: blur(18px) saturate(180%);
+    }
+    /* Hover and active move the BACKGROUND, never the foreground: near-white
+       glass cannot be lightened into a hover. */
+    .mod:hover, .mod:active { background: var(--glass-tint-hover); }
+    /* The chip is a CATEGORY — where you go — and no category here outranks
+       another, so all four are tertiary. The error token moves to the one card
+       that genuinely is in an error state. */
+    .mod-chip { width: 48px; height: 48px; flex: none; border-radius: var(--radius-md); display: grid; place-items: center; background: var(--tertiary-container); color: var(--on-tertiary-container); }
+    .mod-body { flex: 1 1 auto; min-width: 0; }
+    .mod-title { display: block; color: var(--glass-on); }
+    .mod-value { display: block; margin-top: 2px; color: var(--glass-on-variant); }
+    .mod-chev { flex: none; color: var(--outline); }
+    /* The alert treatment is CONDITIONAL — the fare card, and only while the
+       device has no fare row. The chip stays tertiary: the chip is still a
+       category, only the card's state is wrong. */
+    .mod.alert { border-color: var(--error); background: var(--error-container); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+    .mod.alert .mod-value { color: var(--on-error-container); font-weight: 600; }
+
+    /* ── the section note: a card states one value, and the rest of what is
+          stored is not what a card is for ─────────────────────────────── */
+    .sec-note { margin-top: 12px; color: var(--glass-on-variant); }
+
+    /* ── the offline statement: metadata about all four modules, not a fifth
+          module. It loses the card and keeps the lock, the label and the copy
+          (app strings verbatim). ───────────────────────────────────────── */
+    .note-lock { margin-top: 20px; padding: 20px 8px; display: flex; align-items: flex-start; gap: 8px; }
+    .note-lock p { color: var(--glass-on-variant); }
+    .note-lock svg { flex: none; }
+
+    /* ── overlays ──────────────────────────────────────────────────────── */
+    .overlay-root { position: absolute; inset: 0; z-index: 30; pointer-events: none; }
+    /* grid-template-rows: minmax(0, 1fr) is load-bearing: with an auto row the
+       grid area is indefinite in the block axis, so the sheet's max-height: 100%
+       resolved against nothing and .sheet-body never scrolled because it was
+       never given a height to scroll inside. */
+    .scrim { position: absolute; inset: 0; background: var(--scrim); display: grid; grid-template-rows: minmax(0, 1fr); pointer-events: auto; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
+    .scrim.bottom { align-items: end; padding-top: var(--phone-safe-top); }
+    .sheet { width: 100%; max-width: 360px; margin: 0 auto; background: var(--surface-lowest); border-radius: var(--radius-xl); pointer-events: auto; max-height: 100%; display: flex; flex-direction: column; }
+    .sheet.bottom-sheet { border-radius: var(--radius-xl) var(--radius-xl) 0 0; max-width: 720px; animation: slideUp .22s ease; }
+    @keyframes slideUp { from { transform: translateY(14px); opacity: .6; } to { transform: none; opacity: 1; } }
+    .sheet-head { display: flex; align-items: center; gap: 12px; padding: 16px 20px 8px; flex: none; }
+    .sheet-titles { flex: 1 1 auto; min-width: 0; }
+    .sheet-head h2 { margin: 0; color: var(--on-surface); }
+    .sheet-titles p { margin: 2px 0 0; }
+    .sheet-body { padding: 0 20px var(--phone-safe-bottom); overflow-y: auto; min-height: 0; }
+    /* 44×44 with no padding at all, so the box is already on the 4px grid. */
+    .icon-btn { width: 44px; height: 44px; padding: 0; border-radius: var(--radius-full); border: 1px solid var(--outline-variant); background: transparent; color: var(--on-surface-variant); display: grid; place-items: center; cursor: pointer; flex: none; }
+    .icon-btn:hover { background: var(--surface-container); }
+
+    /* The card insets its own rows so every key starts on the same 20px column
+       as the sheet title. */
+    .detail-card { border: 1px solid var(--outline-variant); border-radius: var(--radius-lg); margin-top: 12px; }
+    .detail-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; min-height: 44px; border-bottom: 1px solid var(--outline); }
+    .detail-row:last-child { border-bottom: 0; }
+    .detail-row .k { color: var(--on-surface-variant); }
+    .detail-row .v { color: var(--on-surface); font-weight: 600; text-align: right; }
+    .commit-hint { margin: 12px 0 0; color: var(--on-surface-variant); }
+    /* The controls in every sheet: Close, plus OPEN on a door that has a
+       destination. Still no solid CTA — this screen has zero solid fills in
+       the viewport, and a sheet is not where a settings screen earns one. */
+    .ghost { min-height: 48px; padding: 0 20px; border: 1px solid var(--outline); border-radius: var(--radius-lg); background: transparent; color: var(--on-surface-variant); font-family: inherit; font-size: inherit; font-weight: 600; cursor: pointer; }
+    .ghost:hover { background: var(--surface-container); color: var(--on-surface); }
+
+    :focus-visible { outline: 2px solid var(--primary-solid); outline-offset: 2px; border-radius: 6px; }
+    @media (prefers-reduced-motion: reduce) { .sheet.bottom-sheet { animation: none; } }
+
+    /* Author display rules beat the UA [hidden] rule on cascade origin, so the
+       readiness block would render on the default state too. One guard. */
+    [hidden] { display: none !important; }
+
+    /* ── prototype state control (outside the phone) ───────────────────── */
+    .proto-states { position: fixed; left: 18px; bottom: 18px; z-index: 50; display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 16px; background: rgba(255,255,255,.9); border: 1px solid #dcdde1; box-shadow: 0 10px 24px rgba(20,22,28,.12); font-family: var(--font); }
+    .proto-states span { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #6b6e75; font-weight: 600; }
+    .proto-states .seg { display: flex; flex-wrap: wrap; gap: 6px; max-width: 232px; }
+    .proto-states button { font: inherit; font-size: 12px; padding: 7px 10px; border-radius: 999px; border: 1px solid #d4d5d9; background: #fff; color: #33363c; cursor: pointer; }
+    .proto-states button:hover { background: #F1F2F4; }
+    .proto-states button[aria-pressed="true"]:hover { background: #A93A09; border-color: #A93A09; }
+    .proto-states button[aria-pressed="true"] { background: #C2410C; border-color: #C2410C; color: #fff; }
+
+    @media (max-width: 480px) {
+      body { padding: 0; display: block; }
+      .phone-frame { width: 100%; height: 100dvh; padding: 0; border-radius: 0; background: none; box-shadow: none; }
+      .phone-frame::before, .phone-frame::after, .hardware-button { display: none; }
+      .phone-screen { width: 100%; height: 100%; border-radius: 0; }
+      .proto-states { display: none; }
+    }
+    @media (max-height: 927px) { .phone-frame { zoom: .9; } }
+    @media (max-height: 840px) { .phone-frame { zoom: .82; } }
+    @media (max-height: 771px) { .phone-frame { zoom: .74; } }
+    @media (max-height: 702px) { .phone-frame { zoom: .66; } }
+  </style>
+</head>
+<body>
+  <div class="phone-frame" data-phone-shell data-platform="neutral">
+    <span class="hardware-button volume" aria-hidden="true"></span>
+    <span class="hardware-button power" aria-hidden="true"></span>
+
+    <section class="phone-screen" data-od-id="phone-screen" data-phone-screen>
+      <main class="phone-content" data-phone-content>
+        <!-- APP CONTENT START -->
+        <div id="app">
+          <!-- 0. Chrome. The subtitle is the one thing this hub can say that its
+               four cards do not: whether this device is ready to price a
+               boarding. That answer is worth more in the chrome than in a
+               paragraph 400px down. -->
+          <header class="chrome readable" data-od-id="set-chrome">
+            <a class="back" href="home.html" data-od-id="set-back" aria-label="Back to Home">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+            </a>
+            <div class="title-card">
+              <h1 class="chrome-title title-m">Settings</h1>
+              <p class="chrome-sub body-s" id="chromeSub">4 modules set up</p>
+            </div>
+          </header>
+
+          <div class="app-scroll" id="scroll">
+            <div class="readable">
+              <!-- 1. The readiness block. Hidden on the default state, and the
+                   only error surface on the screen. -->
+              <section class="sec-block" id="blockSection" data-od-id="set-block" hidden>
+                <h3 class="title-m" data-od-id="set-block-title">Fares are not set up</h3>
+                <p class="body-s" id="setBlockBody" data-od-id="set-block-body"></p>
+              </section>
+
+              <!-- 2. The four doors, then the one note about what else is
+                   stored behind them. -->
+              <section data-od-id="set-config">
+                <div class="sec-head">
+                  <h2 class="sec-title label-s">CONFIGURATION</h2>
+                </div>
+                <div class="mod-list" id="mods"></div>
+                <p class="sec-note body-s" id="secNote" data-od-id="set-secnote"></p>
+              </section>
+
+              <!-- 3. The one trust statement the app makes about all four
+                   modules. Not a fifth card: it opens nothing. -->
+              <div class="note-lock" data-od-id="set-storage">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--glass-on-variant)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10" width="15" height="10" rx="2.5"/><path d="M8 10V7.5a4 4 0 0 1 8 0V10"/></svg>
+                <div>
+                  <p class="label-s">OFFLINE STORAGE</p>
+                  <p class="body-s" style="margin-top:4px">All configurations are saved locally and work offline.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="overlay-root" id="overlayRoot"></div>
+        </div>
+        <!-- APP CONTENT END -->
+      </main>
+
+      <div class="status-bar" aria-hidden="true">
+        <span class="status-time">9:41</span>
+        <span class="status-cutout-zone"></span>
+        <span class="status-icons">
+          <svg class="connectivity" viewBox="0 0 15 12"><path d="M1.5 10.5v-2m4 2v-4.5m4 4.5v-7m4 7v-9"/></svg>
+          <svg class="wifi" viewBox="0 0 16 12"><path d="M3.5 6.7a9.2 9.2 0 0 1 11 0M5.4 8.3a5.4 5.4 0 0 1 7.6 0M7.3 10a1.55 1.55 0 0 1 2.2 0"/></svg>
+          <svg class="battery" viewBox="0 0 20 11"><rect x=".75" y="1.25" width="16.5" height="8.5" rx="2"/><path d="M18.5 4v3M3.2 3.4h10.4v4.2H3.2z" fill="currentColor" stroke="none"/></svg>
+        </span>
+      </div>
+      <div class="camera-dot" aria-hidden="true"></div>
+      <div class="gesture-indicator" aria-hidden="true"></div>
+    </section>
+  </div>
+
+  <div class="proto-states" role="group" aria-label="Prototype state preview">
+    <span>Prototype states</span>
+    <div class="seg" id="protoSeg">
+      <button type="button" data-state="default" aria-pressed="true">Default</button>
+      <button type="button" data-state="unset" aria-pressed="false">Fares not set</button>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+  'use strict';
+
+  /* ── icons, drawn ──────────────────────────────────────────────────── */
+  /* Drawn rather than imported so the nine other screens keep byte-identical
+     stroke weights. Names and titles are SettingsScreen.tsx:55-90 verbatim. */
+  const ICONS = {
+    fare: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9M9.4 10h4.1a1.9 1.9 0 0 1 0 3.8h-4.1"/>',
+    terminal: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5V1.8M12 22.2v-1.7M3.5 12H1.8M22.2 12h-1.7"/>',
+    barangay: '<path d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20Z"/><path d="M9 4v13.5M15 6.5V20"/>',
+    advanced: '<path d="M4 8h9M17 8h3M4 16h3M11 16h9"/><circle cx="15" cy="8" r="2.2"/><circle cx="9" cy="16" r="2.2"/>',
+    lock: '<rect x="4.5" y="10" width="15" height="10" rx="2.5"/><path d="M8 10V7.5a4 4 0 0 1 8 0V10"/>',
+    chevron: '<path d="M9 5l7 7-7 7"/>',
+    close: '<path d="M6 6l12 12M18 6L6 18"/>'
+  };
+  const icon = (name, size, color, width) =>
+    '<svg viewBox="0 0 24 24" width="' + (size || 18) + '" height="' + (size || 18) + '" fill="none" stroke="' +
+    (color || 'currentColor') + '" stroke-width="' + (width || 1.8) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    (ICONS[name] || '') + '</svg>';
+
+  /* ── the fare table, as the device has it ──────────────────────────── */
+  /* From fareFormat.test.ts:76-87 in the units toStoredFareValues writes them
+     in. fareStore creates the table and seeds no rows, so a device that has
+     never saved here has NONE of these, and the fare card is the only place on
+     this screen that can say so. The card prints the MINIMUM FARE, not the
+     per-kilometre rate: the peso floor decides what most of a provincial run
+     costs and it is the one bound that is never optional. */
+  const FARE_SET = {
+    minimumFareCentavos: 5000,      /* '50'   → 5000  */
+    minimumDistanceMilli: 4500,     /* '4.5'  → 4500  */
+    ratePerKmCentavos: 175,         /* '1.75' → 175   */
+    sctexRatePerKmCentavos: 225,    /* '2.25' → 225   */
+    specialRatePerKmCentavos: 100,  /* '1.00' → 100   */
+    sctexKmAdjustmentMilli: 500     /* '0.5'  → 500   */
+  };
+
+  /* ── terminals, and the fold ────────────────────────────────────────── */
+  /* The seventeen on the corridor the other screens carry, each with the
+     municipality it hangs off. `muni: null` is a terminal inserted with no
+     municipality_id, which is exactly how the fresh seed writes Subic
+     (tripTicketsStore.ts:516-518) and exactly what the deactivate guard at
+     :775-781 exists to stop getting worse. */
+  const CORRIDOR = [
+    { name: 'San Antonio',        muni: 'Zambales' },
+    { name: 'Iba',                muni: 'Zambales' },
+    { name: 'Balanga',            muni: 'Bataan' },
+    { name: 'Dinalupihan',        muni: 'Bataan' },
+    { name: 'San Rafael',         muni: 'Zambales' },
+    { name: 'Porac',              muni: 'Pampanga' },
+    { name: 'Candaba',            muni: 'Pampanga' },
+    { name: 'Santa Cruz',         muni: 'Olongapo' },
+    { name: 'Olongapo',           muni: 'Olongapo' },
+    { name: 'Subic',              muni: 'Subic' },
+    { name: 'Subic Bay Freeport', muni: 'Subic' },
+    { name: 'Norzagaray',         muni: 'Bulacan' },
+    { name: 'San Fernando',       muni: 'Pampanga' },
+    { name: 'Marques',            muni: 'Bulacan' },
+    { name: 'Meycauayan',         muni: 'Bulacan' },
+    { name: 'Cubao',              muni: 'Quezon City' },
+    { name: 'Caloocan',           muni: 'Kalakhang Maynila' }
+  ];
+  /* The fresh install, verbatim from tripTicketsStore.ts:504-522: five
+     terminals, and Subic inserted with municipality_id null. */
+  const FRESH_SEED = [
+    { name: 'Iba',          muni: 'Zambales' },
+    { name: 'Santa Cruz',   muni: 'Olongapo' },
+    { name: 'Olongapo',     muni: 'Olongapo' },
+    { name: 'Subic',        muni: null },
+    { name: 'Caloocan',     muni: 'Kalakhang Maynila' }
+  ];
+
+  /* Fourteen lines that fold every count on the screen, so 17/8 and 5/3/1 all
+     fall out of one stop list and no two of them can disagree. A hardcoded 17
+     in the render path is a defect. */
+  function registry(stops) {
+    const municipalities = {};
+    let linked = 0, unlinked = 0;
+    for (const s of stops) {
+      if (s.muni) { municipalities[s.muni] = true; linked++; } else { unlinked++; }
+    }
+    return { terminals: stops.length, linked, unlinked, municipalities: Object.keys(municipalities).length };
+  }
+
+  /* ── the four doors ─────────────────────────────────────────────────── */
+  /* Titles, keys and icons are SettingsScreen.tsx:55-90 verbatim. The VALUES
+     are not in that file: the screen reads nothing today, so each value here is
+     what a Settings screen that read would print. */
+  const MODULES = [
+    {
+      key: 'fare', icon: 'fare', title: 'Fare Configuration',
+      value: c => c.saved ? pesos(FARE_SET.minimumFareCentavos) + ' minimum fare' : 'Not set',
+      note: 'All ten values save as one set. A boarding reads them when it is priced, so a change here moves the next ticket and nothing already recorded.'
+    },
+    {
+      key: 'terminal', icon: 'terminal', title: 'Terminal Configuration',
+      value: c => c.stops.terminals + ' terminals',
+      note: 'Editing a KM marker changes the distance of every past trip on that route, and nothing on this screen says so.'
+    },
+    {
+      key: 'barangay', icon: 'barangay', title: 'Barangay Configuration',
+      value: c => c.stops.municipalities + ' municipalities',
+      note: 'A municipality with active barangays cannot be deactivated until they are.'
+    },
+    {
+      key: 'advanced', icon: 'advanced', title: 'Advanced Settings',
+      /* The value is the EFFECTIVE theme — the one the conductor can see —
+         read from the key the child writes, so this card moves the moment a
+         mode is chosen on that screen. Anything that is not "1" is light, so
+         a fresh device has never written kondukt.preferences.themeMode and
+         opens Light mode until a selection lands there. It is also the only
+         preference the app stores, which the sheet says out loud rather than
+         letting the name over-promise. */
+      value: () => readThemeMode(),
+      note: 'The only preference the app stores, read once before the first screen paints. Nothing here needs a network, and nothing here can be changed from anywhere else.'
+    }
+  ];
+
+  /* The doors' destinations. The sheet's OPEN button renders for a door that
+     has one, so Advanced is reachable the way Terminals and Barangays are —
+     the sheet says what the module holds, the module screen is where you
+     change it. */
+  const MODULE_ROUTE = {
+    terminal: 'terminal-config.html',
+    barangay: 'barangay-config.html',
+    advanced: 'advanced-settings.html'
+  };
+
+  /* preferences.ts:14-17 — anything that is not "1" is light, so a fresh
+     install and a corrupt value look identical and neither is an error. */
+  function readThemeMode() {
+    try { return localStorage.getItem('kondukt.preferences.themeMode') === '1' ? 'Dark mode' : 'Light mode'; }
+    catch (e) { return 'Light mode'; }
+  }
+
+  /* ── formatters ────────────────────────────────────────────────────── */
+  /* Grouping is not cosmetic: the app's money formatter runs over en-PH and
+     Node's en-PH PHP formatter emits a plain ASCII comma, so a prototype that
+     skips grouping prints ₱5000.00 where the device prints ₱50.00. */
+  const group = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const pesos = centavos => '₱' + group(Math.floor(centavos / 100)) + '.' + String(centavos % 100).padStart(2, '0');
+  const km = milli => (milli / 1000).toFixed(1) + ' km';
+  const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+
+  /* ── state ──────────────────────────────────────────────────────────── */
+  /* Two states, one variable, and they are two different DEVICES rather than
+     one device with a flag: the app stores all of the fare configuration and
+     calculates none of it, and a fresh install has every field blank.
+
+     ponytail: two states only, because every settings read is a synchronous
+     local read — there is no loading or error path to prototype, and inventing
+     one would be a fiction. Add loading/error/retry when the settings read ever
+     goes async or leaves the device; extend compute() and setPreview() rather
+     than forking render(), which is already the single place every region is
+     written from. */
+  const state = { preview: 'default', sheet: null, lastFocus: null };
+
+  function compute() {
+    const unset = state.preview === 'unset';
+    return {
+      unset: unset,
+      /* The fare row is the one value that can be absent, and its absence is
+         the whole difference between the two states. */
+      saved: !unset,
+      /* Terminals arrive with the app either way; what differs is how many the
+         operator has added since. */
+      stops: registry(unset ? FRESH_SEED : CORRIDOR)
+    };
+  }
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  /* ── the block: the app's own sentence, quoted ──────────────────────── */
+  /* This is what the conductor will read mid-run at the ticket step, on a
+     different screen. Rewording it here would guarantee the two disagree. */
+  const NO_FARE_RULES = 'This device has no fare rules yet, so a ticket cannot be priced.';
+
+  /* ── chrome ─────────────────────────────────────────────────────────── */
+  function renderChrome(c) {
+    $('chromeSub').textContent = c.saved ? '4 modules set up' : 'Fares not set yet';
+  }
+
+  function renderBlock(c) {
+    const sec = $('blockSection');
+    sec.hidden = c.saved;
+    if (c.saved) return;
+    $('setBlockBody').textContent =
+      NO_FARE_RULES + ' Nothing else is missing: this device already carries ' +
+      plural(c.stops.terminals, 'terminal', 'terminals') + ' under ' +
+      plural(c.stops.municipalities, 'municipality', 'municipalities') +
+      ', so a route can be built — it just cannot be charged for yet.';
+  }
+
+  /* ── the four module cards ──────────────────────────────────────────── */
+  function renderMods(c) {
+    $('mods').innerHTML = MODULES.map(function (m) {
+      const alert = m.key === 'fare' && !c.saved;
+      return '<button type="button" class="mod' + (alert ? ' alert' : '') + '" data-act="open" data-mod="' + m.key + '" ' +
+        'data-od-id="set-mod-' + m.key + '"' +
+        /* The row that raises the condition points at the sentence that explains
+           it, so the two are one announcement apart rather than two unconnected
+           regions. */
+        (alert ? ' aria-describedby="setBlockBody"' : '') + '>' +
+        '<span class="mod-chip" aria-hidden="true">' + icon(m.icon, 24, 'currentColor', 1.8) + '</span>' +
+        '<span class="mod-body">' +
+        '<span class="mod-title title-m">' + esc(m.title) + '</span>' +
+        '<span class="mod-value body-s">' + esc(m.value(c)) + '</span>' +
+        '</span>' +
+        '<span class="mod-chev" aria-hidden="true">' + icon('chevron', 18, 'currentColor', 2) + '</span>' +
+        '</button>';
+    }).join('');
+  }
+
+  /* One note per state, below the list, because a card states one value and the
+     rest of what is stored is not what a card is for. The default carries the
+     qualified figures; the unset carries the seed reality. The floor sentence
+     is the app's own order — applyFare floors on distance, THEN adds the KM
+     adjustment, THEN floors on peso (addTicketFare.ts:181-187) — because the
+     order is what a fare actually is. */
+  function renderSecNote(c) {
+    $('secNote').textContent = c.saved
+      ? 'Fares on this device bill ' + pesos(FARE_SET.ratePerKmCentavos) + ' per km, or ' +
+        pesos(FARE_SET.sctexRatePerKmCentavos) + ' on the expressway, never below ' +
+        pesos(FARE_SET.minimumFareCentavos) + '. Distance is floored at ' +
+        km(FARE_SET.minimumDistanceMilli) + ' before the ' + km(FARE_SET.sctexKmAdjustmentMilli) +
+        ' KM adjustment is added.'
+      : 'Terminals arrive with the app: ' + c.stops.terminals + ' of them under ' +
+        c.stops.municipalities + ' municipalities, and ' + c.stops.unlinked +
+        ' with no municipality. A route can be built from that. A fare cannot.';
+  }
+
+  /* ── overlays: one sheet recipe, four contents ──────────────────────── */
+  const detailRow = (k, v) =>
+    '<div class="detail-row"><span class="k body-m">' + esc(k) + '</span><span class="v body-m tabular">' + esc(v) + '</span></div>';
+
+  function sheet(title, sub, rows, note, route) {
+    return '<div class="scrim bottom" data-scrim="1"><div class="sheet bottom-sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">' +
+      '<div class="sheet-head"><div class="sheet-titles"><h2 class="title-m" id="sheetTitle">' + esc(title) + '</h2>' +
+      '<p class="body-s muted">' + esc(sub) + '</p></div>' +
+      '<button type="button" class="icon-btn" data-act="close" data-od-id="set-sheet-close" data-autofocus aria-label="Close">' +
+      icon('close', 20, 'currentColor', 2) + '</button></div>' +
+      '<div class="sheet-body">' +
+      /* The shared detail recipe, not .row-btn and not .sheet-note: both carry
+         resets that do not belong on a read-only list. */
+      '<div class="detail-card" data-od-id="set-sheet-rows">' + rows + '</div>' +
+      '<p class="commit-hint" data-od-id="set-sheet-note">' + esc(note) + '</p>' +
+      '<div style="margin-top:16px;display:flex;gap:8px">' +
+      (route ? '<button type="button" class="ghost" data-act="route" data-route="' + route + '" data-od-id="set-sheet-open">OPEN</button>' : '') +
+      '<button type="button" class="ghost" data-act="close" data-od-id="set-sheet-done">Close</button></div>' +
+      '</div></div></div>';
+  }
+
+  /* A door's real contents. Nothing here is editable: the sheet says what the
+     module holds. Re-implementing four screens inside a hub is how a hub
+     becomes a second source of truth. */
+  function sheetRows(key, c) {
+    if (key === 'fare') {
+      /* The four sections of FareSettingsScreen, with their real field counts
+         (FareSettingsScreen.tsx:43-58), then the stored values once they
+         exist. The unset branch appends the fact the card raised. */
+      let rows =
+        detailRow('Base fare rules', '6 fields') +
+        detailRow('SCTEX km adjustment', '1 field') +
+        detailRow('Passenger rates', '1 field') +
+        detailRow('Discount (PWD / student / senior)', '2 fields');
+      rows += c.saved
+        ? detailRow('Minimum fare', pesos(FARE_SET.minimumFareCentavos)) +
+          detailRow('Rate per km', pesos(FARE_SET.ratePerKmCentavos)) +
+          detailRow('SCTEX rate per km', pesos(FARE_SET.sctexRatePerKmCentavos)) +
+          detailRow('Special rate per km', pesos(FARE_SET.specialRatePerKmCentavos)) +
+          detailRow('SCTEX adjustment', '+' + km(FARE_SET.sctexKmAdjustmentMilli))
+        : detailRow('Saved values', 'None');
+      return rows;
+    }
+    if (key === 'terminal') {
+      return detailRow('Terminals on this device', String(c.stops.terminals)) +
+        detailRow('Linked to a municipality', String(c.stops.linked)) +
+        detailRow('No municipality yet', String(c.stops.unlinked));
+    }
+    if (key === 'barangay') {
+      return detailRow('Municipalities on this device', String(c.stops.municipalities)) +
+        detailRow('Terminals hanging off them', String(c.stops.linked)) +
+        detailRow('Terminals with none', String(c.stops.unlinked));
+    }
+    return detailRow('Preferences stored', '1') +
+      detailRow('Theme', readThemeMode()) +
+      detailRow('Applied', 'On tap, and at every launch');
+  }
+
+  function closeOverlay() {
+    const root = $('overlayRoot');
+    if (!root.firstChild) return;
+    root.innerHTML = '';
+    state.sheet = null;
+    /* Focus goes back where it came from, and only if that control still
+       exists — a re-render between open and close will have replaced it. */
+    if (state.lastFocus && document.contains(state.lastFocus)) state.lastFocus.focus();
+    state.lastFocus = null;
+  }
+
+  function openSheet(key) {
+    const c = compute();
+    const m = MODULES.filter(function (x) { return x.key === key; })[0];
+    if (!m) return;
+    state.lastFocus = document.activeElement;
+    /* state.sheet holds the MARKUP and renderOverlay re-emits it, so a sheet
+       survives the render that opened it. Emitted earlier, that render would
+       tear it down. */
+    state.sheet = sheet(m.title, m.value(c), sheetRows(key, c), m.note, MODULE_ROUTE[key] || null);
+    renderOverlay();
+    const af = $('overlayRoot').querySelector('[data-autofocus]');
+    if (af) af.focus();
+  }
+
+  function renderOverlay() {
+    $('overlayRoot').innerHTML = state.sheet || '';
+  }
+
+  /* ── one render ────────────────────────────────────────────────────── */
+  function render() {
+    const c = compute();
+    renderChrome(c);
+    renderBlock(c);
+    renderMods(c);
+    renderSecNote(c);
+    /* Last, so a sheet survives the render that opened it. */
+    renderOverlay();
+  }
+
+  /* ── wiring ────────────────────────────────────────────────────────── */
+  document.addEventListener('click', function (e) {
+    const t = e.target;
+    const proto = t.closest && t.closest('#protoSeg button');
+    if (proto) { setPreview(proto.dataset.state); return; }
+
+    /* Scrim close by attribute test and NEVER by closest(): the sheet markup
+       carries its own data-*, so a close that walks up from a node inside the
+       sheet dismisses the sheet on any tap that missed a control. */
+    if (t.hasAttribute && t.hasAttribute('data-scrim')) { closeOverlay(); return; }
+
+    const act = t.closest && t.closest('[data-act]');
+    if (!act) return;
+    if (act.dataset.act === 'close') { closeOverlay(); return; }
+    if (act.dataset.act === 'open') { openSheet(act.dataset.mod); return; }
+    if (act.dataset.act === 'route') { location.href = act.dataset.route; return; }
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && state.sheet) closeOverlay();
+  });
+
+  function setPreview(name) {
+    state.preview = name;
+    state.sheet = null;
+    state.lastFocus = null;
+    Array.prototype.forEach.call($('protoSeg').querySelectorAll('button'), function (b) {
+      b.setAttribute('aria-pressed', b.dataset.state === name ? 'true' : 'false');
+    });
+    render();
+  }
+
+  /* Review scaffolding, not app behaviour: #default and #unset open a state,
+     #sheet-fare and friends open that door on top of it, so a headless pass
+     can assert both states and all four sheets without a click. The presenter
+     control above drives the same function, and there is no other entry point. */
+  (function bootFromHash() {
+    const name = (location.hash || '').replace('#', '');
+    if (name.indexOf('sheet-') === 0) {
+      state.preview = 'default';
+      render();
+      openSheet(name.replace('sheet-', ''));
+      return;
+    }
+    if (name === 'default' || name === 'unset') setPreview(name);
+    else render();
+  })();
+  })();
+  </script>
+</body>
+</html>

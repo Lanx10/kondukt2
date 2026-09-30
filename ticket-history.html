@@ -1,0 +1,635 @@
+<!doctype html>
+<!--
+  Kondukt · Ticket history screen — Open Design prototype.
+
+  The ticket book of ONE trip. The list half of the History pair, cut out of
+  index.html's Tickets tab: index.html answers "what did I earn over a range",
+  this answers "which tickets did I issue on this trip, and open one". Same
+  ledger, same ids, one trip.
+
+  It is a LIST, so it carries none of ticket-detail.html's argument. That screen
+  had to justify why a fare could not be edited; a card that opens a receipt
+  does not have to argue anything, it just has to be findable and honest about
+  where the tickets came from. What it inherits from that screen is the visual
+  contract — the same glass, the same Poppins, the same amber, the same 44px
+  targets — and one rule from the data: a ticket id means nothing except against
+  the generator that issued it, so this file and ticket-history-detail.html
+  build their records from the same call and therefore agree on every id.
+
+  What the record actually holds — schema.ts:58 TicketRowRecord:
+    id, trip_id, created_at, origin_location_snapshot,
+    destination_location_snapshot, passenger_type, passenger_quantity,
+    final_fare_per_passenger, total_fare.
+  A card prints the route snapshot, how many passengers, the time, the fare
+  name and the total, and leaves the money breakdown to the receipt, which is
+  where the fare note that explains final_fare_per_passenger already lives. The
+  one thing a card must NOT print is a leg distance: the ticket has no distance
+  column, so a distance here would be a claim about a road that was never
+  measured for this fare. Trip distance lives on the trip, and it is reached
+  through the receipt's "THE TRIP IT WAS TAKEN ON" section.
+
+  Three decisions this screen makes that the calendar tab does not:
+
+  1. It is scoped to a single trip, and the sentence under the eyebrow says so:
+     "Every passenger ticket recorded on this trip." A screen that promises one
+     trip and then lists a week is a screen nobody can settle a dispute with, so
+     the list is that trip's tickets and no others. The trip is the one running
+     now when there is one, otherwise the most recent, and the chrome names it
+     so that "this trip" points at something.
+
+  2. It is ordered the way the ticket book fills: oldest ticket first. A record
+     you read against is a record you read in the order it happened.
+
+  3. It is read-only in the strong sense: no card offers an action, because
+     tripTicketsStore.ts exposes exactly one write (recordTicketRow) and no
+     update, void or delete behind it. A chevron that opens a receipt is the
+     only affordance here, and it is an affordance, not an action.
+
+  Four states, all reachable from the control outside the handset: tickets, a
+  trip that has sold none, a store that has not answered, and a store that could
+  not be read. There is no not-found state, because a list that cannot find
+  things shows the ones it can and counts the rest.
+
+  ROUTES are the store's own barangay snapshots (tripTicketsStore.ts:480-486,
+  six seeded trips) and the same 200/1200 counters and 7-day window the receipt
+  page uses, so a route prints "Barangay, Municipality → Barangay, Municipality"
+  and every id this list prints resolves in ticket-history-detail.html.
+-->
+<html lang="en">
+<head><script type="application/json" data-od-external-dependencies>["https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap"]</script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kondukt · Ticket History</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    @layer od-layout {
+      .od-stack   { display: flex; flex-direction: column; gap: var(--od-gap, 8px); }
+      .od-row     { display: flex; align-items: center; gap: var(--od-gap, 8px); }
+      .od-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--od-gap, 8px); }
+      .od-fill    { flex: 1 1 0; min-width: 0; }
+      .od-grid    { display: grid; gap: var(--od-gap, 12px); grid-template-columns: repeat(var(--od-cols, 3), minmax(0, 1fr)); }
+      :where(.od-stack,.od-row,.od-cluster,.od-grid,.od-stat) > :where(*) { min-width: 0; }
+      .od-stat { display: grid; gap: var(--od-gap, 2px); }
+      /* The base shell also ships .od-truncate and .od-clamp-2. Both are gone
+         here: they clip, and on a page whose whole job is a fare a conductor
+         can settle a dispute about, a clipped string is a wrong string. Row
+         text wraps instead. */
+    }
+
+    :root {
+      /* ── kondukt M3 warm palette (src/theme.ts) ───────────────────────── */
+      --primary:#E65100; --on-primary:#FFFFFF; --primary-container:#FFE6D2; --on-primary-container:#4E2200;
+      --primary-solid:#C2410C; --primary-solid-hover:#A93A09;
+      --secondary:#FFB300; --on-secondary:#3D2E00; --secondary-container:#FFEFC7; --on-secondary-container:#4A3600;
+      --secondary-fg:#8A6100;
+      /* Foregrounds for the solid-amber card, measured against #FFB300:
+         7.4:1 / 5.8:1 / 4.9:1. Tokens, so the amber cards across the product
+         cannot drift apart. */
+      --on-secondary-detail:#4F3D2B; --on-secondary-muted:#5B4720; --on-secondary-faint:#6B5518;
+      --tertiary:#546E7A; --on-tertiary:#FFFFFF; --tertiary-container:#DDE6EA; --on-tertiary-container:#162B33;
+      --error:#BA1A1A; --on-error:#FFFFFF; --error-container:#FFDAD6; --on-error-container:#410002;
+      --background:#FDF7F3; --surface:#FDF7F3; --surface-lowest:#FFFFFF; --surface-low:#F7EFE9;
+      --surface-container:#F2E9E2; --surface-high:#ECE3DC;
+      --on-surface:#221A15; --on-surface-variant:#53433B; --outline:#85736B; --outline-variant:#D7C2B7;
+      --scrim:rgba(34,26,21,.32);
+
+      /* glass layer */
+      --glass-tint:rgba(255,255,255,.58);
+      --glass-rim:rgba(255,255,255,.85);
+      --glass-on:#1A2029; --glass-on-variant:#4A5568;
+      --glass-accent-primary:#8F3A00; --glass-accent-secondary:#6B4B00; --glass-accent-tertiary:#334A56;
+      --glass-shadow:rgba(90,106,130,.16);
+
+      --radius-sm:8px; --radius-md:12px; --radius-lg:16px; --radius-xl:24px; --radius-glass:28px; --radius-full:999px;
+      --font: 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+      /* shell vars (from the neutral OD handset) */
+      --phone-screen-width:390px; --phone-screen-height:844px; --phone-bezel:10px;
+      --phone-outer-radius:52px; --phone-screen-radius:42px;
+      --phone-safe-top:50px; --phone-safe-bottom:29px;
+      --phone-system-fg:#17181a; --phone-screen-bg:#f8f8f9; --phone-stage-bg:#eaebee;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      min-height: 100dvh; display: grid; place-items: center; padding: 32px;
+      background: radial-gradient(circle at 50% 15%, rgba(255,255,255,.94), transparent 35%), var(--phone-stage-bg);
+      color: #191a1d; font-family: var(--font);
+    }
+
+    /* ── handset shell ─────────────────────────────────────────────────── */
+    .phone-frame {
+      position: relative;
+      width: calc(var(--phone-screen-width) + var(--phone-bezel) * 2);
+      height: calc(var(--phone-screen-height) + var(--phone-bezel) * 2);
+      padding: var(--phone-bezel); border-radius: var(--phone-outer-radius);
+      background: linear-gradient(145deg, rgba(255,255,255,.2), transparent 17%), linear-gradient(160deg, #3f4146 0%, #202227 48%, #0b0c0f 100%);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.13), inset 0 0 0 2px rgba(0,0,0,.85), 0 32px 68px -20px rgba(10,12,16,.52), 0 10px 24px -10px rgba(10,12,16,.32);
+      isolation: isolate;
+    }
+    .phone-frame::before, .phone-frame::after {
+      content: ""; position: absolute; z-index: -1; top: 96px; bottom: 96px; width: 2px;
+      background: linear-gradient(to bottom, transparent, rgba(255,255,255,.13) 16%, transparent 30%, transparent 72%, rgba(255,255,255,.07) 88%, transparent);
+    }
+    .phone-frame::before { left: 0; } .phone-frame::after { right: 0; }
+    .hardware-button { position: absolute; width: 4px; border-radius: 3px; background: linear-gradient(90deg,#08090b,#2a2d33 60%,#08090b); box-shadow: inset 0 1px rgba(255,255,255,.08); }
+    .hardware-button.volume { left: -3px; top: 222px; height: 86px; }
+    .hardware-button.power { right: -3px; top: 270px; height: 82px; }
+
+    .phone-screen {
+      position: relative; width: var(--phone-screen-width); height: var(--phone-screen-height);
+      overflow: hidden; border-radius: var(--phone-screen-radius); background: var(--phone-screen-bg);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.05);
+    }
+    .phone-content { position: absolute; inset: 0; overflow: hidden; padding: 0; background: transparent; }
+
+    .status-bar { position: absolute; z-index: 40; inset: 0 0 auto; height: var(--phone-safe-top); display: grid; grid-template-columns: minmax(0,1fr) 56px minmax(0,1fr); align-items: start; padding: 14px 20px 0; color: var(--phone-system-fg); opacity: .8; pointer-events: none; }
+    .status-time { justify-self: start; display: flex; align-items: center; height: 15px; font-size: 14px; font-weight: 560; line-height: 1; letter-spacing: .01em; font-family: system-ui, sans-serif; }
+    .status-cutout-zone { width: 56px; }
+    .status-icons { justify-self: end; display: inline-flex; align-items: center; height: 15px; gap: 6px; }
+    .status-icons svg { display: block; flex: none; fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
+    .status-icons .connectivity { width: 15px; height: 12px; } .status-icons .wifi { width: 15px; height: 12px; } .status-icons .battery { width: 19px; height: 11px; }
+    .camera-dot { position: absolute; z-index: 45; top: 13px; left: 50%; width: 10px; height: 10px; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(circle at 38% 35%, #344154 0 12%, #0a0c10 34%, #000 76%); box-shadow: 0 0 0 1px rgba(255,255,255,.06); pointer-events: none; }
+    .gesture-indicator { position: absolute; z-index: 45; left: 50%; bottom: 8px; width: 96px; height: 4px; transform: translateX(-50%); border-radius: 99px; background: var(--phone-system-fg); opacity: .86; pointer-events: none; }
+
+    /* ── app root ──────────────────────────────────────────────────────── */
+    #app {
+      position: relative; height: 100%; display: flex; flex-direction: column;
+      color: var(--glass-on);
+      background:
+        radial-gradient(125% 82% at 6% -4%, #FBC9A8 0%, rgba(246,227,212,.78) 32%, rgba(244,247,251,0) 63%),
+        radial-gradient(130% 88% at 104% 104%, #C6D9E8 0%, rgba(228,233,242,.72) 34%, rgba(244,247,251,0) 66%),
+        #F4F7FB;
+    }
+    .app-scroll {
+      flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch; scrollbar-width: none;
+      padding-bottom: var(--phone-safe-bottom);
+    }
+    .app-scroll::-webkit-scrollbar { display: none; }
+
+    .readable { width: 100%; max-width: 720px; margin-inline: auto; padding-inline: 20px; }
+
+    /* ── typography roles ──────────────────────────────────────────────── */
+    .display-s { font-weight: 700; font-size: 28px; line-height: 36px; letter-spacing: -.3px; }
+    .headline-s { font-weight: 600; font-size: 20px; line-height: 27px; letter-spacing: -.3px; }
+    .title-m { font-weight: 600; font-size: 16px; line-height: 23px; }
+    .body-m { font-weight: 400; font-size: 14px; line-height: 21px; }
+    .body-s { font-weight: 400; font-size: 12px; line-height: 18px; }
+    .label-l { font-weight: 600; font-size: 15px; line-height: 20px; }
+    .label-s { font-weight: 600; font-size: 11px; line-height: 16px; letter-spacing: .6px; }
+    .tabular { font-variant-numeric: tabular-nums; }
+    .muted { color: var(--glass-on-variant); }
+    .strong { color: var(--glass-on); }
+    p { margin: 0; }
+
+    /* ── glass surface ─────────────────────────────────────────────────── */
+    .glass {
+      position: relative; border-radius: var(--radius-glass);
+      background: var(--glass-tint);
+      box-shadow: 0 8px 15px var(--glass-shadow), inset 0 1px 0 rgba(255,255,255,.55);
+      -webkit-backdrop-filter: blur(18px) saturate(180%);
+      backdrop-filter: blur(18px) saturate(180%);
+    }
+    .glass > * { position: relative; z-index: 1; }
+    .glass::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: rgba(120,130,150,.5); opacity: .035; pointer-events: none; }
+    .glass::after  { content: ""; position: absolute; inset: 0; border-radius: inherit; border: 1px solid var(--glass-rim); pointer-events: none; z-index: 2; }
+
+    /* ── chrome (SectionChrome) ────────────────────────────────────────── */
+    .chrome { display: flex; align-items: center; gap: 12px; flex: none; padding: calc(var(--phone-safe-top) + 12px) 20px 12px; }
+    .back {
+      width: 44px; height: 44px; border-radius: var(--radius-full); border: 0; background: var(--primary-solid);
+      display: grid; place-items: center; cursor: pointer; flex: none;
+      box-shadow: 0 8px 15px var(--glass-shadow);
+    }
+    .back:hover { background: var(--primary-solid-hover); }
+    .title-card {
+      flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 5px 16px; border-radius: var(--radius-full);
+      background: var(--primary-solid); display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+      box-shadow: 0 8px 15px var(--glass-shadow);
+    }
+    .chrome-title { color: var(--on-primary); margin: 0; }
+    .chrome-sub { color: var(--on-primary); margin: 1px 0 0; }
+    /* The back pill is a link here, not a button: it navigates off this screen,
+       and a control that only looks like it goes back is worse than one that
+       admits it. <a class="back"> holds an svg and no text node, so it draws
+       no underline on its own; the pair below covers the two text controls. */
+    a.back, a.primary-btn, a.tk-link { text-decoration: none; }
+
+    /* ── the lede ──────────────────────────────────────────────────────── */
+    /* What this screen is, said once, in the same words the eyebrow above it
+       uses, so the claim and the list cannot disagree: these are the tickets
+       of one trip, not the tickets of a week. */
+    .th-head { margin-bottom: 14px; }
+    .th-eyebrow { color: var(--glass-on-variant); }
+    .th-lede { margin-top: 4px; color: var(--glass-on-variant); }
+
+    /* ── the ticket cards ──────────────────────────────────────────────── */
+    /* A card is a link, not a button: it opens another page, so it is an <a> and
+       it says where it goes in its own aria-label. It reads in the order the
+       record is read — what the ticket was for, who it covered and when, what
+       it cost and under which fare — and the whole card is the target, because
+       the fare and the route have to share one line on a 390px screen. */
+    .tk-list { display: grid; gap: 10px; }
+    .tk-link { display: block; min-height: 76px; }
+    .tk-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px; min-height: 76px; }
+    .tk-icon { flex: none; width: 40px; height: 40px; border-radius: var(--radius-md); display: grid; place-items: center; background: var(--primary-container); color: var(--primary-solid); }
+    .tk-mid { flex: 1 1 auto; min-width: 0; }
+    /* The route is a snapshot pair of "Barangay, Municipality" strings, so it
+       wraps rather than truncates: a fare whose destination reads "Santa Cruz,
+       O…" is not a fare a conductor can settle a dispute about. */
+    .tk-title { display: block; color: var(--glass-on); overflow-wrap: anywhere; }
+    .tk-meta { display: block; margin-top: 2px; color: var(--glass-on-variant); }
+    .tk-fare { flex: none; text-align: right; }
+    /* The fare is the one orange thing on a card, and it has to be the dark
+       orange: #C2410C is 5.0:1 on the glass field, while the lighter --primary
+       (#E65100) is 3.7:1 and fails AA on a number a conductor has to read. */
+    .tk-fare .amt { color: var(--primary-solid); }
+    .tk-fare .type { display: block; color: var(--glass-on-variant); }
+    .chev { flex: none; color: var(--outline); }
+    /* Hover moves the surface, never the ink: the rim thickens and the tint
+       deepens, so 12.6:1 stays the contrast in both states. */
+    .tk-link:hover .tk-card { background: rgba(255,255,255,.74); }
+    .tk-link:hover .tk-card::after { border-color: rgba(143,58,0,.28); }
+    .tk-link:active .tk-card { background: rgba(255,255,255,.86); }
+
+    /* ── inline storage line ───────────────────────────────────────────── */
+    .storage { margin-top: 20px; padding: 12px 20px; display: flex; align-items: center; gap: 10px; }
+    .storage p { color: var(--glass-on-variant); }
+
+    /* ── states ────────────────────────────────────────────────────────── */
+    .state { padding: 20px; border-radius: var(--radius-xl); border: 1px solid var(--outline-variant); background: rgba(255,255,255,.55); }
+    .state.error { border-color: var(--error); background: var(--error-container); }
+    .state h3 { margin: 0; color: var(--glass-on); }
+    .state p { margin: 8px 0 0; color: var(--glass-on-variant); }
+    .state.error p { color: var(--on-error-container); }
+    .primary-btn { margin-top: 14px; min-height: 48px; padding: 0 20px; border-radius: var(--radius-lg); border: 0; background: var(--primary-solid); color: var(--on-primary); cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 8px; }
+    .primary-btn:hover { background: var(--primary-solid-hover); }
+    .sk { border-radius: 8px; background: linear-gradient(90deg, rgba(0,0,0,.05) 25%, rgba(0,0,0,.09) 37%, rgba(0,0,0,.05) 63%); background-size: 400% 100%; animation: shim 1.4s ease infinite; }
+    @keyframes shim { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+    @media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
+
+    :focus-visible { outline: 2px solid var(--primary-solid); outline-offset: 2px; border-radius: 6px; }
+
+    /* prototype state control (outside the phone) */
+    .proto-states { position: fixed; left: 18px; bottom: 18px; z-index: 50; display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 16px; background: rgba(255,255,255,.9); border: 1px solid #dcdde1; box-shadow: 0 10px 24px rgba(20,22,28,.12); font-family: var(--font); }
+    .proto-states span { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #6b6e75; font-weight: 600; }
+    .proto-states .seg { display: flex; flex-wrap: wrap; gap: 6px; max-width: 232px; }
+    .proto-states button { font: inherit; font-size: 12px; padding: 7px 10px; border-radius: 999px; border: 1px solid #d4d5d9; background: #fff; color: #33363c; cursor: pointer; }
+    .proto-states button:hover { background: #F1F2F4; }
+    .proto-states button[aria-pressed="true"]:hover { background: #A93A09; border-color: #A93A09; }
+    .proto-states button[aria-pressed="true"] { background: #C2410C; border-color: #C2410C; color: #fff; }
+
+    @media (max-width: 480px) {
+      body { padding: 0; display: block; }
+      .phone-frame { width: 100%; height: 100dvh; padding: 0; border-radius: 0; background: none; box-shadow: none; }
+      .phone-frame::before, .phone-frame::after, .hardware-button { display: none; }
+      .phone-screen { width: 100%; height: 100%; border-radius: 0; }
+      .proto-states { display: none; }
+    }
+    @media (max-height: 927px) { .phone-frame { zoom: .9; } }
+    @media (max-height: 840px) { .phone-frame { zoom: .82; } }
+    @media (max-height: 771px) { .phone-frame { zoom: .74; } }
+    @media (max-height: 702px) { .phone-frame { zoom: .66; } }
+  </style>
+</head>
+<body>
+  <div class="phone-frame" data-phone-shell data-platform="neutral">
+    <span class="hardware-button volume" aria-hidden="true"></span>
+    <span class="hardware-button power" aria-hidden="true"></span>
+
+    <section class="phone-screen" data-od-id="phone-screen" data-phone-screen>
+      <main class="phone-content" data-phone-content>
+        <!-- APP CONTENT START -->
+        <div id="app">
+          <!-- 0. The same chrome every other screen wears. Back goes to the
+               calendar tab, which is the one place a range and a filter live;
+               the day grouping here is deliberately not a second way to do it. -->
+          <header class="chrome readable" data-od-id="th-chrome">
+            <a class="back" id="backLink" href="index.html" data-od-id="th-back" aria-label="Back to History">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+            </a>
+            <div class="title-card">
+              <h1 class="chrome-title title-m" id="chromeTitle">Ticket History</h1>
+              <p class="chrome-sub body-s" id="chromeSub">Reading the trip&hellip;</p>
+            </div>
+          </header>
+
+          <div class="app-scroll" id="scroll">
+            <div class="readable">
+              <!-- 1. The tickets of this trip and nothing else. The sentence
+                   under the eyebrow is the screen's one promise, and the cards
+                   under it are the whole of what it keeps. -->
+              <section data-od-id="trip-history-list" id="listSection">
+                <div class="th-head">
+                  <p class="th-eyebrow label-s">TICKET HISTORY</p>
+                  <p class="th-lede body-m">Every passenger ticket recorded on this trip.</p>
+                </div>
+                <!-- This screen has no server to ask. Every figure on it is
+                     generated in the page, so with scripting off there is
+                     genuinely nothing to read — and saying so beats shipping a
+                     frame that sits empty under a title promising tickets. -->
+                <noscript>
+                  <div class="state">
+                    <div class="state-mark" aria-hidden="true">!</div>
+                    <p class="title-s">Tickets need JavaScript</p>
+                    <p class="body-m">This device's ticket records are read in the page — there is no server to ask. Turn JavaScript on to see this trip's tickets.</p>
+                  </div>
+                </noscript>
+                <div id="listSlot"></div>
+              </section>
+
+              <!-- 2. Where the rows live, and how many there are that this
+                   screen is not showing. -->
+              <div class="glass storage" data-od-id="storage-footer">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--glass-on-variant)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="7.5" ry="3.2"/><path d="M4.5 6v12c0 1.8 3.4 3.2 7.5 3.2s7.5-1.4 7.5-3.2V6"/><path d="M4.5 12c0 1.8 3.4 3.2 7.5 3.2s7.5-1.4 7.5-3.2"/></svg>
+                <p class="body-s" id="storageNote"></p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- APP CONTENT END -->
+      </main>
+
+      <div class="status-bar" aria-hidden="true">
+        <span class="status-time">9:41</span>
+        <span class="status-cutout-zone"></span>
+        <span class="status-icons">
+          <svg class="connectivity" viewBox="0 0 15 12"><path d="M1.5 10.5v-2m4 2v-4.5m4 4.5v-7m4 7v-9"/></svg>
+          <svg class="wifi" viewBox="0 0 16 12"><path d="M1.5 4.7a9.2 9.2 0 0 1 13 0M4.2 7.3a5.4 5.4 0 0 1 7.6 0M6.9 10a1.55 1.55 0 0 1 2.2 0"/></svg>
+          <svg class="battery" viewBox="0 0 20 11"><rect x=".75" y="1.25" width="16.5" height="8.5" rx="2"/><path d="M18.5 4v3M3.2 3.4h10.4v4.2H3.2z" fill="currentColor" stroke="none"/></svg>
+        </span>
+      </div>
+      <div class="camera-dot" aria-hidden="true"></div>
+      <div class="gesture-indicator" aria-hidden="true"></div>
+    </section>
+  </div>
+
+  <div class="proto-states" role="group" aria-label="Prototype state preview">
+    <span>Prototype states</span>
+    <div class="seg" id="protoSeg">
+      <button type="button" data-state="ready" aria-pressed="true">Fares this week</button>
+      <button type="button" data-state="empty" aria-pressed="false">No fares yet</button>
+      <button type="button" data-state="loading" aria-pressed="false">Loading</button>
+      <button type="button" data-state="error" aria-pressed="false">Error</button>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+  'use strict';
+
+  /* ── icons (src/icons.tsx) ─────────────────────────────────────────── */
+  const ICONS = {
+    arrow: '<path d="M5 12h13M13 6l6 6-6 6"/>',
+    bus: '<rect x="4" y="3.5" width="16" height="14.5" rx="3"/><path d="M4 11h16"/><path d="M8 20v-1.5M16 20v-1.5"/><circle cx="8" cy="14.6" r="1.1"/><circle cx="16" cy="14.6" r="1.1"/>',
+    ticket: '<path d="M4 9.5V7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5v2a2.4 2.4 0 0 0 0 4.6v2.4a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5v-2.4a2.4 2.4 0 0 0 0-4.6Z"/><path d="M14 5v3M14 11.4v1.2M14 16v3"/>',
+    history: '<path d="M4 12a8 8 0 1 0 2.6-5.9"/><path d="M3.4 4.4v3.8h3.8"/><path d="M12 7.6V12l3 2"/>',
+    chevron: '<path d="M9 5l7 7-7 7"/>',
+    down: '<path d="M6 9l6 6 6-6"/>',
+    calendar: '<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/>',
+    store: '<ellipse cx="12" cy="6" rx="7.5" ry="3.2"/><path d="M4.5 6v12c0 1.8 3.4 3.2 7.5 3.2s7.5-1.4 7.5-3.2V6"/><path d="M4.5 12c0 1.8 3.4 3.2 7.5 3.2s7.5-1.4 7.5-3.2"/>'
+  };
+  const icon = (name, size, color, sw) =>
+    '<svg viewBox="0 0 24 24" width="' + size + '" height="' + size + '" fill="none" stroke="' + color +
+    '" stroke-width="' + (sw || 1.9) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || '') + '</svg>';
+
+  const $ = id => document.getElementById(id);
+
+  /* ── formatters (src/lib/format.ts, src/lib/tripTicketsFormat.ts) ─── */
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const peso = n => '₱' + Number(n).toFixed(2);
+  /* NBSP holds the meridiem to its time. A plain space let the meta line break
+     "10:13 AM" into "10:13" and a one-word "AM" line. */
+  const mediumDate = d => DAYS[d.getDay()] + ', ' + MONTHS[d.getMonth()] + ' ' + d.getDate();
+  const clock = d => { const h = d.getHours(); const h12 = h % 12 === 0 ? 12 : h % 12; return h12 + ':' + String(d.getMinutes()).padStart(2, '0') + ' ' + (h < 12 ? 'AM' : 'PM'); };
+  const stamp = d => clock(d) + ' · ' + mediumDate(d);
+  const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+  const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+  const FARE = { REGULAR: 15, STUDENT: 13, SENIOR_CITIZEN: 12, PWD: 12 };
+  /* passengerTypeLabel() title-cases the first word and lower-cases the rest,
+     so the store's PWD renders as "Pwd" — neither the acronym every sign in the
+     country prints, nor a word. The other three read correctly as words, which
+     is what the formatter was reaching for, so it keeps them and the acronym
+     stays an acronym. */
+  const PT_LABEL = { REGULAR: 'Regular', STUDENT: 'Student', SENIOR_CITIZEN: 'Senior citizen', PWD: 'PWD' };
+  /* The card names the fare rather than printing its code: a reader who cannot
+     see "SENIOR_CITIZEN" behind the number still has to be able to tell a
+     senior's ticket from a student's. */
+  const fareWord = t => PT_LABEL[t] + ' fare';
+
+  /* ── records ───────────────────────────────────────────────────────── */
+  /* Same generator SHAPE as History (index.html) and the same 200/1200
+     counters, and the same one call both files make, so every id printed here
+     resolves in ticket-history-detail.html. Diverging the seed would resolve
+     half these rows to "not found", which is the exact failure a list is worst
+     at: forty dead rows all at once. */
+  const ROUTES = [['Santa Cruz, Olongapo','Caloocan, Kalakhang Maynila'],['Olongapo, Olongapo','Santa Cruz, Olongapo'],['Santa Cruz, Olongapo','Subic, Subic'],['Olongapo, Olongapo','Subic, Subic'],['Iba, Zambales','Caloocan, Kalakhang Maynila'],['Iba, Zambales','Santa Cruz, Olongapo']];
+  /* ROUTES are the store's own barangay snapshots (tripTicketsStore.ts:480-486,
+     six seeded trips), so a route prints "Barangay, Municipality → Barangay,
+     Municipality". The trip's km_markers are not carried here: a ticket row has
+     no distance column, so nothing on this screen needs a road measured. The
+     receipt computes that subtraction from its own copy. */
+  let seqTrip = 200, seqTicket = 1200;
+  const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  function mkTrip(day, i, status) {
+    const r = ROUTES[(seqTrip + i) % ROUTES.length];
+    const started = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 5 + i * 3, (seqTrip + i * 13) % 60);
+    return {
+      id: seqTrip++, trip_number: seqTrip - 1,
+      origin: r[0], destination: r[1], date: started,
+      status: status || 'COMPLETED'
+    };
+  }
+  function mkTicketsFor(trip, day) {
+    const out = [];
+    const kinds = ['REGULAR', 'STUDENT', 'SENIOR_CITIZEN', 'PWD'];
+    const n = 2 + (trip.trip_number % 2);
+    for (let k = 0; k < n; k++) {
+      const type = kinds[(trip.trip_number + k) % 4];
+      const qty = 1 + ((trip.trip_number + k) % 3);
+      const each = FARE[type];
+      const at = new Date(day.getFullYear(), day.getMonth(), day.getDate(), trip.date.getHours(), (trip.date.getMinutes() + k * 7) % 60);
+      out.push({ id: seqTicket++, trip: trip.trip_number, created_at: at, origin: trip.origin, destination: trip.destination, passenger_type: type, qty, each, total: qty * each });
+    }
+    return out;
+  }
+  /* The LEDGER is seven days wide even though the screen shows one trip. It has
+     to be: the ids below are only meaningful against the generator that issued
+     them, and ticket-history-detail.html seeds the same seven days with the same
+     counters, so narrowing the seed here would resolve every card on this
+     screen to "Ticket not found" on the other side of the chevron. */
+  const DAYS_BACK = 6;
+  function buildData(startDay, days) {
+    const trips = [], tickets = [];
+    for (let d = 0; d < days; d++) {
+      const day = addDays(startDay, d);
+      const count = 3 + (d % 2);
+      for (let i = 0; i < count; i++) {
+        const isActive = sameDay(day, new Date()) && d === days - 1 && i === count - 1;
+        const t = mkTrip(day, i, isActive ? 'ACTIVE' : 'COMPLETED');
+        trips.push(t); tickets.push.apply(tickets, mkTicketsFor(t, day));
+      }
+    }
+    trips.sort((a, b) => b.date - a.date || b.trip_number - a.trip_number);
+    tickets.sort((a, b) => b.created_at - a.created_at || b.id - a.id);
+    return { trips, tickets };
+  }
+
+  /* ── state ─────────────────────────────────────────────────────────── */
+  /* One variable carries the branch, so no two pieces of state can disagree
+     about which of the four the screen is in. `preview` is the prototype
+     control; the shipped LoadState union is loading | notFound | error |
+     ready, and a list has no notFound to show — the rows it could not find are
+     simply not rows. */
+  const data = buildData(addDays(startOfDay(new Date()), -DAYS_BACK), DAYS_BACK + 1);
+  const state = {
+    preview: 'ready',      // ready | empty | loading | error
+    data: data
+  };
+
+  /* ── compute: one read of the store, every figure on this screen ───── */
+  function compute() {
+    const d = state.data;
+    if (state.preview === 'empty') return { d, trip: null, rows: [], totals: { count: 0, pax: 0, total: 0 } };
+    /* ONE trip, because the lede under the eyebrow promises one. It is the trip
+       running now when there is one — that is the trip whose ticket book a
+       conductor is holding — and otherwise the most recent they ran. Both
+       trips[] and tickets[] are already sorted newest first, so the head of
+       each is the answer. */
+    const trip = d.trips.filter(x => x.status === 'ACTIVE')[0] || d.trips[0] || null;
+    /* Oldest ticket first, the way the book fills. A record you read against is
+       a record you read in the order it happened. */
+    const rows = trip ? d.tickets.filter(x => x.trip === trip.trip_number)
+      .slice().sort((a, b) => a.created_at - b.created_at || a.id - b.id) : [];
+    const totals = rows.reduce(function (acc, x) {
+      acc.count++; acc.pax += x.qty; acc.total += x.total; return acc;
+    }, { count: 0, pax: 0, total: 0 });
+    return { d, trip, rows, totals };
+  }
+
+  /* ── render ────────────────────────────────────────────────────────── */
+  /* The pill names the trip, because the lede below it says "this trip" and a
+     pronoun with no noun behind it is the kind of sentence that ends an
+     argument. */
+  function renderChrome(c) {
+    const title = $('chromeTitle'), sub = $('chromeSub');
+    title.textContent = 'Ticket History';
+    if (state.preview === 'loading') { sub.textContent = 'Reading the trip…'; return; }
+    if (state.preview === 'error') { sub.textContent = 'Records unavailable'; return; }
+    sub.textContent = !c.trip ? 'No trip on this device'
+      : 'Trip #' + c.trip.trip_number + (c.trip.status === 'ACTIVE' ? ' · running' : '');
+  }
+
+  /* ── one card ───────────────────────────────────────────────────────── */
+  /* Six of the record's nine fields, and the three it leaves are the three that
+     only matter when you are already looking at one ticket: the fare note, the
+     full record and the trip's own distance. The route wraps on either side
+     because a nowrap pair would push the peso off the card. The ticket id and
+     the trip number are in the label rather than on the card: this screen is
+     already scoped to one trip, and the id is a thing you read to somebody on
+     the phone, not a thing you scan on a list. */
+  function ticketCardHTML(x) {
+    const label = 'Ticket ' + x.id + '. ' + x.origin + ' to ' + x.destination + '. Taken ' + stamp(x.created_at) +
+      '. ' + fareWord(x.passenger_type) + ', ' + plural(x.qty, 'passenger', 'passengers') + '. ' +
+      peso(x.each) + ' each, ' + peso(x.total) + ' collected. Trip ' + x.trip + '. Open the receipt.';
+    return '<a class="tk-link" href="ticket-history-detail.html?id=' + x.id + '" data-od-id="th-ticket-' + x.id + '" aria-label="' + label + '">' +
+      '<div class="glass tk-card">' +
+        '<span class="tk-icon">' + icon('ticket', 22, 'currentColor', 1.7) + '</span>' +
+        '<span class="tk-mid">' +
+          '<span class="tk-title title-m"><span class="r-from">' + x.origin + '</span> <span class="r-arrow" aria-hidden="true">→</span> <span class="r-to">' + x.destination + '</span></span>' +
+          '<span class="tk-meta body-s">' + plural(x.qty, 'passenger', 'passengers') + ' · ' + clock(x.created_at) + '</span>' +
+        '</span>' +
+        '<span class="tk-fare"><b class="amt title-m tabular">' + peso(x.total) + '</b>' +
+          '<span class="type body-s">' + fareWord(x.passenger_type) + '</span></span>' +
+        '<span class="chev" aria-hidden="true">' + icon('chevron', 18, 'var(--outline)') + '</span>' +
+      '</div></a>';
+  }
+
+  function renderList(c) {
+    const slot = $('listSlot');
+    if (state.preview === 'loading') {
+      slot.innerHTML = '<div class="tk-list" aria-busy="true" role="status">' + [0,1,2].map(function () {
+        return '<div class="glass tk-card"><span class="sk" style="display:block;width:40px;height:40px;border-radius:12px"></span>' +
+          '<span class="tk-mid"><span class="sk" style="display:block;width:74%;height:15px"></span>' +
+          '<span class="sk" style="display:block;width:46%;height:11px;margin-top:10px"></span></span>' +
+          '<span class="sk" style="display:block;width:54px;height:18px;border-radius:8px"></span></div>';
+      }).join('') + '</div>';
+      return;
+    }
+    if (state.preview === 'error') {
+      slot.innerHTML = '<div class="state error" data-od-id="th-error" role="alert">' +
+        '<h3 class="headline-s">Records could not be read</h3>' +
+        '<p class="body-m">The tickets on this device did not answer, so no card on this screen can be shown. Nothing was lost — they are still in the local store, and Retry reads them again.</p>' +
+        '<button type="button" class="primary-btn label-l" data-action="retry" data-od-id="th-error-retry">' +
+        icon('history', 18, '#fff', 1.7) + '<span>Retry</span></button></div>';
+      return;
+    }
+    if (!c.rows.length) {
+      /* One empty branch, reached by the prototype's empty preview and by a trip
+         whose book is still clean. It names the trip rather than shrugging at
+         "no data": a conductor who has not sold a ticket yet has an ordinary
+         trip, and the calendar tab is where a range search belongs. */
+      slot.innerHTML = '<div class="state" data-od-id="th-empty"><h3 class="headline-s">No tickets on this trip</h3>' +
+        '<p class="body-m">Trip ' + (c.trip ? '#' + c.trip.trip_number : '') + ' has not sold a ticket yet. A ticket appears here the moment one is issued, with the fare it was bought for.</p>' +
+        '<a class="primary-btn" href="index.html" data-od-id="th-empty-back">' +
+        icon('calendar', 18, '#fff', 1.7) + '<span class="label-l">Search a date range</span></a></div>';
+      return;
+    }
+    /* No paging: a trip's book is short enough to read whole, and a card that
+       was not on screen is a record the footer would have to apologise for. */
+    slot.innerHTML = '<div class="tk-list">' + c.rows.map(ticketCardHTML).join('') + '</div>';
+  }
+
+  /* The counts that back the privacy line are the store's own, not this
+     screen's: a list that says "saved on this device" has to be talking about
+     the same ledger the receipt is talking about. */
+  function renderNote(c) {
+    $('storageNote').innerHTML = state.preview === 'loading'
+      ? 'Reading the local store…'
+      : state.preview === 'error'
+        ? 'The local store did not answer. No figure on this screen is computed.'
+        : 'This trip sold <b class="strong">' + plural(c.totals.count, 'ticket', 'tickets') + '</b> for <b class="strong">' +
+          peso(c.totals.total) + '</b>, out of a local store of <b class="strong">' + c.d.tickets.length + '</b> tickets across <b class="strong">' +
+          c.d.trips.length + '</b> trips. Nothing is sent anywhere.';
+  }
+
+  function render() {
+    const c = compute();
+    renderChrome(c);
+    renderList(c);
+    renderNote(c);
+  }
+
+  /* ── events ────────────────────────────────────────────────────────── */
+  function syncProto() {
+    Array.prototype.forEach.call($('protoSeg').querySelectorAll('button'), function (b) {
+      b.setAttribute('aria-pressed', b.dataset.state === state.preview ? 'true' : 'false');
+    });
+  }
+
+  function setPreview(name) {
+    state.preview = name;
+    syncProto();
+    render();
+  }
+
+  document.addEventListener('click', function (e) {
+    const proto = e.target.closest('#protoSeg button');
+    if (proto) { setPreview(proto.dataset.state); return; }
+    const act = e.target.closest('[data-action="retry"]');
+    if (act) setPreview('ready');
+  });
+
+  /* ── boot ──────────────────────────────────────────────────────────── */
+  syncProto();
+  render();
+  })();
+  </script>
+</body>
+</html>

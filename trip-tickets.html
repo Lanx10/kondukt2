@@ -1,0 +1,1565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kondukt — Trip tickets prototype</title>
+<!--
+  KONDUKT · TRIP TICKETS — single-file prototype (HTML + CSS + JS, no build, no
+  storage APIs). One trip's ledger: which trip, what it has taken, and one more
+  fare. TicketHistoryScreen (the ledger across every trip) and CurrentTripScreen
+  are separate screens; VIEW ALL names Ticket History as a handoff and stops
+  there.
+
+  EIGHT DEFECTS THIS REDESIGN FIXES, versus the shipped TripTicketsScreen.tsx:
+
+  1. THE TRIP WAS SPLIT ACROSS TWO CARDS. A Pressable identity card, then a
+     separate "Trip summary (real-time)" 2 × 2 grid, so the peso — the one
+     number a conductor opens this screen for — sat a scroll away from the
+     route it belongs to. One card now: identity, route, money, the three
+     figures the store actually derives, and the single action.
+  2. THE CARD WAS A BUTTON WITH A BUTTON INSIDE IT. Shipped wrapped the card in
+     a Pressable that opened the trip and put Add new ticket in its corner, so
+     the whole card was one target and one region of it was a second,
+     differently-sized target. The card is a div; its only control is Record a
+     fare.
+  3. THE GATE SAID NOTHING. canRecord is !readOnly && isActive, and shipped
+     swapped the whole action out for one line of icon-and-text in a grey box,
+     leaving the driver to guess whether the app was broken or the trip had
+     simply closed. The note under the card now names which of the two reasons
+     applies, and says what still works.
+  4. GATING THE LEDGER ON canRecord MADE IT UNREADABLE. Rows took
+     `onPress={canRecord ? … : undefined}`, so on a closed or read-only trip
+     every row was an inert div — the note promised the tickets "stay on it for
+     good" and then refused to open any of them, and two of six states could not
+     inspect a single fare. Every row is a button again in all six states:
+     reading a fare is never gated, only writing one is.
+  5. EVERY ROW REPEATED THE ROUTE. The card directly above already says it
+     once, and the repeat cost 129px of a 270px row. The time leads now — that
+     is what a conductor scans for — then the category chip, the unit price and
+     the passenger count, then the peso at 700 with the ticket number under it,
+     because a disputed receipt has to be checkable.
+  6. RECENT_TICKET_LIMIT WAS COMPUTED AND THEN IGNORED. The full ledger was
+     handed to the screen anyway, so recent-versus-all was a distinction it
+     never made. The ledger is capped at 8 and says so, and VIEW ALL — a
+     reading action — is no longer gated on recording rights, which hid it from
+     exactly the drivers reviewing a trip they could no longer write to. The cap
+     is only worth building if a real run exceeds it, so fare counts come from
+     each trip's own duration (a party roughly every six minutes, 8 to 15) and
+     the running trip is seeded at 13. Ticket ids are trip.id * 100 + k, so the
+     per-trip blocks of neighbouring trips cannot overlap; every lookup is by
+     bare ticket id.
+  7. CATEGORY CHIPS PUT EVERY DISCOUNTED FARE ON THE AMBER CONTAINER, which
+     breaks the app-wide rule that amber means a trip is running. Regular
+     carries the primary container, the three discounted types share the
+     tertiary one, and PWD stays an acronym instead of the "Pwd" the
+     title-casing formatter produced.
+  8. RECORDING A FARE EXISTED ONLY AS A PROP (onAddTicket). It is now a working
+     sheet — type, count, live total — that writes one ticket row and
+     re-derives every figure from the store. The "Updated 6:41 AM" stamp went
+     with it: it came off a minute-boundary timer under numbers that change the
+     instant a fare is recorded, so it could not see the thing it claimed to
+     date. The ledger's own timestamps say it honestly.
+
+  THREE CORRECTIONS CARRIED BY THIS FILE ONLY — not defects in the screens
+  above, but traps this file walks into:
+
+  · A status pill on the amber card cannot fill with --on-secondary-container
+    and set its own text in --on-secondary-container; that is brown on brown at
+    1.0:1. .st-pill fills with --secondary-container and .st-pill-text with
+    --on-secondary-container (10.13:1), and the .hero-solid pair below restores
+    the identical amber look at 6.43:1. trip.html, home.html and
+    dashboard.html still carry the first half verbatim — harmless there, because
+    that chip only ever rendered on amber.
+  · .row-btn must not reset `background: none`. It keeps .glass, but a later
+    same-specificity rule wins on source order and the rows render transparent,
+    losing the tint every other card has. `border: 0` is load-bearing — the
+    row's inner content box is 310px only without a layout border — so the rim
+    is painted as an inset ring; `background` is not load-bearing and is left
+    alone.
+  · clock() emits a non-breaking space before AM/PM. A plain space let
+    .hc-detail break "ended 10:13 AM" into "… ended 10:13" plus a one-word
+    "AM" line.
+
+  MEASURED, NOT GUESSED — real Poppins, asserted loaded, at the export's own
+  390 × 844 geometry and not at a raw viewport:
+    "08:52 AM" title-m/600 ................. 73.97px  <- the id column, fixed
+    "11:19 AM" title-m/600 ................. 61.25px
+    "10:46 AM" title-m/600 ................. 70.81px
+    "Wed, Sep 30" body-s/400 .............. 73.25px
+    chip "Senior citizen" (11/600, +.6) ... 102.67px
+    "₱12.00 each · 3 pax" body-s/400 ....... 109.92px (117.94 at 20 pax)
+    "₱36.00" title-m/700 ................... 55.92px  ("₱300.00" 65.70px)
+    "#90012" body-s/400 .................... 43.45px
+  The row is a fixed 74px id column, two 12px gaps and a content-sized money
+  column, so a row resolves to 74 / 156.08 / 55.92 inside the 310px box. Those
+  three numbers are this file's rather than the brief's 69.09 / 165.61 / 51.30,
+  and the difference is not cosmetic: the Google-hosted Poppins subset does not
+  expose tnum in this build, so the digits are not equal-width — a
+  content-sized id column swings between 61.25 and 73.97 on the same page and
+  the brief's 69.09 is only its seed's value. Fixing the column at the measured
+  worst case is what makes the brief's own "all 8 rows computed-identical" true
+  in a browser that does not provide the feature. The money column stays
+  content-sized so the right edge is anchored and an unusual amount grows it
+  into the middle rather than wrapping; at QTY_MAX (₱300.00) the middle still
+  measures 146.30px against a 117.94px longest sub-line. No row wraps in any
+  of the six states.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --primary: #E65100;
+    --primary-solid: #C2410C;
+    --on-primary: #FFFFFF;
+    --primary-container: #FFE6D2;
+    --on-primary-container: #4E2200;
+    --secondary: #FFB300;
+    --on-secondary: #3D2E00;
+    --secondary-container: #FFEFC7;
+    --on-secondary-container: #4A3600;
+    --secondary-detail: #4F3D2B;
+    --secondary-muted: #5B4720;
+    --secondary-faint: #6B5518;
+    --secondary-fg: #8A6100;
+    --tertiary: #546E7A;
+    --tertiary-container: #DDE6EA;
+    --on-tertiary-container: #162B33;
+    --error: #BA1A1A;
+    --error-container: #FFDAD6;
+    --on-error-container: #410002;
+    --surface: #FDF7F3;
+    --surface-low: #F7EFE9;
+    --surface-container: #F2E9E2;
+    --surface-high: #ECE3DC;
+    --on-surface: #221A15;
+    --on-surface-variant: #53433B;
+    --outline: #85736B;
+    --outline-variant: #D7C2B7;
+    --scrim: rgba(34, 26, 21, .32);
+
+    --glass-tint: rgba(255, 255, 255, .58);
+    --glass-rim: rgba(255, 255, 255, .85);
+    --glass-shadow: 0 8px 15px rgba(90, 106, 130, .16);
+    --glass-text: #1A2029;
+    --glass-text-variant: #4A5568;
+    --glass-primary: #8F3A00;
+    --glass-tertiary: #334A56;
+    --hover-tint: rgba(120, 130, 150, .1);
+    --active-tint: rgba(120, 130, 150, .17);
+
+    --radius-s: 8px;
+    --radius-m: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
+    --radius-glass: 28px;
+    --radius-full: 999px;
+
+    --gutter: 20px;
+    --card-gap: 12px;
+    --section-margin: 20px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: 'Poppins', sans-serif;
+    background: #E9E4E0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 24px 0;
+  }
+
+  /* content-box: the screen is 390 × 844, and the row geometry above was
+     measured at that width. */
+  .phone {
+    box-sizing: content-box;
+    width: 390px;
+    height: 844px;
+    border-radius: 44px;
+    border: 11px solid #111;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 24px 48px rgba(34, 26, 21, .25);
+    flex-shrink: 0;
+  }
+
+  .phone-content { position: relative; width: 100%; height: 100%; overflow: hidden; }
+
+  /* The fixed warm-to-cool field every glass panel refracts. */
+  .field {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, #FBC9A8 0%, #F4F7FB 52%, #C6D9E8 100%);
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    height: 100%;
+    overflow-y: auto;
+    padding: 50px 0 29px;
+    scrollbar-width: none;
+  }
+  .app::-webkit-scrollbar { display: none; }
+
+  .container { padding: 0 20px; }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px; height: 1px;
+    margin: -1px; padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* ── Glass ─────────────────────────────────────────────────────────── */
+
+  .glass {
+    position: relative;
+    background: var(--glass-tint);
+    border: 1px solid var(--glass-rim);
+    border-radius: var(--radius-glass);
+    box-shadow: var(--glass-shadow);
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+  }
+  .glass::before, .glass::after {
+    content: '';
+    position: absolute;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .glass::before { inset: 0; border-radius: inherit; background: var(--glass-tint); opacity: .35; }
+  .glass::after {
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(160deg, rgba(255, 255, 255, .5), transparent 45%);
+    mix-blend-mode: screen;
+  }
+  /* The one solid card in the app keeps no rim, no tint, no sheen. */
+  .glass.hero-solid::before, .glass.hero-solid::after { display: none; }
+
+  .glass > * { position: relative; z-index: 1; }
+
+  /* ── Type ──────────────────────────────────────────────────────────── */
+
+  .display-s { font-size: 28px; line-height: 36px; letter-spacing: -.3px; font-weight: 700; }
+  .headline-s { font-size: 20px; line-height: 27px; letter-spacing: -.3px; font-weight: 600; }
+  .title-m { font-size: 16px; line-height: 23px; font-weight: 600; }
+  .body-m { font-size: 14px; line-height: 21px; font-weight: 400; }
+  .body-s { font-size: 12px; line-height: 18px; font-weight: 400; }
+  .label-l { font-size: 15px; line-height: 20px; font-weight: 600; }
+  .label-s { font-size: 11px; line-height: 16px; letter-spacing: .6px; font-weight: 600; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ── Chrome ────────────────────────────────────────────────────────── */
+
+  .chrome { display: flex; align-items: center; gap: 12px; margin: 8px 0 var(--section-margin); }
+  .back-pill {
+    width: 44px; height: 44px;
+    border: none; border-radius: var(--radius-full);
+    background: var(--primary-solid);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    box-shadow: var(--glass-shadow);
+  }
+  .back-pill:hover { background: #A63808; }
+  .title-pill {
+    flex: 1;
+    min-height: 56px;
+    border-radius: var(--radius-full);
+    background: var(--primary-solid);
+    color: #fff;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center;
+    padding: 6px 16px;
+    box-shadow: var(--glass-shadow);
+  }
+  .title-pill .sub { opacity: .85; }
+
+  /* ── Sections ──────────────────────────────────────────────────────── */
+
+  .section { margin-bottom: var(--section-margin); }
+  .section-label { color: var(--glass-text-variant); margin: 0; }
+  .section-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; margin-bottom: 10px;
+  }
+
+  /* ── Buttons: one primary, one quiet ───────────────────────────────── */
+
+  .primary-btn, .quiet-btn {
+    min-height: 48px;
+    border-radius: var(--radius-full);
+    font-family: inherit;
+    font-size: 15px; line-height: 20px; font-weight: 600;
+    white-space: nowrap;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    cursor: pointer;
+    flex: 1 1 0;
+    padding: 0 20px;
+    transition: background-color .15s;
+  }
+  .primary-btn {
+    border: 1px solid var(--primary-solid);
+    background: var(--primary-solid);
+    color: var(--on-primary);
+  }
+  .primary-btn:hover { background: #A63808; }
+  .primary-btn:disabled { cursor: default; background: var(--surface-high); border-color: var(--outline-variant); color: var(--on-surface-variant); }
+  .primary-btn:disabled:hover { background: var(--surface-high); }
+  .quiet-btn {
+    border: 1px solid var(--outline);
+    background: transparent;
+    color: var(--on-surface);
+  }
+  .quiet-btn:hover { background: var(--active-tint); }
+
+  .card-actions { display: flex; gap: 8px; margin-top: 16px; }
+  .sheet-actions { display: flex; gap: 8px; margin-top: 16px; }
+  .sheet-actions .primary-btn, .sheet-actions .quiet-btn { padding: 0 12px; }
+
+  .link-btn {
+    background: none; border: none; padding: 0;
+    font-family: inherit; font-size: 12px; line-height: 18px; font-weight: 600;
+    color: var(--glass-primary);
+    cursor: pointer;
+    min-height: 44px;
+    display: inline-flex; align-items: center; gap: 4px;
+    flex-shrink: 0;
+  }
+  .link-btn .cap { font-size: 11px; line-height: 16px; letter-spacing: .6px; }
+  .link-btn:hover { text-decoration: underline; }
+
+  /* ── The amber card — the app-wide invariant ───────────────────────── */
+
+  .hero { padding: 20px; margin-bottom: var(--section-margin); }
+  .hero-solid { background: var(--secondary); border: none; box-shadow: 0 8px 15px rgba(90, 106, 130, .2); }
+  .hero-error { background: var(--error-container); border: none; }
+
+  /* Safety net. --glass-on-variant measures 4.19:1 on #FFB300, so any future
+     text in here that forgets its override fails silently. The blanket comes
+     first and the named rules win on specificity. It must NOT reach the card's
+     action: the CTA label would go amber-on-amber, so it is re-stated next. */
+  .hero-solid, .hero-solid p, .hero-solid span, .hero-solid b { color: var(--secondary-muted); }
+  .hero-solid .primary-btn, .hero-solid .primary-btn .label-l { color: var(--on-primary); }
+
+  .hero-eyebrow { display: flex; align-items: center; gap: 8px; }
+  .hero-glass .hero-eyebrow, .hero-error .hero-eyebrow { color: var(--glass-text-variant); }
+  .hero-solid .hero-eyebrow { color: var(--secondary-detail); }
+  .hero-error-head { color: var(--error); }
+
+  /* The pill fills with the container and sets its label in the on-container
+     ink: 10.13:1 on glass. Filling and labelling it with the same token is
+     brown on brown at 1.0:1. The amber pair restores the identical look at
+     6.43:1, which is what trip.html's chip already does. */
+  .st-pill {
+    background: var(--secondary-container);
+    border-radius: var(--radius-full);
+    display: inline-flex; align-items: center;
+    height: 24px; padding: 0 10px;
+    flex-shrink: 0;
+  }
+  .st-pill-text {
+    color: var(--on-secondary-container);
+    font-size: 11px; line-height: 16px; letter-spacing: .6px; font-weight: 600;
+  }
+  .hero-solid .st-pill { background: var(--on-secondary); }
+  .hero-solid .st-pill-text { color: var(--secondary); }
+
+  .hero-route {
+    margin-top: 6px;
+    color: var(--on-secondary);
+    display: flex; flex-wrap: wrap; align-items: center;
+    column-gap: 8px; row-gap: 2px;
+  }
+  .hero-route .arrow { color: var(--secondary-faint); }
+  .hero-glass .hero-route, .hero-error .hero-route { color: var(--glass-text); }
+  .hero-glass .hero-route .arrow, .hero-error .hero-route .arrow { color: var(--glass-text-variant); }
+
+  .hc-detail { margin-top: 4px; color: var(--secondary-muted); }
+  .hero-glass .hc-detail, .hero-error .hc-detail { color: var(--glass-text-variant); }
+
+  /* Lead figure: the money, first, on the card. */
+  .lead-figure { margin-top: 14px; color: var(--on-secondary); }
+  .lead-cap { margin-top: 2px; color: var(--secondary-detail); }
+  .hero-glass .lead-figure, .hero-error .lead-figure { color: var(--on-surface); }
+
+  .hero-figures {
+    display: flex; gap: 20px;
+    border-top: 1px solid rgba(61, 46, 0, .7);
+    margin-top: 14px; padding-top: 14px;
+  }
+  .hero-glass .hero-figures, .hero-error .hero-figures { border-top-color: var(--outline); }
+  .hero-figure { display: flex; flex-direction: column; min-width: 0; }
+  .hero-figure b { color: var(--on-secondary); }
+  .hero-glass .hero-figure b, .hero-error .hero-figure b { color: var(--on-surface); }
+  .hero-figure span {
+    color: var(--secondary-detail);
+    font-size: 11px; line-height: 16px; letter-spacing: .6px; font-weight: 600;
+  }
+  .hero-glass .hero-figure span, .hero-error .hero-figure span { color: var(--on-surface-variant); }
+  @media (max-width: 299px) { .hero-figures { flex-direction: column; gap: 12px; } }
+
+  /* ── Skeletons ─────────────────────────────────────────────────────── */
+
+  .sk { border-radius: var(--radius-m); background: rgba(120, 130, 150, .14); position: relative; overflow: hidden; }
+  .sk::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(120, 130, 150, .18), transparent);
+    animation: shimmer 1.4s infinite;
+  }
+  @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+  .sk-eyebrow { width: 130px; height: 12px; }
+  .sk-route { width: 70%; height: 26px; margin-top: 12px; }
+  .sk-detail { width: 60%; height: 16px; margin-top: 8px; }
+  .sk-money { width: 120px; height: 32px; margin-top: 14px; }
+  .sk-figs { display: flex; gap: 20px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--outline); }
+  .sk-fig { flex: 1; height: 30px; }
+  .sk-btn { height: 48px; margin-top: 16px; border-radius: var(--radius-full); }
+  .sk-row { height: 91px; border-radius: var(--radius-lg); }
+
+  /* ── Gate note ─────────────────────────────────────────────────────── */
+
+  .gate {
+    padding: 16px 20px;
+    border-radius: var(--radius-lg);
+    display: flex; gap: 12px; align-items: flex-start;
+    margin-bottom: var(--section-margin);
+  }
+  .gate-chip {
+    width: 40px; height: 40px;
+    border-radius: var(--radius-m);
+    background: var(--tertiary-container);
+    color: var(--on-tertiary-container);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .gate-title { color: var(--glass-text); }
+  .gate-text { margin-top: 4px; color: var(--glass-text-variant); }
+
+  /* ── Fare ledger: measured geometry ────────────────────────────────── */
+
+  .rows { display: flex; flex-direction: column; gap: var(--card-gap); }
+
+  /* The reset comes FIRST and `.row-card` follows it: same specificity, same
+     element, so a padding or background reset declared after `.row-card`
+     would silently flatten the ledger. Note what this reset does NOT touch —
+     `background`. A `background: none` here wins on source order over
+     .glass's tint and the rows render transparent, losing the glass every
+     other card on this screen has. */
+  .row-btn {
+    display: block; width: 100%;
+    font-family: inherit; text-align: left; color: inherit; cursor: pointer;
+    transition: background-color .15s;
+  }
+  .row-card {
+    padding: 20px;
+    border-radius: var(--radius-lg);
+    /* The rim is an inset ring, not a border: a 1px border on each side would
+       take the row's content box from 310px to 308px, and the columns above
+       only hold at 310. */
+    border: none;
+    box-shadow: inset 0 0 0 1px var(--glass-rim), var(--glass-shadow);
+    min-height: 91px;
+    display: flex; align-items: center;
+  }
+  .row-card:hover { background-color: var(--hover-tint); background-clip: padding-box; }
+  .row-card:active { background-color: var(--active-tint); background-clip: padding-box; }
+
+  .ticket-head { display: flex; align-items: flex-start; gap: 12px; width: 100%; }
+  /* Fixed, not content-sized. The Google-hosted Poppins subset does not
+     expose tnum in this build, so the digits are not equal-width and a
+     content-sized column shifts by up to 10px between "11:19 AM" (61.25) and
+     "10:46 AM" (70.81). 74px is the measured widest string the column can
+     hold: a time at 73.97 and a date at 73.25. Fixing it keeps the ledger's
+     left column identical row to row whether or not the font provides the
+     feature. */
+  .ticket-id { flex: 0 0 74px; }
+  .ticket-time { display: block; color: var(--glass-text); }
+  .ticket-date { display: block; margin-top: 2px; color: var(--glass-text-variant); }
+  .ticket-mid { flex: 1 1 auto; min-width: 0; }
+  .ticket-sub { display: block; margin: 4px 0 0; color: var(--glass-text-variant); }
+  .ticket-fare { flex: 0 1 auto; min-width: min-content; margin-left: auto; text-align: right; }
+  .fare b { font-weight: 700; }
+  .ticket-fare b { display: block; color: var(--glass-text); white-space: nowrap; }
+  .ticket-no { display: block; margin-top: 4px; color: var(--glass-text-variant); white-space: nowrap; }
+
+  /* Category chips. Regular on the primary container, the three discounted
+     types on the tertiary one — never amber, which is reserved for a running
+     trip. Identity is carried by the label, not the fill alone. */
+  .cat {
+    display: inline-flex; align-items: center;
+    min-height: 26px; padding: 0 10px;
+    border-radius: var(--radius-full);
+    font-size: 11px; line-height: 16px; letter-spacing: .6px; font-weight: 600;
+    max-width: 100%;
+  }
+  .cat-regular { background: var(--primary-container); color: var(--on-primary-container); }
+  .cat-discounted { background: var(--tertiary-container); color: var(--on-tertiary-container); }
+
+  .cap-line { margin-top: 10px; color: var(--glass-text-variant); }
+  .state-card { padding: 20px; }
+  .state-card .state-title { color: var(--on-surface); }
+  .state-card .state-body { color: var(--on-surface-variant); margin-top: 6px; }
+
+  /* ── Storage footer ────────────────────────────────────────────────── */
+
+  .storage-note { padding: 16px 20px; display: flex; gap: 12px; align-items: flex-start; }
+  .storage-note .icon { color: var(--glass-tertiary); flex-shrink: 0; margin-top: 2px; }
+  .storage-text { color: var(--glass-text-variant); }
+  .storage-text b { color: var(--glass-text); }
+  .footnote { text-align: center; padding: 16px 0 4px; color: var(--glass-text-variant); }
+
+  /* ── Overlays ──────────────────────────────────────────────────────── */
+
+  .overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 40;
+    display: flex;
+    align-items: flex-end;
+    visibility: hidden;
+  }
+  .overlay.open { visibility: visible; }
+  .scrim { position: absolute; inset: 0; background: var(--scrim); opacity: 0; transition: opacity .2s; }
+  .overlay.open .scrim { opacity: 1; }
+  .sheet {
+    position: relative;
+    width: 100%;
+    border-radius: var(--radius-glass) var(--radius-glass) 0 0;
+    border-bottom: none;
+    padding: 12px 20px 29px;
+    transform: translateY(100%);
+    transition: transform .25s ease;
+    max-height: 88%;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .sheet::-webkit-scrollbar { display: none; }
+  .overlay.open .sheet { transform: translateY(0); }
+  .sheet-grabber { width: 36px; height: 4px; border-radius: 999px; background: var(--outline-variant); margin: 0 auto 12px; }
+  .sheet-head { display: flex; align-items: flex-start; gap: 12px; }
+  .sheet-head-text { flex: 1; min-width: 0; }
+  .sheet-title { color: var(--glass-text); }
+  .sheet-sub { color: var(--glass-text-variant); margin-top: 2px; }
+  .sheet-close {
+    width: 44px; height: 44px;
+    margin: -6px -10px 0 0;
+    border: none; border-radius: var(--radius-full);
+    background: var(--surface-container);
+    color: var(--on-surface-variant);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .sheet-close:hover { background: var(--outline-variant); }
+  .sheet-body { margin-top: 14px; }
+
+  .detail-row {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--outline);
+  }
+  .detail-row:last-of-type { border-bottom: none; }
+  .detail-label { color: var(--glass-text-variant); }
+  .detail-value { color: var(--glass-text); text-align: right; }
+  .detail-card {
+    margin-top: 14px;
+    padding: 4px 14px 8px;
+    border-radius: var(--radius-m);
+    background: var(--surface-low);
+    border: 1px solid var(--outline);
+  }
+  .detail-card .section-label { margin: 10px 0 2px; color: var(--on-surface-variant); }
+
+  .sheet-note {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: var(--radius-m);
+    background: var(--surface-container);
+    color: var(--on-surface-variant);
+  }
+  .sheet-note b { color: var(--on-surface); }
+
+  /* ── Record a fare ─────────────────────────────────────────────────── */
+
+  .fare-pick { display: flex; flex-direction: column; gap: 8px; }
+  .fare-opt {
+    min-height: 52px;
+    width: 100%;
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 16px;
+    border: 1px solid var(--outline);
+    border-radius: var(--radius-m);
+    background: transparent;
+    color: var(--on-surface);
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+    transition: background-color .15s;
+  }
+  .fare-opt:hover { background: var(--active-tint); }
+  .fare-opt .check {
+    width: 20px; height: 20px; border-radius: var(--radius-full);
+    border: 1px solid var(--outline);
+    display: flex; align-items: center; justify-content: center;
+    color: transparent;
+    flex-shrink: 0;
+  }
+  .fare-opt .name { font-size: 15px; line-height: 20px; font-weight: 400; }
+  .fare-opt .price { margin-left: auto; color: var(--on-surface-variant); }
+  /* Selection is never colour alone: the fill, the weight and the check all
+     move together. */
+  .fare-opt[aria-checked="true"] { background: var(--primary-container); border-color: var(--primary); }
+  .fare-opt[aria-checked="true"] .name { font-weight: 700; }
+  .fare-opt[aria-checked="true"] .check { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+  .fare-opt[aria-checked="true"] .price { color: var(--on-primary-container); }
+
+  .fare-qty { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; }
+  .qty-btn {
+    width: 48px; height: 48px;
+    border: 1px solid var(--outline);
+    border-radius: var(--radius-m);
+    background: var(--surface);
+    color: var(--on-surface);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .qty-btn:hover:not(:disabled) { background: var(--surface-low); }
+  .qty-btn:disabled { cursor: default; color: var(--outline); border-color: var(--outline-variant); background: transparent; }
+  .qty-value { font-size: 20px; line-height: 27px; font-weight: 600; color: var(--glass-text); text-align: center; }
+  .fare-total {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+    margin-top: 16px; padding: 12px 14px;
+    border-radius: var(--radius-m);
+    background: var(--surface-low);
+    border: 1px solid var(--outline);
+  }
+  .fare-total .label-s { color: var(--on-surface-variant); }
+  .fare-total b { color: var(--on-surface); font-size: 20px; line-height: 27px; }
+
+  /* ── Prototype control (outside the phone) ─────────────────────────── */
+
+  .proto {
+    position: fixed;
+    left: 20px;
+    bottom: 20px;
+    z-index: 90;
+    background: #fff;
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-lg);
+    padding: 14px;
+    box-shadow: 0 8px 24px rgba(34, 26, 21, .12);
+  }
+  .proto-label { color: var(--on-surface-variant); margin-bottom: 8px; }
+  .proto-row { display: flex; flex-wrap: wrap; gap: 8px; max-width: 250px; }
+  .proto-btn {
+    min-height: 44px;
+    padding: 0 16px;
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-full);
+    background: #fff;
+    color: var(--on-surface);
+    font-family: inherit;
+    font-size: 13px; font-weight: 600;
+    cursor: pointer;
+  }
+  .proto-btn:hover { background: var(--surface-low); }
+  .proto-btn[aria-pressed="true"] { background: var(--primary-solid); color: #fff; border-color: var(--primary-solid); }
+  @media (max-width: 480px) { .proto { display: none; } }
+
+  /* ── Focus + motion ────────────────────────────────────────────────── */
+
+  button:focus-visible, select:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(194, 65, 12, .4);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sk::after { animation: none; }
+    .scrim, .sheet, .primary-btn, .quiet-btn, .row-btn, .fare-opt { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="phone-content">
+    <div class="field" aria-hidden="true"></div>
+
+    <main class="app" id="app" aria-label="Kondukt trip tickets">
+      <div class="container">
+        <header class="chrome" data-od-id="region:chrome">
+          <button class="back-pill" data-action="back" aria-label="Back" data-od-id="control:back">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+          <div class="title-pill" data-od-id="region:title">
+            <h1 class="headline-s" data-od-id="heading:trip-tickets">Trip tickets</h1>
+            <span class="label-s sub" id="chrome-sub">Trip and ticket overview</span>
+          </div>
+        </header>
+
+        <section id="card-slot" data-od-id="region:card" aria-label="Trip"></section>
+        <div id="gate-slot" data-od-id="region:gate"></div>
+
+        <section class="section" data-od-id="region:ledger" aria-labelledby="ledger-label">
+          <div class="section-head">
+            <h2 class="label-s section-label" id="ledger-label" data-od-id="heading:ledger">TICKET LEDGER</h2>
+            <button class="link-btn" data-action="view-all" data-od-id="viewAllBtn">
+              <span class="cap">VIEW ALL</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+          </div>
+          <div id="ledger-body"></div>
+        </section>
+
+        <footer class="glass storage-note" data-od-id="region:storage" aria-label="Local storage note">
+          <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+          <p class="body-s storage-text" id="storage-text"></p>
+        </footer>
+
+        <p class="body-s footnote">Kondukt — fares stay on this device.</p>
+        <p class="visually-hidden" role="status" aria-live="polite" id="live-status"></p>
+      </div>
+    </main>
+
+    <div class="overlay" id="overlay" hidden>
+      <div class="scrim" data-scrim></div>
+      <div class="glass sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title-el" id="sheet" data-od-id="region:sheet">
+        <div class="sheet-grabber" aria-hidden="true"></div>
+        <div class="sheet-head">
+          <div class="sheet-head-text">
+            <h2 class="headline-s sheet-title" id="sheet-title-el" data-od-id="heading:sheet"></h2>
+            <p class="body-s sheet-sub" id="sheet-sub"></p>
+          </div>
+          <button class="sheet-close" id="sheet-close" aria-label="Close sheet" data-od-id="control:sheet-close">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="sheet-body" id="sheet-body"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="proto" role="group" aria-label="Prototype states">
+  <p class="label-s proto-label">PROTOTYPE STATES</p>
+  <div class="proto-row">
+    <button class="proto-btn" data-state="active" aria-pressed="true">Active</button>
+    <button class="proto-btn" data-state="completed" aria-pressed="false">Completed</button>
+    <button class="proto-btn" data-state="readonly" aria-pressed="false">Read-only</button>
+    <button class="proto-btn" data-state="loading" aria-pressed="false">Loading</button>
+    <button class="proto-btn" data-state="notfound" aria-pressed="false">Not found</button>
+    <button class="proto-btn" data-state="error" aria-pressed="false">Error</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ═════════════════════════════ Seed data ═════════════════════════════ */
+
+const FARE = { REGULAR: 15, STUDENT: 13, SENIOR_CITIZEN: 12, PWD: 12 };
+/* PWD is an acronym, not a word. The shipped passengerTypeLabel() title-cases
+   it into "Pwd"; this is the user-facing copy. */
+const PT_LABEL = { REGULAR: 'Regular', STUDENT: 'Student', SENIOR_CITIZEN: 'Senior citizen', PWD: 'PWD' };
+const TYPES = Object.keys(FARE);
+const DAY = 86400000;
+const HOUR = 3600000;
+const MIN = 60000;
+
+const ACTIVE_ID = 900;           // the seeded running trip's row handle
+const MISSING_TRIP_ID = 99999;   // the shipped not-found branch: absent, while the store is full
+const LAST_COMPLETED_NUMBER = 436;
+const RECENT_TICKET_LIMIT = 8;
+const QTY_MAX = 20;
+const ACTIVE_ELAPSED_MIN = 78;
+const PARTY_EVERY_MIN = 6;       // one passenger party roughly every six minutes
+const PAST_DAYS = 44;
+
+const ROUTES = [
+  { origin: 'Cubao', destination: 'Divisoria', km: 7.2 },
+  { origin: 'Baclaran', destination: 'Monumento', km: 8.0 },
+  { origin: 'Divisoria', destination: 'Cubao', km: 7.2 },
+  { origin: 'Monumento', destination: 'Baclaran', km: 8.0 },
+  { origin: 'Quiapo', destination: 'Cubao', km: 5.4 },
+  { origin: 'Monumento', destination: 'Cubao', km: 4.1 },
+];
+
+const TERMINALS = ['Baclaran', 'Cubao', 'Divisoria', 'Monumento', 'Quiapo'];
+
+function pairKey(a, b) { return [a, b].sort().join('|'); }
+const ROUTE_KM = new Map();
+ROUTES.forEach((r) => ROUTE_KM.set(pairKey(r.origin, r.destination), r.km));
+
+/** Distance a pair will produce, in km, or null — never 0 km for a route
+    nobody measured. */
+function routeDistance(from, to) {
+  if (!from || !to || from === to) return null;
+  return ROUTE_KM.get(pairKey(from, to)) ?? null;
+}
+
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Fares for one trip, derived from the trip's own duration rather than a
+ * constant: a party roughly every six minutes, 8 to 15, spaced inside the
+ * trip. A fixed 2 or 3 would make RECENT_TICKET_LIMIT dead code on every
+ * screen that carries it. A run under six minutes boards nobody and records
+ * nothing — that is what makes the empty-ledger branch reachable without a
+ * delete affordance.
+ */
+function ticketCount(spanMin) {
+  if (spanMin < PARTY_EVERY_MIN) return 0;
+  return Math.min(15, Math.max(8, Math.round(spanMin / PARTY_EVERY_MIN)));
+}
+
+/**
+ * One pass produces 45 days of trips and their fares. Ticket ids are
+ * trip.id * 100 + k, so a trip holds at most fifteen fares and every id block
+ * is disjoint from its neighbours'.
+ *
+ * The active trip is clamped to max(dayStart, now − 78min); today's closed
+ * trips are laid backwards from just before it, never into the future (a fixed
+ * 5 + i*4 o'clock stamp gives them future endedAt values before ~09:30, so
+ * they outrank a trip you just ended) and never into yesterday.
+ */
+function buildData() {
+  const rand = mulberry32(19);
+  const now = Date.now();
+  const dayStart = new Date(now); dayStart.setHours(0, 0, 0, 0);
+  const start = dayStart.getTime();
+  const trips = [];
+  const tickets = [];
+
+  const fill = (trip, count, plan) => {
+    const spanMin = ((trip.endedAt ?? now) - trip.startedAt) / MIN;
+    const step = spanMin / (count + 1);
+    for (let k = 0; k < count; k++) {
+      const type = plan ? plan[k].type : TYPES[Math.floor(rand() * TYPES.length)];
+      const qty = plan ? plan[k].qty : (rand() < 0.3 ? 2 : 1);
+      tickets.push({
+        id: trip.id * 100 + k,
+        tripId: trip.id,
+        type,
+        qty,
+        at: trip.startedAt + step * (k + 1) * MIN,
+      });
+    }
+  };
+
+  // 44 past days, three to six runs each.
+  for (let d = PAST_DAYS; d >= 1; d--) {
+    const dayAt = start - d * DAY;
+    const runs = 3 + Math.floor(rand() * 4);
+    for (let r = 0; r < runs; r++) {
+      const route = ROUTES[Math.floor(rand() * ROUTES.length)];
+      const startedAt = dayAt + (5.5 + r * 2.7) * HOUR + Math.floor(rand() * 35) * MIN;
+      const endedAt = startedAt + (62 + Math.floor(rand() * 34)) * MIN;
+      if (endedAt >= dayAt + DAY) continue;
+      const trip = {
+        id: trips.length + 1, trip_number: '',
+        origin: route.origin, destination: route.destination, km: route.km,
+        startedAt, endedAt, status: 'COMPLETED',
+      };
+      trips.push(trip);
+      fill(trip, ticketCount((endedAt - startedAt) / MIN), null);
+    }
+  }
+
+  // Today, newest first. The first two durations are fixed because the states
+  // below read those trips: 3 minutes boards nobody (the empty ledger) and
+  // 54 minutes records nine (a closed trip with a cap line).
+  const activeStart = Math.max(start, now - ACTIVE_ELAPSED_MIN * MIN);
+  const ceiling = Math.min(now - 15 * MIN, activeStart - 5 * MIN);
+  const todayRoutes = [1, 0, 5, 4, 2];
+  const todayMins = [3, 54, 78, 66, 71];
+  let cursor = ceiling;
+  for (let i = 0; i < todayRoutes.length; i++) {
+    const route = ROUTES[todayRoutes[i]];
+    const dur = todayMins[i] * MIN;
+    let endedAt = cursor;
+    let startedAt = endedAt - dur;
+    if (startedAt < start) {
+      startedAt = start;
+      endedAt = Math.min(endedAt, start + dur);
+      if (endedAt - startedAt < MIN) break;
+    }
+    const trip = {
+      id: trips.length + 1, trip_number: '',
+      origin: route.origin, destination: route.destination, km: route.km,
+      startedAt, endedAt, status: 'COMPLETED',
+    };
+    trips.push(trip);
+    fill(trip, ticketCount((endedAt - startedAt) / MIN), null);
+    cursor = startedAt - 15 * MIN;
+  }
+
+  // Numbers last, ordered by time: the newest closed trip is #436 and the
+  // running trip is #437. Insertion order is not chronological — today's runs
+  // are laid newest first — so sorting here is the only place that can be
+  // wrong about it.
+  const byTime = [...trips].sort((a, b) => (a.endedAt - b.endedAt) || (a.id - b.id));
+  byTime.forEach((t, i) => { t.trip_number = String(LAST_COMPLETED_NUMBER - byTime.length + 1 + i); });
+
+  const activeRoute = ROUTES[1];
+  const active = {
+    id: ACTIVE_ID, trip_number: String(LAST_COMPLETED_NUMBER + 1),
+    origin: activeRoute.origin, destination: activeRoute.destination, km: activeRoute.km,
+    startedAt: activeStart, endedAt: null, status: 'ACTIVE',
+  };
+  trips.push(active);
+  // 13 fares, 26 passengers, ₱338.00: a party every six minutes of a
+  // 78-minute run, with a party of three and a party of one in the middle of
+  // it, which is what a real boarding pattern looks like. 7 regular + 5
+  // student + 14 discounted units: 15·7 + 13·5 + 12·14 = 338 over 26
+  // passengers, so the average reads ₱13.00 and nothing is invented.
+  fill(active, ticketCount(ACTIVE_ELAPSED_MIN), [
+    { type: 'REGULAR', qty: 2 }, { type: 'SENIOR_CITIZEN', qty: 2 }, { type: 'PWD', qty: 2 },
+    { type: 'REGULAR', qty: 2 }, { type: 'STUDENT', qty: 2 }, { type: 'PWD', qty: 2 },
+    { type: 'SENIOR_CITIZEN', qty: 2 }, { type: 'REGULAR', qty: 2 }, { type: 'STUDENT', qty: 3 },
+    { type: 'PWD', qty: 2 }, { type: 'SENIOR_CITIZEN', qty: 2 }, { type: 'REGULAR', qty: 1 },
+    { type: 'PWD', qty: 2 },
+  ]);
+
+  return { trips, tickets };
+}
+
+/* ═════════════════════════════ Store ══════════════════════════════════ */
+
+let data = buildData();
+
+/* One variable drives the card, the gate, the ledger, the chrome subtitle and
+   the storage note, so no two regions can disagree about which state the
+   screen is in. */
+let state = { preview: 'active' };
+
+const dayStart = (ms) => { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); };
+
+const activeTrip = () => data.trips.find((t) => t.status === 'ACTIVE') ?? null;
+const closedTrips = () => data.trips
+  .filter((t) => t.status === 'COMPLETED')
+  .sort((a, b) => (b.endedAt - a.endedAt) || (b.id - a.id));
+
+/** The trip this screen is about. Absent only in the not-found state. */
+function selectTrip() {
+  if (state.preview === 'notfound') return data.trips.find((t) => t.id === MISSING_TRIP_ID) ?? null;
+  if (state.preview === 'completed') {
+    // The newest closed trip that recorded anything. Today's newest run is a
+    // three-minute trip that boarded nobody — it is what the empty-ledger
+    // branch renders for — but the completed state has to show tinted rows and
+    // a reachable cap line, so it reads the newest run that has fares. The
+    // branch is real and produces its own copy; it is simply not the one the
+    // presenter control selects.
+    const closed = closedTrips();
+    return closed.find((t) => faresFor(t.id).length > 0) ?? closed[0] ?? null;
+  }
+  return activeTrip();
+}
+
+const faresFor = (tripId) => data.tickets.filter((t) => t.tripId === tripId).sort((a, b) => b.at - a.at);
+const fareTotal = (t) => FARE[t.type] * t.qty;
+const deviceTotal = () => data.tickets.reduce((s, t) => s + fareTotal(t), 0);
+
+/** The store's read for this screen. The cap is applied here, once. */
+function readTrip() {
+  const trip = selectTrip();
+  if (!trip) {
+    return { trip: null, notFound: true, recent: [], capped: false, total: 0, pax: 0, collected: 0, average: null };
+  }
+  const all = faresFor(trip.id);
+  const collected = all.reduce((s, t) => s + fareTotal(t), 0);
+  const pax = all.reduce((s, t) => s + t.qty, 0);
+  return {
+    trip,
+    notFound: false,
+    recent: all.slice(0, RECENT_TICKET_LIMIT),
+    capped: all.length > RECENT_TICKET_LIMIT,
+    total: all.length,
+    pax,
+    collected,
+    // Cent-safe, floored: the app's averageFare() floors to the cent too.
+    average: pax > 0 ? Math.floor((collected / pax) * 100) / 100 : null,
+  };
+}
+
+/* ═════════════════════════════ Formatters ═════════════════════════════ */
+
+const peso = (n) => '\u20B1' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const dash = '\u2014';
+const arrow = '\u2192';
+const middot = ' \u00B7 ';
+
+/**
+ * A time of day with a non-breaking space before AM/PM. A plain space let the
+ * card's detail line break "ended 10:13 AM" into "… ended 10:13" plus a
+ * one-word "AM" line.
+ */
+function clock(ms) {
+  return new Date(ms)
+    .toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+    .replace(/\s/g, '\u00A0');
+}
+function fmtDate(ms) {
+  return new Date(ms).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+/** Never 0 km, and never ₱0.00: a route nobody measured and a trip with no
+    money print the dash. */
+const kmText = (km) => (km ? `${km.toFixed(1)} km` : 'Distance not recorded');
+const moneyOrDash = (n) => (n ? peso(n) : dash);
+
+/* ═════════════════════════════ Icons ═════════════════════════════════ */
+
+const svg = (path, size = 20) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
+const ICONS = {
+  ticket: svg('<path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/>'),
+  lock: svg('<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>', 18),
+  minus: svg('<path d="M5 12h14"/>', 20),
+  plus: svg('<path d="M12 5v14M5 12h14"/>', 20),
+  check: svg('<path d="M20 6 9 17l-5-5"/>', 14),
+};
+
+/* ═════════════════════════════ Trip card ═════════════════════════════ */
+
+const $ = (id) => document.getElementById(id);
+
+const routeHtml = (t) =>
+  `<span>${t.origin}</span><span class="arrow" aria-hidden="true">${arrow}</span><span>${t.destination}</span>`;
+
+const canRecord = () => state.preview === 'active';
+
+function tripCardHtml(view) {
+  const t = view.trip;
+  const running = t.status === 'ACTIVE';
+  const detail = [kmText(t.km), `started ${clock(t.startedAt)}`, fmtDate(t.startedAt)];
+  if (!running) detail.push(`ended ${clock(t.endedAt)}`);
+
+  return `<div class="glass hero ${running ? 'hero-solid' : 'hero-glass'}" data-od-id="${running ? 'tt-card-active' : 'tt-card-completed'}">
+    <p class="hero-eyebrow">
+      <span class="label-s">${running ? 'TRIP IN PROGRESS' : 'TRIP COMPLETED'}</span>
+      <span class="st-pill num" aria-hidden="true"><span class="st-pill-text">TRIP #${t.trip_number}</span></span>
+    </p>
+    <p class="visually-hidden">Trip number ${t.trip_number}, ${t.origin} to ${t.destination}, ${running ? 'in progress' : 'completed'}.</p>
+    <h2 class="headline-s hero-route" data-od-id="heading:route">${routeHtml(t)}</h2>
+    <p class="body-s hc-detail num">${detail.join(middot)}</p>
+    <p class="display-s lead-figure num">${moneyOrDash(view.collected)}</p>
+    <p class="label-s lead-cap">COLLECTED ON THIS TRIP</p>
+    <div class="hero-figures num">
+      <div class="hero-figure"><b>${view.total}</b><span>FARES</span></div>
+      <div class="hero-figure"><b>${view.pax}</b><span>PASSENGERS</span></div>
+      <div class="hero-figure"><b>${view.average === null ? dash : peso(view.average)}</b><span>AVG PER PAX</span></div>
+    </div>
+    ${canRecord() ? `<div class="card-actions">
+      <button class="primary-btn" data-action="record" data-od-id="tt-record-fare">
+        ${ICONS.ticket}<span class="label-l">Record a fare</span>
+      </button>
+    </div>` : ''}
+  </div>`;
+}
+
+function loadingCardHtml() {
+  return `<div class="glass hero hero-glass" role="status" aria-busy="true" data-od-id="tt-card-loading">
+    <div class="sk sk-eyebrow"></div>
+    <div class="sk sk-route"></div>
+    <div class="sk sk-detail"></div>
+    <div class="sk sk-money"></div>
+    <div class="sk-figs"><div class="sk sk-fig"></div><div class="sk sk-fig"></div><div class="sk sk-fig"></div></div>
+    <div class="sk sk-btn"></div>
+  </div>`;
+}
+
+function errorCardHtml() {
+  return `<div class="glass hero hero-error" role="alert" data-od-id="tt-card-error">
+    <p class="label-s hero-eyebrow"><span class="hero-error-head">RECORDS UNAVAILABLE</span></p>
+    <h2 class="headline-s hero-route" data-od-id="heading:route">Could not read the trip records</h2>
+    <p class="body-m hc-detail">Nothing was lost. The trips and fares are still on this device, and reading them again is safe.</p>
+    <div class="card-actions">
+      <button class="primary-btn" data-action="retry" data-od-id="tt-read-again">Read records again</button>
+    </div>
+  </div>`;
+}
+
+function notFoundCardHtml() {
+  return `<div class="glass hero hero-glass" data-od-id="tt-card-notfound">
+    <p class="label-s hero-eyebrow">NO SUCH TRIP</p>
+    <h2 class="headline-s hero-route" data-od-id="heading:route">Trip not found</h2>
+    <p class="body-m hc-detail">No trip with this record exists on this device. The ${plural(data.trips.length, 'trip')} already saved here are untouched.</p>
+    <div class="card-actions">
+      <button class="primary-btn" data-action="go-trip" data-od-id="tt-go-trip">Go to trip</button>
+      <button class="quiet-btn" data-action="back" data-od-id="tt-go-back">Go back</button>
+    </div>
+  </div>`;
+}
+
+function renderCard(view) {
+  const slot = $('card-slot');
+  if (state.preview === 'loading') { slot.innerHTML = loadingCardHtml(); return; }
+  if (state.preview === 'error') { slot.innerHTML = errorCardHtml(); return; }
+  if (view.notFound) { slot.innerHTML = notFoundCardHtml(); return; }
+  slot.innerHTML = tripCardHtml(view);
+}
+
+/* ── The gate note: two reasons, and it must say which one applies ──── */
+
+function gateHtml(view) {
+  if (state.preview === 'loading' || state.preview === 'error' || view.notFound) return '';
+  if (canRecord()) return '';
+  const t = view.trip;
+  const closed = t.status !== 'ACTIVE';
+  const body = closed
+    ? (view.total === 0
+      ? `Trip #${t.trip_number} closed ${clock(t.endedAt)} on ${fmtDate(t.endedAt)}. Nothing was recorded against it, and no new fares can be added.`
+      : `Trip #${t.trip_number} closed ${clock(t.endedAt)} on ${fmtDate(t.endedAt)}. Its ${plural(view.total, 'ticket')} and ${peso(view.collected)} stay on it for good and every one still opens \u2014 only adding new ones is refused.`)
+    : (view.total === 0
+      ? `It was opened without recording rights, so no new tickets can be added to trip #${t.trip_number}, and no tickets were recorded on it.`
+      : `It was opened without recording rights, so no new tickets can be added to trip #${t.trip_number}. The ${plural(view.total, 'ticket')} already on it are complete, and every one of them still opens.`);
+  return `<aside class="glass gate" data-od-id="${closed ? 'tt-gate-completed' : 'tt-gate-readonly'}" aria-label="Recording refused">
+    <span class="gate-chip" aria-hidden="true">${ICONS.lock}</span>
+    <span>
+      <span class="label-s gate-title">${closed ? 'THIS TRIP IS CLOSED' : 'NEW FARES ARE REFUSED HERE'}</span>
+      <p class="body-s gate-text">${body}</p>
+    </span>
+  </aside>`;
+}
+
+/* ═══════════════════════════ Fare ledger ═════════════════════════════ */
+
+/**
+ * One row. The route is deliberately absent: the card above already says it
+ * once. The time leads, then the category chip with the unit price and the
+ * passenger count, then the peso at 700 with the ticket number under it.
+ */
+function ledgerRowHtml(fare) {
+  const label = `${clock(fare.at)}, ${fmtDate(fare.at)}. ${PT_LABEL[fare.type]}, ` +
+    `${plural(fare.qty, 'passenger')} at ${peso(FARE[fare.type])} each, ${peso(fareTotal(fare))} total. ` +
+    `Ticket number ${fare.id}.`;
+  const chip = fare.type === 'REGULAR' ? 'cat-regular' : 'cat-discounted';
+  return `<button class="glass row-card row-btn" data-action="open-ticket" data-id="${fare.id}" aria-label="${label}" data-od-id="ledger-row-${fare.id}">
+    <span class="ticket-head">
+      <span class="ticket-id">
+        <span class="title-m ticket-time num">${clock(fare.at)}</span>
+        <span class="body-s ticket-date num">${fmtDate(fare.at)}</span>
+      </span>
+      <span class="ticket-mid">
+        <span class="cat ${chip}">${PT_LABEL[fare.type]}</span>
+        <span class="body-s ticket-sub num">${peso(FARE[fare.type])} each${middot}${fare.qty} pax</span>
+      </span>
+      <span class="ticket-fare fare num">
+        <b class="title-m">${moneyOrDash(fareTotal(fare))}</b>
+        <span class="body-s ticket-no">#${fare.id}</span>
+      </span>
+    </span>
+  </button>`;
+}
+
+function renderLedger(view) {
+  const body = $('ledger-body');
+  if (state.preview === 'loading') {
+    body.innerHTML = `<div class="rows" aria-hidden="true" data-od-id="region:ledger-loading">
+      <div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div>
+    </div>`;
+    $('live-status').textContent = 'Loading the trip records.';
+    return;
+  }
+  $('live-status').textContent = '';
+  if (state.preview === 'error' || view.notFound) { body.innerHTML = ''; return; }
+
+  if (view.total === 0) {
+    body.innerHTML = `<div class="glass state-card" data-od-id="ledger-empty">
+      <p class="title-m state-title">NO TICKETS ON THIS TRIP</p>
+      <p class="body-s state-body">${canRecord()
+        ? 'Record a fare and it appears here, newest first.'
+        : 'This trip closed with nothing recorded against it.'}</p>
+    </div>`;
+    return;
+  }
+
+  const cap = view.capped
+    ? `<p class="body-s cap-line">Showing the ${RECENT_TICKET_LIMIT} most recent of ${view.total} recorded fares.</p>`
+    : '';
+  body.innerHTML = `<div class="rows" data-od-id="region:ledger-rows">${view.recent.map(ledgerRowHtml).join('')}</div>${cap}`;
+}
+
+function renderStorage() {
+  const days = new Set(data.tickets.map((t) => dayStart(t.at))).size;
+  $('storage-text').innerHTML =
+    `<b>${plural(data.trips.length, 'trip')}</b>, <b>${plural(data.tickets.length, 'fare')}</b> and ` +
+    `<b>${peso(deviceTotal())}</b> collected across <b>${plural(Math.max(days, 1), 'day')}</b>, ` +
+    'all saved on this device. <b>No network is used.</b>';
+}
+
+function renderChrome(view) {
+  $('chrome-sub').textContent =
+    state.preview === 'loading' ? 'Loading records'
+    : state.preview === 'error' ? 'Records unreadable'
+    : view.notFound ? 'Trip not found'
+    : view.trip ? `Trip #${view.trip.trip_number}${middot}${plural(view.total, 'fare')}`
+    : 'Trip and ticket overview';
+}
+
+/* ═════════════════════════════ Overlays ══════════════════════════════ */
+
+const overlay = $('overlay');
+const sheetBody = $('sheet-body');
+const sheetTitle = $('sheet-title-el');
+const sheetSub = $('sheet-sub');
+const sheetClose = $('sheet-close');
+let lastFocus = null;
+
+function openSheet(title, sub, html) {
+  lastFocus = document.activeElement;
+  sheetTitle.textContent = title;
+  sheetSub.textContent = sub;
+  sheetBody.innerHTML = html;
+  overlay.hidden = false;
+  // The close button takes focus only once the sheet is visible — a hidden
+  // element cannot take focus.
+  requestAnimationFrame(() => {
+    overlay.classList.add('open');
+    sheetClose.focus();
+  });
+}
+
+function closeSheet() {
+  overlay.classList.remove('open');
+  window.setTimeout(() => { overlay.hidden = true; }, 200);
+  if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
+  lastFocus = null;
+}
+
+sheetClose.addEventListener('click', closeSheet);
+overlay.addEventListener('click', (e) => {
+  // Only the backdrop itself may close. closest() also matches every control
+  // inside the sheet, so the sheet's own buttons would dismiss it instead of
+  // acting. (This bit home.html; do not re-import it.)
+  if (e.target.hasAttribute('data-scrim')) closeSheet();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !overlay.hidden) closeSheet();
+});
+
+const detailRows = (rows) =>
+  rows.map(([label, value]) =>
+    `<div class="detail-row"><span class="body-m detail-label">${label}</span><span class="body-m detail-value num">${value}</span></div>`
+  ).join('');
+
+const goesNote = (text) =>
+  `<div class="sheet-note" data-od-id="sheet:handoff-note"><p class="body-s"><b>WHERE THIS GOES</b><br>${text}</p></div>`;
+
+/* ── Ticket sheet: reading a ticket navigates nowhere, and says so ──── */
+
+function openTicketSheet(id) {
+  const fare = data.tickets.find((t) => t.id === Number(id));
+  if (!fare) return;
+  const trip = data.trips.find((t) => t.id === fare.tripId);
+  openSheet(
+    `Ticket #${fare.id}`,
+    `${PT_LABEL[fare.type]}${middot}${plural(fare.qty, 'passenger')}`,
+    `<div data-od-id="sheet:ticket">
+      ${detailRows([
+        ['Passenger type', PT_LABEL[fare.type]],
+        ['Quantity', String(fare.qty)],
+        ['Fare each', peso(FARE[fare.type])],
+        ['Line total', peso(fareTotal(fare))],
+        ['Recorded', `${clock(fare.at)}${middot}${fmtDate(fare.at)}`],
+        ['Trip', trip ? `#${trip.trip_number}${middot}${trip.status === 'ACTIVE' ? 'In progress' : 'Completed'}` : dash],
+        ['Route', trip ? `${trip.origin} ${arrow} ${trip.destination}` : dash],
+      ])}
+      ${goesNote('Nowhere. Reading a ticket does not navigate: it is a record, not a screen. Close the sheet to go back.')}
+    </div>`
+  );
+}
+
+/* ── All-tickets sheet: the whole ledger, then the device totals ───── */
+
+function openAllTicketsSheet() {
+  const view = readTrip();
+  const all = view.trip ? faresFor(view.trip.id) : [];
+  const byType = TYPES.map((type) => {
+    const rows = all.filter((f) => f.type === type);
+    return { type, count: rows.length, total: rows.reduce((s, f) => s + fareTotal(f), 0) };
+  }).filter((b) => b.count > 0);
+  openSheet(
+    view.trip ? `Trip #${view.trip.trip_number}` : 'All tickets',
+    `${plural(view.total, 'fare')} recorded on this trip`,
+    `<div data-od-id="sheet:all-tickets">
+      ${detailRows([
+        ['Fares recorded', String(view.total)],
+        ['Passengers', String(view.pax)],
+        ['Collected on this trip', moneyOrDash(view.collected)],
+      ])}
+      <div class="detail-card">
+        <p class="label-s section-label">PASSENGERS BY CATEGORY</p>
+        ${byType.map((b) => `<div class="detail-row">
+          <span class="body-m detail-label">${PT_LABEL[b.type]}</span>
+          <span class="body-m detail-value num">${plural(b.count, 'fare')}${middot}${moneyOrDash(b.total)}</span>
+        </div>`).join('')}
+      </div>
+      <div class="detail-card">
+        <p class="label-s section-label">ON THIS DEVICE</p>
+        ${detailRows([
+          ['Trips', String(data.trips.length)],
+          ['Fares', String(data.tickets.length)],
+          ['Collected', peso(deviceTotal())],
+        ])}
+      </div>
+      ${goesNote('Opens <b>Ticket History</b> in the app \u2014 the ledger across every trip, with the same figures and a day breakdown.')}
+    </div>`
+  );
+}
+
+/* ── Trip sheet, and the not-found state's Go to trip ───────────────── */
+
+function openTripSheet() {
+  const view = readTrip();
+  if (view.notFound) {
+    openSheet('Trip not found', 'Record absent', `<div data-od-id="sheet:trip-missing">
+      ${detailRows([
+        ['Requested trip', `#${MISSING_TRIP_ID}`],
+        ['Found on this device', 'No'],
+        ['Trips stored here', String(data.trips.length)],
+      ])}
+      ${goesNote('Go to trip opens the <b>Trip screen</b> in the app (trip.html) \u2014 the running trip, the recent trips and the start-trip sheet.')}
+    </div>`);
+    return;
+  }
+  const t = view.trip;
+  const todayStart = dayStart(Date.now());
+  const todayFares = data.tickets.filter((f) => f.at >= todayStart);
+  openSheet(
+    `Trip #${t.trip_number}`,
+    `${t.origin} ${arrow} ${t.destination}`,
+    `<div data-od-id="sheet:trip">
+      ${detailRows([
+        ['Status', t.status === 'ACTIVE' ? 'In progress' : 'Completed'],
+        ['Distance', kmText(t.km)],
+        ['Started', `${clock(t.startedAt)}${middot}${fmtDate(t.startedAt)}`],
+        ['Ended', t.endedAt ? `${clock(t.endedAt)}${middot}${fmtDate(t.endedAt)}` : dash],
+        ['Fares recorded here', String(view.total)],
+        ['Passengers here', String(view.pax)],
+        ['Collected here', moneyOrDash(view.collected)],
+        ['Collected today', peso(todayFares.reduce((s, f) => s + fareTotal(f), 0))],
+        ['On this device', `${plural(data.trips.length, 'trip')}${middot}${plural(data.tickets.length, 'fare')}${middot}${peso(deviceTotal())}`],
+      ])}
+      ${goesNote('Opens the <b>Trip screen</b> in the app (trip.html) \u2014 the running trip, the recent trips and the start-trip sheet.')}
+    </div>`
+  );
+}
+
+/* ── Back handoff ──────────────────────────────────────────────────── */
+
+function openBackSheet() {
+  const view = readTrip();
+  openSheet('Back', 'Where this goes', `<div data-od-id="sheet:back">
+    ${detailRows([
+      ['Trip', view.trip ? `#${view.trip.trip_number}` : 'Not found'],
+      ['Fares on it', view.trip ? String(view.total) : dash],
+      ['Collected on it', view.trip ? moneyOrDash(view.collected) : dash],
+    ])}
+    ${goesNote('Opens <b>Trip</b> in the app (trip.html) \u2014 the running trip, the recent trips and the start-trip sheet.')}
+  </div>`);
+}
+
+/* ═══════════════════════ Record a fare ══════════════════════════════ */
+
+/* The sheet's own draft, not the store: nothing is written until Record fare
+   is pressed, so Cancel is honest. */
+let draft = { type: 'REGULAR', qty: 1 };
+
+function openRecordSheet() {
+  draft = { type: 'REGULAR', qty: 1 };
+  openSheet('Record a fare', 'Add ticket preview', recordSheetHtml());
+}
+
+function recordSheetHtml() {
+  const total = FARE[draft.type] * draft.qty;
+  return `<div data-od-id="sheet:record-fare">
+    <div class="fare-pick" role="radiogroup" aria-label="Passenger type" data-od-id="fare-pick">
+      ${TYPES.map((type) => `
+        <button class="fare-opt" role="radio" id="fare-opt-${type}" data-action="pick-type" data-type="${type}"
+          aria-checked="${draft.type === type}" tabindex="${draft.type === type ? 0 : -1}"
+          data-od-id="fare-opt-${type.toLowerCase()}">
+          <span class="check" aria-hidden="true">${ICONS.check}</span>
+          <span class="name">${PT_LABEL[type]}</span>
+          <span class="price num">${peso(FARE[type])}</span>
+        </button>`).join('')}
+    </div>
+    <div class="fare-qty">
+      <button class="qty-btn" data-action="qty-down" aria-label="One passenger fewer" data-od-id="fare-qty-down" ${draft.qty <= 1 ? 'disabled' : ''}>${ICONS.minus}</button>
+      <span class="qty-value num" aria-live="polite" id="qty-value">${plural(draft.qty, 'passenger')}</span>
+      <button class="qty-btn" data-action="qty-up" aria-label="One passenger more" data-od-id="fare-qty-up" ${draft.qty >= QTY_MAX ? 'disabled' : ''}>${ICONS.plus}</button>
+    </div>
+    <div class="fare-total">
+      <span class="label-s">TO RECORD</span>
+      <b class="num" aria-live="polite" id="fare-total">${peso(total)}</b>
+    </div>
+    <div class="sheet-actions">
+      <button class="quiet-btn" data-action="cancel-record" data-od-id="fare-cancel">Cancel</button>
+      <button class="primary-btn" data-action="save-fare" data-od-id="fare-save">Record fare</button>
+    </div>
+  </div>`;
+}
+
+function syncDraft() {
+  const el = $('qty-value');
+  if (el) el.textContent = plural(draft.qty, 'passenger');
+  const total = $('fare-total');
+  if (total) total.textContent = peso(FARE[draft.type] * draft.qty);
+  const down = sheetBody.querySelector('[data-action="qty-down"]');
+  const up = sheetBody.querySelector('[data-action="qty-up"]');
+  if (down) down.disabled = draft.qty <= 1;
+  if (up) up.disabled = draft.qty >= QTY_MAX;
+  sheetBody.querySelectorAll('.fare-opt').forEach((opt) => {
+    const on = opt.dataset.type === draft.type;
+    opt.setAttribute('aria-checked', String(on));
+    opt.tabIndex = on ? 0 : -1;
+  });
+}
+
+/** Writes one ticket inside the trip's own id block and re-derives the screen. */
+function saveFare() {
+  const trip = activeTrip();
+  if (!trip) return;
+  const used = data.tickets
+    .filter((f) => f.tripId === trip.id)
+    .map((f) => f.id - trip.id * 100);
+  const next = trip.id * 100 + (used.length ? Math.max(...used) + 1 : 0);
+  data.tickets.push({
+    id: next,
+    tripId: trip.id,
+    type: draft.type,
+    qty: draft.qty,
+    at: Date.now(),
+  });
+  const amount = peso(FARE[draft.type] * draft.qty);
+  closeSheet();
+  render();
+  $('live-status').textContent = `Ticket ${next} recorded. ${plural(draft.qty, 'passenger')}, ${amount}.`;
+  // The trigger is still there, so focus stays on it; nothing to move.
+}
+
+/* ═══════════════════════ Event delegation ════════════════════════════ */
+
+$('app').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  // Programmatic clicks do not move focus; a sheet opened from such a click
+  // would have nowhere to return focus to.
+  if (document.activeElement === document.body) btn.focus();
+  const action = btn.dataset.action;
+  if (action === 'back') openBackSheet();
+  else if (action === 'view-all') openAllTicketsSheet();
+  else if (action === 'open-ticket') openTicketSheet(btn.dataset.id);
+  else if (action === 'record') openRecordSheet();
+  else if (action === 'go-trip') openTripSheet();
+  else if (action === 'retry') readRecords();
+});
+
+sheetBody.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn || btn.disabled) return;
+  if (document.activeElement === document.body) btn.focus();
+  const action = btn.dataset.action;
+  if (action === 'pick-type') { draft.type = btn.dataset.type; syncDraft(); }
+  else if (action === 'qty-down') { draft.qty = Math.max(1, draft.qty - 1); syncDraft(); }
+  else if (action === 'qty-up') { draft.qty = Math.min(QTY_MAX, draft.qty + 1); syncDraft(); }
+  else if (action === 'save-fare') saveFare();
+  else if (action === 'cancel-record') closeSheet();
+});
+
+/* Arrow keys move the fare selection, as a radiogroup must. Delegated to the
+   document so it survives the sheet body being re-rendered. */
+document.addEventListener('keydown', (e) => {
+  if (overlay.hidden) return;
+  const opt = e.target instanceof Element && e.target.closest('.fare-opt');
+  if (!opt || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+  e.preventDefault();
+  const i = TYPES.indexOf(draft.type);
+  const delta = (e.key === 'ArrowRight' || e.key === 'ArrowDown') ? 1 : -1;
+  draft.type = TYPES[(i + delta + TYPES.length) % TYPES.length];
+  syncDraft();
+  sheetBody.querySelector(`[data-type="${draft.type}"]`)?.focus();
+});
+
+/* ═══════════════════════ Prototype control ═══════════════════════════ */
+
+const protoButtons = Array.from(document.querySelectorAll('.proto-btn'));
+protoButtons.forEach((btn) => {
+  btn.addEventListener('click', () => {
+    state.preview = btn.dataset.state;
+    closeSheet();
+    render();
+  });
+});
+
+function syncProto() {
+  protoButtons.forEach((btn) => {
+    btn.setAttribute('aria-pressed', String(btn.dataset.state === state.preview));
+  });
+}
+
+/* ═══════════════════════ Render + a real read ═══════════════════════ */
+
+const app = $('app');
+
+function render() {
+  // A re-render destroys the focused control. Remember it by data-od-id so the
+  // keyboard does not lose its place.
+  const activeEl = document.activeElement;
+  const od = activeEl && app.contains(activeEl) ? activeEl.getAttribute('data-od-id') : null;
+
+  const view = readTrip();
+  renderChrome(view);
+  renderCard(view);
+  $('gate-slot').innerHTML = gateHtml(view);
+  renderLedger(view);
+  renderStorage();
+  syncProto();
+
+  if (od) {
+    const next = document.querySelector(`[data-od-id="${od}"]`);
+    if (next) next.focus();
+  }
+}
+
+/** Retry is the only recovery from a failed read: it re-renders as loading,
+    then the read resolves. */
+function readRecords() {
+  state.preview = 'loading';
+  render();
+  $('live-status').textContent = 'Reading records.';
+  window.setTimeout(() => {
+    if (state.preview === 'loading') {
+      state.preview = 'active';
+      render();
+      $('live-status').textContent = 'Records read.';
+    }
+  }, 900);
+}
+
+render();
+</script>
+</body>
+</html>

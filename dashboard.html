@@ -1,0 +1,1740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kondukt — Dashboard prototype</title>
+<!--
+  KONDUKT · DASHBOARD — single-file prototype (HTML + CSS + JS, no build, no storage APIs).
+
+  The reference design for the screen a conductor checks before every shift. It reuses
+  the History recipes byte-for-byte — the period control, the calendar modal, the row
+  recipes, the sheets, the tokens and glass — and adds the one thing that is uniquely
+  Dashboard's: the status card, a four-way machine (active / ready / fallback /
+  period-closed) that answers "what is true right now".
+
+  Two honesty rules this screen enforces:
+  1. Amber is reserved for exactly one thing — a trip running right now. The active
+     card is the only solid-amber surface in the product, and its dark-on-amber text
+     clears contrast where pale containers would sit near 1.5:1.
+  2. Stale data never reads as today. When the store's latest record is not from
+     today, the whole screen relabels (hero and both section titles carry "AS OF
+     <date>") and the numbers are scoped to the last recorded day — the shipped
+     screen relabelled quietly, which is how a conductor reads yesterday's fares
+     as this morning's.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --primary: #E65100;
+    --primary-solid: #C2410C;
+    --primary-container: #FFE6D2;
+    --on-primary-container: #4E2200;
+    --secondary: #FFB300;
+    --on-secondary: #3D2E00;
+    --secondary-container: #FFEFC7;
+    --on-secondary-container: #4A3600;
+    --secondary-detail: #4F3D2B;
+    --secondary-muted: #5B4720;
+    --secondary-fg: #8A6100;
+    --tertiary: #546E7A;
+    --tertiary-container: #DDE6EA;
+    --on-tertiary-container: #162B33;
+    --error: #BA1A1A;
+    --error-container: #FFDAD6;
+    --surface: #FDF7F3;
+    --surface-low: #F7EFE9;
+    --surface-container: #F2E9E2;
+    --surface-high: #ECE3DC;
+    --on-surface: #221A15;
+    --on-surface-variant: #53433B;
+    --outline: #85736B;
+    --outline-variant: #D7C2B7;
+    --scrim: rgba(34, 26, 21, .32);
+
+    --glass-tint: rgba(255, 255, 255, .58);
+    --glass-rim: rgba(255, 255, 255, .85);
+    --glass-shadow: 0 8px 15px rgba(90, 106, 130, .16);
+    --glass-text: #1A2029;
+    --glass-text-variant: #4A5568;
+    --glass-primary: #8F3A00;
+    --glass-tertiary: #334A56;
+    --hover-tint: rgba(120, 130, 150, .1);
+    --active-tint: rgba(120, 130, 150, .17);
+
+    --radius-s: 8px;
+    --radius-m: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
+    --radius-glass: 28px;
+    --radius-full: 999px;
+
+    --gutter: 20px;
+    --card-gap: 12px;
+    --section-margin: 20px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+
+  body {
+    font-family: 'Poppins', sans-serif;
+    background: #E9E4E0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 24px 0;
+  }
+
+  .phone {
+    width: 390px;
+    height: 844px;
+    border-radius: 44px;
+    border: 11px solid #111;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 24px 48px rgba(34, 26, 21, .25);
+    flex-shrink: 0;
+  }
+
+  .phone-content { position: relative; width: 100%; height: 100%; overflow: hidden; }
+
+  .field {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, #FBC9A8 0%, #F4F7FB 52%, #C6D9E8 100%);
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    height: 100%;
+    overflow-y: auto;
+    padding: 50px 0 29px;
+    scrollbar-width: none;
+  }
+  .app::-webkit-scrollbar { display: none; }
+
+  .container { padding: 0 20px; }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px; height: 1px;
+    margin: -1px; padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* ── Glass ─────────────────────────────────────────────────────────── */
+
+  .glass {
+    position: relative;
+    background: var(--glass-tint);
+    border: 1px solid var(--glass-rim);
+    border-radius: var(--radius-glass);
+    box-shadow: var(--glass-shadow);
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+  }
+  .glass::before, .glass::after {
+    content: '';
+    position: absolute;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .glass::before { inset: 0; border-radius: inherit; background: var(--glass-tint); opacity: .35; }
+  .glass::after {
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(160deg, rgba(255, 255, 255, .5), transparent 45%);
+    mix-blend-mode: screen;
+  }
+  /* The one solid-amber surface in the product keeps no rim, tint or sheen. */
+  .glass.status-solid::before, .glass.status-solid::after { display: none; }
+
+  .glass > * { position: relative; z-index: 1; }
+
+  /* ── Type ──────────────────────────────────────────────────────────── */
+
+  .display-s { font-size: 28px; line-height: 36px; letter-spacing: -.3px; font-weight: 700; }
+  .headline-s { font-size: 20px; line-height: 27px; letter-spacing: -.3px; font-weight: 600; }
+  .title-m { font-size: 16px; line-height: 23px; font-weight: 600; }
+  .body-m { font-size: 14px; line-height: 21px; font-weight: 400; }
+  .body-s { font-size: 12px; line-height: 18px; font-weight: 400; }
+  .label-l { font-size: 15px; line-height: 20px; font-weight: 600; }
+  .label-s { font-size: 11px; line-height: 16px; letter-spacing: .6px; font-weight: 600; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ── Chrome header ─────────────────────────────────────────────────── */
+
+  .chrome { display: flex; align-items: center; gap: 12px; margin: 8px 0 var(--section-margin); }
+  .back-pill {
+    width: 44px; height: 44px;
+    border: none; border-radius: var(--radius-full);
+    background: var(--primary-solid);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    box-shadow: var(--glass-shadow);
+  }
+  .back-pill:hover { background: #A63808; }
+  .title-pill {
+    flex: 1;
+    min-height: 56px;
+    border-radius: var(--radius-full);
+    background: var(--primary-solid);
+    color: #fff;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center;
+    padding: 6px 16px;
+    box-shadow: var(--glass-shadow);
+  }
+  .title-pill .sub { opacity: .9; }
+
+  /* ── Sections ──────────────────────────────────────────────────────── */
+
+  .section-label { color: var(--glass-text-variant); margin: 0 0 10px; }
+  .section { margin-bottom: var(--section-margin); }
+  .section-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .section-head .section-label { flex: 1; margin: 0; }
+
+  /* ── Buttons ───────────────────────────────────────────────────────── */
+
+  .btn {
+    min-height: 48px;
+    border: none;
+    border-radius: var(--radius-full);
+    padding: 0 20px;
+    font-family: inherit;
+    font-size: 15px; line-height: 20px; font-weight: 600;
+    white-space: nowrap;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    cursor: pointer;
+    transition: background .15s, transform .12s;
+  }
+  .btn:active { transform: scale(.995); }
+  .btn-solid { background: var(--primary-solid); color: #fff; }
+  .btn-solid:hover { background: #A63808; }
+  /* The ready CTA is amber: the start action is the one warm invitation. */
+  .btn-amber { background: var(--secondary); color: var(--on-secondary); }
+  .btn-amber:hover { background: #F0A900; }
+  .btn-ghost { background: transparent; border: 1px solid var(--outline); color: var(--on-surface); }
+  .btn-ghost:hover { background: var(--active-tint); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn-ghost:disabled:hover { background: transparent; }
+  .btn-block { width: 100%; }
+
+  .icon-btn {
+    width: 48px; height: 48px;
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-full);
+    background: var(--surface);
+    color: var(--primary-solid);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: background .15s;
+    flex-shrink: 0;
+  }
+  .icon-btn:hover { background: var(--hover-tint); }
+  .icon-btn:disabled { opacity: .4; cursor: default; }
+  .icon-btn:disabled:hover { background: var(--surface); }
+  .icon-btn.custom-active { background: var(--primary-container); border: 2px solid var(--primary); }
+
+  .link-btn {
+    background: none; border: none; padding: 0;
+    font-family: inherit; font-size: 12px; line-height: 18px; font-weight: 600;
+    color: var(--glass-primary);
+    cursor: pointer;
+    min-height: 44px;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .link-btn:hover { text-decoration: underline; }
+  .link-btn .chev { transition: transform .2s; }
+  .link-btn[aria-expanded="true"] .chev { transform: rotate(180deg); }
+
+  button:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(194, 65, 12, .4);
+  }
+
+  /* ── Status card ───────────────────────────────────────────────────── */
+
+  .status-card { padding: 20px; margin-bottom: var(--section-margin); }
+  .status-eyebrow { display: flex; align-items: center; gap: 8px; color: var(--glass-text-variant); flex-wrap: wrap; }
+  .status-title { margin-top: 6px; color: var(--glass-text); }
+  .status-body { margin-top: 6px; color: var(--glass-text-variant); }
+  .status-meta { margin-top: 10px; color: var(--on-surface-variant); }
+  .status-chip {
+    background: var(--on-secondary);
+    color: var(--secondary);
+    font-size: 11px; line-height: 16px; letter-spacing: .6px; font-weight: 600;
+    height: 24px; padding: 0 10px;
+    border-radius: var(--radius-full);
+    display: inline-flex; align-items: center;
+    white-space: nowrap;
+  }
+  .data-chip {
+    background: var(--surface-container);
+    color: var(--on-surface-variant);
+    font-size: 11px; line-height: 16px; letter-spacing: .6px; font-weight: 600;
+    height: 24px; padding: 0 10px;
+    border-radius: var(--radius-full);
+    display: inline-flex; align-items: center;
+    white-space: nowrap;
+  }
+  .status-actions { display: flex; gap: 8px; margin-top: 16px; }
+
+  /* Active: solid amber, dark-on-amber text — the only amber card there is. */
+  .status-solid { background: var(--secondary); border: none; box-shadow: 0 8px 15px rgba(90, 106, 130, .2); }
+  .status-solid .status-eyebrow { color: var(--secondary-muted); }
+  .status-solid .status-title { color: var(--on-secondary); }
+  .status-solid .status-body,
+  .status-solid .status-meta { color: var(--secondary-detail); }
+  .status-solid .status-actions .btn-ghost { border-color: var(--on-secondary); color: var(--on-secondary); }
+
+  /* Fallback: the age of the numbers is explicit. */
+  .status-fallback .status-eyebrow { color: var(--secondary-fg); }
+
+  /* ── Period control (the History recipe) ───────────────────────────── */
+
+  .range-card { padding: 16px; }
+  .range-top { display: flex; align-items: center; gap: 12px; }
+  .segments {
+    flex: 1;
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-full);
+    background: var(--surface);
+  }
+  .segment {
+    flex: 1;
+    min-height: 44px;
+    border: none;
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: var(--on-surface-variant);
+    font-family: inherit;
+    font-size: 14px; font-weight: 600;
+    cursor: pointer;
+  }
+  .segment:hover { background: var(--hover-tint); }
+  .segment[aria-checked="true"] {
+    background: var(--primary-solid);
+    color: #fff;
+    font-weight: 700;
+  }
+  .stepper { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+  .stepper-centre { flex: 1; text-align: center; min-width: 0; }
+  .stepper-label { color: var(--on-surface); }
+  .stepper-dates { color: var(--on-surface-variant); margin-top: 2px; }
+  .range-caption {
+    display: flex; align-items: baseline; gap: 8px;
+    margin-top: 12px;
+    color: var(--on-surface-variant);
+  }
+  .range-caption .marker { width: 6px; height: 6px; border-radius: 2px; background: var(--primary-solid); flex-shrink: 0; align-self: center; }
+  .range-caption b { color: var(--on-surface); font-weight: 600; }
+
+  /* ── Summary disclosure ────────────────────────────────────────────── */
+
+  .summary-card { padding: 16px 20px; }
+  .summary-head { display: flex; align-items: center; gap: 8px; }
+  .summary-head .label-s { flex: 1; color: var(--on-surface-variant); }
+  .summary-hero { margin-top: 10px; }
+  .summary-hero .cap { color: var(--on-surface-variant); }
+  .summary-total { color: var(--on-surface); margin-top: 2px; }
+  .summary-meta { color: var(--on-surface-variant); margin-top: 6px; }
+  .summary-meta b { color: var(--on-surface); }
+
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--card-gap); margin-top: 16px; }
+  .stat-tile {
+    padding: 12px 14px;
+    border-radius: var(--radius-m);
+    background: var(--surface-low);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .stat-chip {
+    width: 40px; height: 40px;
+    border-radius: var(--radius-m);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .stat-chip.tone-primary { background: var(--primary-container); color: var(--primary-solid); }
+  .stat-chip.tone-secondary { background: var(--secondary-container); color: var(--secondary-fg); }
+  .stat-chip.tone-tertiary { background: var(--tertiary-container); color: var(--tertiary); }
+  .stat-text { min-width: 0; }
+  .stat-label { color: var(--on-surface-variant); }
+  .stat-value { color: var(--on-surface); white-space: nowrap; }
+
+  .breakdown { margin-top: 16px; border-top: 1px solid var(--outline); padding-top: 14px; }
+  .breakdown-title { color: var(--on-surface-variant); margin-bottom: 10px; }
+  .bar-row { display: grid; grid-template-columns: 120px 1fr 36px; align-items: center; gap: 10px; }
+  .bar-row + .bar-row { margin-top: 8px; }
+  .bar-label { color: var(--on-surface); font-size: 12px; }
+  .bar-track { height: 8px; border-radius: 999px; background: var(--surface-container); overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 999px; background: var(--primary-solid); }
+  .bar-count { color: var(--on-surface-variant); text-align: right; }
+
+  body.stack-stats .stat-grid { grid-template-columns: 1fr; }
+  body.stack-stats .bar-row { grid-template-columns: 100px 1fr 36px; }
+
+  /* ── Rows (the History recipe) ─────────────────────────────────────── */
+
+  .rows { display: flex; flex-direction: column; gap: var(--card-gap); }
+  .row {
+    width: 100%;
+    border: 1px solid var(--glass-rim);
+    border-radius: var(--radius-lg);
+    background: var(--glass-tint);
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+    font-family: inherit;
+    text-align: left;
+    padding: 14px 16px;
+    display: grid;
+    grid-template-columns: 40px 1fr auto;
+    gap: 12px;
+    align-items: start;
+    cursor: pointer;
+    transition: background-color .15s, transform .12s;
+  }
+  .row:hover { background-color: var(--hover-tint); background-clip: padding-box; }
+  .row:active { background-color: var(--active-tint); transform: scale(.995); }
+  .row-chip {
+    width: 40px; height: 40px;
+    border-radius: var(--radius-m);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .row-chip.tone-primary { background: var(--primary-container); color: var(--primary-solid); }
+  .row-chip.tone-secondary { background: var(--secondary-container); color: var(--secondary-fg); }
+  .row-chip.tone-tertiary { background: var(--tertiary-container); color: var(--tertiary); }
+  .row-main { min-width: 0; }
+  .row-title { color: var(--on-surface); display: flex; flex-wrap: wrap; column-gap: 8px; align-items: baseline; }
+  .row-sub { color: var(--on-surface-variant); margin-top: 2px; display: flex; flex-wrap: wrap; column-gap: 6px; align-items: center; }
+  .row-meta {
+    color: var(--on-surface-variant); margin-top: 6px; padding-top: 8px;
+    border-top: 1px solid var(--outline);
+    display: flex; justify-content: space-between; gap: 8px;
+  }
+  .row-meta b { color: var(--on-surface); font-weight: 600; }
+  .row-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+  .row-amount { color: var(--on-surface); white-space: nowrap; }
+  .row-amount-label { color: var(--on-surface-variant); font-size: 10px; letter-spacing: .6px; font-weight: 600; }
+  .row .chev { color: var(--outline-variant); align-self: center; }
+
+  .status-chip {
+    display: inline-flex; align-items: center;
+    height: 26px; padding: 0 10px;
+    border-radius: var(--radius-full);
+    font-size: 11px; line-height: 16px; letter-spacing: .6px; font-weight: 600;
+    white-space: nowrap;
+  }
+  .chip-inprogress { background: var(--secondary-container); color: var(--on-secondary-container); }
+  .chip-completed { background: var(--tertiary-container); color: var(--on-tertiary-container); }
+  .cat-chip {
+    display: inline-flex; align-items: center;
+    height: 22px; padding: 0 8px;
+    border-radius: var(--radius-full);
+    font-size: 10px; line-height: 14px; letter-spacing: .4px; font-weight: 600;
+    background: var(--surface-container);
+    color: var(--on-surface-variant);
+    white-space: nowrap;
+  }
+
+  body.stack-rows .row { grid-template-columns: 40px 1fr; }
+  body.stack-rows .row-side {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding-left: 52px;
+  }
+  body.stack-rows .row .chev { display: none; }
+  body.stack-rows .row-meta { flex-direction: column; gap: 2px; align-items: flex-start; }
+
+  /* ── Inline states ─────────────────────────────────────────────────── */
+
+  .state-card { padding: 20px; text-align: center; }
+  .state-title { color: var(--on-surface); }
+  .state-body { color: var(--on-surface-variant); margin-top: 6px; }
+  .state-card .btn { margin-top: 14px; }
+  .state-error { background: var(--error-container); border: none; }
+  .state-error .state-title { color: var(--error); }
+
+  .status-line {
+    display: flex; align-items: center; gap: 8px;
+    justify-content: center;
+    padding: 12px 0 0;
+    color: var(--on-surface-variant);
+  }
+
+  /* ── Skeletons ─────────────────────────────────────────────────────── */
+
+  .sk { border-radius: var(--radius-m); background: rgba(120, 130, 150, .14); position: relative; overflow: hidden; }
+  .sk::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(120, 130, 150, .18), transparent);
+    animation: shimmer 1.4s infinite;
+  }
+  @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+  .sk-eyebrow { width: 130px; height: 12px; }
+  .sk-title { width: 60%; height: 24px; margin-top: 10px; }
+  .sk-line { width: 80%; height: 14px; margin-top: 8px; }
+  .sk-btn { width: 150px; height: 44px; margin-top: 16px; border-radius: var(--radius-full); }
+  .sk-hero { width: 180px; height: 36px; margin-top: 10px; }
+  .sk-meta { width: 220px; height: 16px; margin-top: 8px; }
+  .sk-row { height: 84px; border-radius: var(--radius-lg); }
+  .sk-row + .sk-row { margin-top: var(--card-gap); }
+
+  /* ── Storage footer ────────────────────────────────────────────────── */
+
+  .storage-note { padding: 16px 20px; display: flex; gap: 12px; align-items: flex-start; }
+  .storage-note .icon { color: var(--glass-tertiary); flex-shrink: 0; margin-top: 2px; }
+  .storage-text { color: var(--glass-text-variant); }
+  .storage-text b { color: var(--glass-text); }
+  .footnote { text-align: center; padding: 16px 0 4px; color: var(--glass-text-variant); }
+
+  /* ── Sheets (bottom) and the centred calendar modal ────────────────── */
+
+  .overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 40;
+    display: flex;
+    align-items: flex-end;
+    visibility: hidden;
+  }
+  .overlay.center { align-items: center; justify-content: center; padding: 24px; }
+  .overlay.open { visibility: visible; }
+  .scrim { position: absolute; inset: 0; background: var(--scrim); opacity: 0; transition: opacity .2s; }
+  .overlay.open .scrim { opacity: 1; }
+  .sheet {
+    position: relative;
+    width: 100%;
+    border-radius: var(--radius-glass) var(--radius-glass) 0 0;
+    border-bottom: none;
+    padding: 12px 20px 49px;
+    transform: translateY(100%);
+    transition: transform .25s ease;
+    max-height: 88%;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .sheet::-webkit-scrollbar { display: none; }
+  .overlay.open .sheet { transform: translateY(0); }
+  .sheet-grabber { width: 36px; height: 4px; border-radius: 999px; background: var(--outline-variant); margin: 0 auto 12px; }
+  .sheet-head { display: flex; align-items: flex-start; gap: 12px; }
+  .sheet-head-text { flex: 1; min-width: 0; }
+  .sheet-title { color: var(--glass-text); }
+  .sheet-sub { color: var(--glass-text-variant); margin-top: 2px; }
+  .sheet-close {
+    width: 44px; height: 44px;
+    margin: -6px -10px 0 0;
+    border: none; border-radius: var(--radius-full);
+    background: var(--surface-container);
+    color: var(--on-surface-variant);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .sheet-close:hover { background: var(--outline-variant); }
+  .sheet-body { margin-top: 14px; }
+
+  /* The centred calendar card. */
+  .modal-card {
+    position: relative;
+    width: 100%;
+    max-width: 340px;
+    padding: 16px 20px 20px;
+    transform: scale(.96);
+    transition: transform .2s ease;
+    max-height: 86%;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .modal-card::-webkit-scrollbar { display: none; }
+  .overlay.open .modal-card { transform: scale(1); }
+
+  .detail-row {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--outline);
+  }
+  .detail-row:last-of-type { border-bottom: none; }
+  .detail-label { color: var(--glass-text-variant); }
+  .detail-value { color: var(--glass-text); text-align: right; }
+
+  .ledger-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--outline-variant);
+  }
+  .ledger-row:last-of-type { border-bottom: none; }
+  .ledger-time { color: var(--on-surface-variant); min-width: 72px; }
+  .ledger-name { flex: 1; color: var(--on-surface); }
+  .ledger-qty { color: var(--on-surface-variant); }
+  .ledger-total { color: var(--on-surface); min-width: 64px; text-align: right; }
+
+  .sheet-note {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: var(--radius-m);
+    background: var(--surface-container);
+    color: var(--on-surface-variant);
+  }
+  .sheet-note b { color: var(--on-surface); }
+  .sheet-section-label { color: var(--glass-text-variant); margin: 16px 0 4px; }
+  .sheet-actions { display: flex; gap: 8px; margin-top: 16px; }
+  .sheet-actions .btn { flex: 1; }
+
+  .confirm-warn { margin-top: 10px; font-size: 12px; line-height: 18px; color: var(--on-surface-variant); }
+
+  /* ── Calendar (shared recipe) ──────────────────────────────────────── */
+
+  .cal-head { display: flex; align-items: center; gap: 8px; }
+  .cal-month { flex: 1; text-align: center; color: var(--on-surface); }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-top: 10px; }
+  .cal-dow { text-align: center; color: var(--on-surface-variant); font-size: 11px; padding: 4px 0; }
+  .cal-day {
+    min-width: 44px; min-height: 44px;
+    border: none;
+    border-radius: var(--radius-m);
+    background: transparent;
+    color: var(--on-surface);
+    font-family: inherit;
+    font-size: 13px; font-weight: 400;
+    cursor: pointer;
+  }
+  .cal-day:hover { background: var(--hover-tint); }
+  .cal-day.between { background: var(--primary-container); border-radius: 0; color: var(--on-primary-container); }
+  .cal-day.edge { background: var(--primary-solid); color: #fff; font-weight: 700; }
+  .cal-day:disabled { color: var(--outline-variant); cursor: default; }
+  .cal-day:disabled:hover { background: transparent; }
+  .cal-error { color: var(--error); margin-top: 10px; min-height: 18px; }
+  .cal-actions { display: flex; gap: 8px; margin-top: 8px; }
+  .cal-actions .btn { flex: 1; }
+
+  /* ── Prototype control ─────────────────────────────────────────────── */
+
+  .proto {
+    position: fixed;
+    left: 20px;
+    bottom: 20px;
+    z-index: 90;
+    background: #fff;
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-lg);
+    padding: 14px;
+    box-shadow: 0 8px 24px rgba(34, 26, 21, .12);
+  }
+  .proto-label { color: var(--on-surface-variant); margin-bottom: 8px; }
+  .proto-row { display: flex; flex-wrap: wrap; gap: 8px; max-width: 250px; }
+  .proto-btn {
+    min-height: 44px;
+    padding: 0 16px;
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-full);
+    background: #fff;
+    color: var(--on-surface);
+    font-family: inherit;
+    font-size: 13px; font-weight: 600;
+    cursor: pointer;
+  }
+  .proto-btn:hover { background: var(--surface-low); }
+  .proto-btn[aria-pressed="true"] { background: var(--primary-solid); color: #fff; border-color: var(--primary-solid); }
+  @media (max-width: 480px) { .proto { display: none; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sk::after { animation: none; }
+    .scrim, .sheet, .modal-card, .link-btn .chev, .btn, .row { transition: none; }
+    .btn:active, .row:active { transform: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="phone-content">
+    <div class="field" aria-hidden="true"></div>
+
+    <main class="app" id="app" aria-label="Kondukt dashboard">
+      <div class="container">
+        <header class="chrome" data-od-id="region:chrome">
+          <button class="back-pill" data-action="back" aria-label="Back to home" data-od-id="control:back">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+          <div class="title-pill">
+            <h1 class="headline-s">Dashboard</h1>
+            <span class="label-s sub">Offline overview</span>
+          </div>
+        </header>
+
+        <section id="status-slot" data-od-id="region:status" aria-label="Current status"></section>
+
+        <section class="section" data-od-id="region:period" aria-labelledby="period-label">
+          <h2 class="label-s section-label" id="period-label">PERIOD</h2>
+          <div class="glass range-card">
+            <div class="range-top">
+              <div class="segments" role="radiogroup" aria-label="Period" id="segments" data-od-id="control:period-segments">
+                <button class="segment" role="radio" aria-checked="true" data-mode="day" tabindex="0">Day</button>
+                <button class="segment" role="radio" aria-checked="false" data-mode="week" tabindex="-1">Week</button>
+                <button class="segment" role="radio" aria-checked="false" data-mode="month" tabindex="-1">Month</button>
+              </div>
+              <button class="icon-btn" id="cal-btn" aria-label="Choose a custom date range" data-od-id="control:calendar">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>
+              </button>
+            </div>
+            <div class="stepper">
+              <button class="icon-btn" id="step-prev" aria-label="Previous period" data-od-id="control:period-prev">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+              </button>
+              <div class="stepper-centre">
+                <p class="title-m stepper-label" id="stepper-label"></p>
+                <p class="body-s stepper-dates num" id="stepper-dates"></p>
+              </div>
+              <button class="icon-btn" id="step-next" aria-label="Next period" data-od-id="control:period-next">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+              </button>
+            </div>
+          </div>
+          <p class="body-s range-caption num" data-od-id="region:range-caption">
+            <span class="marker" aria-hidden="true"></span>
+            <span id="range-caption"></span>
+          </p>
+        </section>
+
+        <section class="section" id="summary-section" data-od-id="region:summary" aria-labelledby="summary-label">
+          <h2 class="label-s section-label" id="summary-label"></h2>
+          <div id="summary-body"></div>
+        </section>
+
+        <section class="section" id="trips-section" data-od-id="region:trips" aria-labelledby="trips-label">
+          <div class="section-head">
+            <h2 class="label-s section-label" id="trips-label"></h2>
+            <button class="link-btn" data-action="open-history" data-od-id="control:open-history">
+              Open History
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+          </div>
+          <div id="trips-body"></div>
+        </section>
+
+        <section class="section" id="tickets-section" data-od-id="region:tickets" aria-labelledby="tickets-label">
+          <h2 class="label-s section-label" id="tickets-label"></h2>
+          <div id="tickets-body"></div>
+        </section>
+
+        <footer class="glass storage-note" data-od-id="region:storage" aria-label="Local storage note">
+          <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+          <p class="body-s storage-text" id="storage-text"></p>
+        </footer>
+
+        <p class="body-s footnote">Kondukt — fares stay on this device.</p>
+        <p class="visually-hidden" role="status" id="live-status"></p>
+      </div>
+    </main>
+
+    <!-- Bottom sheets: trip + ticket detail. -->
+    <div class="overlay" id="sheet-overlay" hidden>
+      <div class="scrim" data-scrim></div>
+      <div class="glass sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title-el" id="sheet" data-od-id="region:sheet">
+        <div class="sheet-grabber" aria-hidden="true"></div>
+        <div class="sheet-head">
+          <div class="sheet-head-text">
+            <h2 class="headline-s sheet-title" id="sheet-title-el"></h2>
+            <p class="body-s sheet-sub" id="sheet-sub"></p>
+          </div>
+          <button class="sheet-close" id="sheet-close" aria-label="Close sheet" data-od-id="control:sheet-close">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="sheet-body" id="sheet-body"></div>
+      </div>
+    </div>
+
+    <!-- The centred calendar modal. -->
+    <div class="overlay center" id="cal-overlay" hidden>
+      <div class="scrim" data-scrim></div>
+      <div class="glass modal-card" role="dialog" aria-modal="true" aria-labelledby="cal-title-el" data-od-id="region:calendar">
+        <div class="sheet-head">
+          <div class="sheet-head-text">
+            <h2 class="headline-s sheet-title" id="cal-title-el">Custom range</h2>
+            <p class="body-s sheet-sub">Tap a start date, then an end date</p>
+          </div>
+          <button class="sheet-close" id="cal-close" aria-label="Close calendar" data-od-id="control:calendar-close">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="sheet-body" id="cal-body"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="proto" role="group" aria-label="Prototype states">
+  <p class="label-s proto-label">PROTOTYPE STATES</p>
+  <div class="proto-row">
+    <button class="proto-btn" data-state="ready" aria-pressed="true">Ready</button>
+    <button class="proto-btn" data-state="fallback" aria-pressed="false">Fallback</button>
+    <button class="proto-btn" data-state="loading" aria-pressed="false">Loading</button>
+    <button class="proto-btn" data-state="empty" aria-pressed="false">Empty</button>
+    <button class="proto-btn" data-state="error" aria-pressed="false">Error</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ═════════════════════════════ Seed data ═════════════════════════════ */
+
+const FARE = { REGULAR: 15, STUDENT: 13, SENIOR_CITIZON: 12, PWD: 12 };
+const TYPE_LABELS = { REGULAR: 'Regular', STUDENT: 'Student', SENIOR_CITIZON: 'Senior citizen', PWD: 'PWD' };
+const TYPES = Object.keys(FARE);
+const DAY = 86400000;
+const HOUR = 3600000;
+const RECENT_LIMIT = 6;
+
+const ROUTES = [
+  { origin: 'Cubao', destination: 'Divisoria', km: 7.2 },
+  { origin: 'Baclaran', destination: 'Monumento', km: 8.0 },
+  { origin: 'Divisoria', destination: 'Cubao', km: 7.2 },
+  { origin: 'Monumento', destination: 'Baclaran', km: 8.0 },
+  { origin: 'Quiapo', destination: 'Cubao', km: 5.4 },
+  { origin: 'Monumento', destination: 'Cubao', km: 4.1 },
+];
+
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * One pass produces 45 days. `dropToday` removes today's records (the fallback
+ * state's store), `activeToday` seeds a running trip. Completed trips are
+ * clamped into the elapsed part of their day; the active trip's start is
+ * clamped so it never predates today's window.
+ */
+function buildData(dropToday, activeToday) {
+  const rand = mulberry32(23);
+  const now = Date.now();
+  const dayStart = new Date(now); dayStart.setHours(0, 0, 0, 0);
+  const start = dayStart.getTime();
+  const trips = [];
+  const tickets = [];
+  let ticketId = 1;
+  let tripNum = 210;
+
+  const addTickets = (trip, count) => {
+    const span = (trip.endedAt ?? Math.max(now, trip.startedAt + HOUR)) - trip.startedAt;
+    for (let k = 0; k < count; k++) {
+      const type = TYPES[Math.floor(rand() * TYPES.length)];
+      const qty = 1 + (rand() < 0.2 ? 1 : 0);
+      tickets.push({
+        id: ticketId++,
+        tripId: trip.id,
+        type,
+        qty,
+        at: trip.startedAt + span * ((k + 1) / (count + 1)),
+      });
+    }
+  };
+
+  for (let d = 1; d <= 44; d++) {
+    const dayStartAt = start - d * DAY;
+    const runs = d <= 6 ? 4 + Math.floor(rand() * 3) : 3 + Math.floor(rand() * 3);
+    for (let r = 0; r < runs; r++) {
+      const route = ROUTES[Math.floor(rand() * ROUTES.length)];
+      const durMin = 60 + Math.floor(rand() * 50);
+      const startedAt = dayStartAt + (6 + r * 2.6) * HOUR + Math.floor(rand() * 40) * 60000;
+      const endedAt = startedAt + durMin * 60000;
+      if (endedAt >= dayStartAt + DAY) continue;
+      const trip = {
+        id: trips.length + 1,
+        trip_number: String(tripNum++),
+        origin: route.origin, destination: route.destination, km: route.km,
+        startedAt, endedAt, status: 'COMPLETED',
+      };
+      trips.push(trip);
+      addTickets(trip, 6 + Math.floor(rand() * 14));
+    }
+  }
+
+  // Today: two completed runs — the reference's "2 completed trips".
+  if (!dropToday) {
+    const todayRoutes = [1, 5]; // Baclaran→Monumento, Monumento→Cubao
+    for (let i = 0; i < todayRoutes.length; i++) {
+      const route = ROUTES[todayRoutes[i]];
+      const durMin = 55 + Math.floor(rand() * 30);
+      let endedAt = Math.min(start + (6 + i * 2) * HOUR, now - 25 * 60000);
+      if (endedAt >= now) endedAt = now - 60000;
+      let startedAt = Math.max(start, endedAt - durMin * 60000);
+      if (startedAt >= endedAt) startedAt = endedAt - 60000;
+      const trip = {
+        id: trips.length + 1,
+        trip_number: String(220 + i),
+        origin: route.origin, destination: route.destination, km: route.km,
+        startedAt, endedAt, status: 'COMPLETED',
+      };
+      trips.push(trip);
+      addTickets(trip, i === 0 ? 5 : 3);
+    }
+  }
+
+  // The running trip, seeded only when asked. Its start never predates today.
+  if (activeToday && !dropToday) {
+    const route = ROUTES[0];
+    trips.push({
+      id: trips.length + 1,
+      trip_number: '230',
+      origin: route.origin, destination: route.destination, km: route.km,
+      startedAt: Math.max(start, now - 75 * 60000),
+      endedAt: null, status: 'ACTIVE',
+    });
+    const trip = trips[trips.length - 1];
+    addTickets(trip, 4);
+  }
+
+  return { trips, tickets };
+}
+
+let data = buildData(false, false);
+
+/* ═════════════════════════════ Formatters ════════════════════════════ */
+
+const peso = (n) => '\u20B1' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const dash = '\u2014';
+
+function fmtTime(ms) {
+  return new Date(ms).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+}
+function dayStartOf(ms) {
+  const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime();
+}
+const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function fmtShort(ms) {
+  const d = new Date(ms);
+  return `${d.toLocaleDateString('en-US', { month: 'short' })} ${d.getDate()}`;
+}
+function fmtDayLabel(ms) {
+  const d = new Date(ms);
+  return `${DOW[d.getDay()]}, ${d.toLocaleDateString('en-US', { month: 'short' })} ${d.getDate()}`;
+}
+function monthName(ms) {
+  const d = new Date(ms);
+  return `${d.toLocaleDateString('en-US', { month: 'long' })} ${d.getFullYear()}`;
+}
+
+/* ═════════════════════════════ Range ═════════════════════════════════ */
+
+const state = {
+  mode: 'day', offset: 0, custom: null,
+  phase: 'ready',          // ready | fallback | loading | empty | error
+  summaryOpen: false,
+};
+
+/** The scope vocabulary. One function, feeding hero and both section titles. */
+function scopeUpper(range) {
+  if (state.phase === 'fallback') {
+    const latest = latestRecordDay();
+    return `AS OF ${fmtShort(latest).toUpperCase()}`;
+  }
+  if (range.isCustom) return 'CUSTOM RANGE';
+  if (state.mode === 'day') return state.offset === 0 ? 'TODAY' : state.offset === -1 ? 'YESTERDAY' : fmtDayLabel(range.start).toUpperCase();
+  if (state.mode === 'week') return state.offset === 0 ? 'LAST 7 DAYS' : `${fmtShort(range.start).toUpperCase()} – ${fmtShort(range.end).toUpperCase()}`;
+  return range.label.toUpperCase();
+}
+
+function latestRecordDay() {
+  let latest = 0;
+  for (const t of data.tickets) { const d = dayStartOf(t.at); if (d > latest) latest = d; }
+  return latest;
+}
+
+function rangeFor() {
+  const today = dayStartOf(Date.now());
+  if (state.mode === 'custom' && state.custom) {
+    const { start, end } = state.custom;
+    return {
+      start, end,
+      label: 'Custom range',
+      dates: `${fmtShort(start)} – ${fmtShort(end)} ${new Date(end).getFullYear()}`,
+      caption: `${fmtShort(start)} – ${fmtShort(end)}, ${new Date(end).getFullYear()} · inclusive`,
+      isCustom: true, canPrev: false, canNext: false,
+    };
+  }
+  const o = state.offset;
+  if (state.mode === 'day') {
+    const start = today + o * DAY;
+    const end = start + DAY - 1;
+    const label = o === 0 ? 'Today' : o === -1 ? 'Yesterday' : fmtDayLabel(start);
+    return {
+      start, end, label,
+      dates: fmtDayLabel(start) + (o !== 0 ? `, ${new Date(start).getFullYear()}` : ''),
+      caption: `${fmtDayLabel(start)} · 12:00 AM – 11:59 PM`,
+      isCustom: false, canPrev: true, canNext: o < 0,
+    };
+  }
+  if (state.mode === 'week') {
+    const start = today - 6 * DAY + o * 7 * DAY;
+    const end = start + 7 * DAY - 1;
+    const label = o === 0 ? 'Last 7 days' : `${fmtShort(start)} – ${fmtShort(end)}`;
+    return {
+      start, end, label,
+      dates: `${fmtShort(start)} – ${fmtShort(end)}, ${new Date(end).getFullYear()}`,
+      caption: `${fmtShort(start)} – ${fmtShort(end)}, ${new Date(end).getFullYear()} · inclusive`,
+      isCustom: false, canPrev: true, canNext: o < 0,
+    };
+  }
+  const base = new Date(today);
+  const ref = new Date(base.getFullYear(), base.getMonth() + o, 1);
+  const start = ref.getTime();
+  const daysInMonth = new Date(ref.getFullYear(), ref.getMonth() + 1, 0).getDate();
+  const end = new Date(ref.getFullYear(), ref.getMonth(), daysInMonth, 23, 59, 59, 999).getTime();
+  const name = monthName(start);
+  const mShort = ref.toLocaleDateString('en-US', { month: 'short' });
+  return {
+    start, end, label: name,
+    dates: `${mShort} 1 – ${mShort} ${daysInMonth}, ${ref.getFullYear()}`,
+    caption: `${mShort} 1 – ${mShort} ${daysInMonth}, ${ref.getFullYear()} · inclusive`,
+    isCustom: false, canPrev: true, canNext: o < 0,
+  };
+}
+
+const reachesToday = (range) => range.end >= dayStartOf(Date.now());
+
+/* ═════════════════════════════ Compute ═══════════════════════════════ */
+
+function ticketsOf(tripId) { return data.tickets.filter((t) => t.tripId === tripId); }
+const ticketTotal = (t) => FARE[t.type] * t.qty;
+
+function compute(range) {
+  const inRange = data.tickets.filter((t) => t.at >= range.start && t.at <= range.end);
+  const trips = data.trips
+    .filter((t) => t.startedAt >= range.start && t.startedAt <= range.end)
+    .sort((a, b) => b.startedAt - a.startedAt);
+  const completed = trips.filter((t) => t.status === 'COMPLETED');
+  const pax = inRange.reduce((s, t) => s + t.qty, 0);
+  const total = inRange.reduce((s, t) => s + ticketTotal(t), 0);
+  const byType = {};
+  for (const t of inRange) byType[t.type] = (byType[t.type] ?? 0) + t.qty;
+  const active = trips.find((t) => t.status === 'ACTIVE') ?? null;
+  return {
+    trips, active,
+    recentTickets: [...inRange].sort((a, b) => b.at - a.at).slice(0, RECENT_LIMIT),
+    summary: {
+      completed: completed.length,
+      tickets: inRange.length,
+      pax,
+      total,
+      distance: trips.reduce((s, t) => s + t.km, 0),
+      avg: completed.length ? total / completed.length : 0,
+      byType,
+    },
+  };
+}
+
+/* ═════════════════════════════ Icons ═════════════════════════════════ */
+
+const svg = (path, size = 22) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
+const ICONS = {
+  bus: svg('<path d="M4 17V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v11"/><path d="M2 17h20"/><circle cx="6.5" cy="19.5" r="1.5"/><circle cx="17.5" cy="19.5" r="1.5"/><path d="M4 11h16"/>', 20),
+  ticket: svg('<path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/>', 20),
+  wallet: svg('<path d="M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><path d="M21 11v4a1 1 0 0 1-1 1h-5a2 2 0 0 1 0-4h5a1 1 0 0 1 1 1Z"/>', 20),
+  calendar: svg('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>', 20),
+  chevR: svg('<path d="m9 18 6-6-6-6"/>', 18),
+  chevD: svg('<path d="m6 9 6 6 6-6"/>', 14),
+};
+
+/* ═════════════════════════════ Rendering ═════════════════════════════ */
+
+const $ = (id) => document.getElementById(id);
+
+function render() {
+  const range = rangeFor();
+  renderRange(range);
+  renderStatus(range);
+  renderSummary(range);
+  renderTrips(range);
+  renderTickets(range);
+  renderStorage();
+  syncProto();
+}
+
+function renderRange(range) {
+  document.querySelectorAll('.segment').forEach((seg) => {
+    const active = (state.mode === 'custom' ? false : seg.dataset.mode === state.mode);
+    seg.setAttribute('aria-checked', String(active));
+    seg.tabIndex = active ? 0 : -1;
+  });
+  $('cal-btn').classList.toggle('custom-active', range.isCustom);
+  $('stepper-label').textContent = range.label;
+  $('stepper-dates').textContent = range.isCustom
+    ? `${fmtShort(range.start)} – ${fmtShort(range.end)}, ${new Date(range.end).getFullYear()}`
+    : range.dates;
+  $('step-prev').disabled = !range.canPrev;
+  $('step-next').disabled = !range.canNext;
+
+  const c = compute(range);
+  const scope = scopeUpper(range);
+  let caption;
+  if (state.phase === 'fallback') {
+    caption = `Data is from <b>${fmtDayLabel(latestRecordDay())}</b> — today has no records yet.`;
+  } else if (c.summary.tickets === 0 && c.trips.length === 0) {
+    caption = 'No records in this window.';
+  } else {
+    const parts = [`${plural(c.summary.completed, 'completed trip')}`, `${plural(c.summary.tickets, 'ticket')} recorded`];
+    if (c.active) parts.push(`Trip #${c.active.trip_number} running`);
+    caption = parts.join(' · ') + '.';
+  }
+  $('range-caption').innerHTML = caption;
+}
+
+/* ── Status: the four-way machine ──────────────────────────────────── */
+
+function statusKind(range, c) {
+  if (state.phase === 'loading') return 'loading';
+  if (state.phase === 'error') return 'error';
+  if (state.phase === 'fallback') return 'fallback';
+  if (c.active) return 'active';
+  if (!reachesToday(range)) return 'closed';
+  if (c.trips.length === 0) return 'empty';
+  return 'ready';
+}
+
+function renderStatus(range) {
+  const slot = $('status-slot');
+  const c = compute(range);
+  const kind = statusKind(range, c);
+
+  if (kind === 'loading') {
+    slot.innerHTML =
+      `<div class="glass status-card" aria-busy="true" data-od-id="status:loading">
+        <div class="sk sk-eyebrow"></div>
+        <div class="sk sk-title"></div>
+        <div class="sk sk-line"></div>
+        <div class="sk sk-btn"></div>
+      </div>`;
+    return;
+  }
+  if (kind === 'error') {
+    slot.innerHTML =
+      `<div class="glass status-card state-error" role="alert" data-od-id="status:error">
+        <p class="label-s status-eyebrow"><span style="color:var(--error)">OFFLINE OVERVIEW UNAVAILABLE</span></p>
+        <h2 class="headline-s status-title" style="color:var(--error)">Could not read the saved records</h2>
+        <p class="body-m status-body">Unable to load the overview from this device. Nothing was lost — the records are still saved locally.</p>
+        <div class="status-actions">
+          <button class="btn btn-solid" data-action="retry" data-od-id="control:retry">Retry</button>
+        </div>
+      </div>`;
+    return;
+  }
+  if (kind === 'active') {
+    const t = c.active;
+    const tk = ticketsOf(t.id);
+    const pax = tk.reduce((s, x) => s + x.qty, 0);
+    const soFar = tk.reduce((s, x) => s + ticketTotal(x), 0);
+    slot.innerHTML =
+      `<div class="glass status-card status-solid" data-od-id="status:active">
+        <p class="label-s status-eyebrow">TRIP IN PROGRESS <span class="status-chip num">TRIP #${t.trip_number}</span></p>
+        <h2 class="headline-s status-title">${t.origin} → ${t.destination}</h2>
+        <p class="body-m status-body num">Trip #${t.trip_number} · started ${fmtTime(t.startedAt)}</p>
+        <p class="body-s status-meta num">${plural(tk.length, 'ticket')} · ${plural(pax, 'passenger')} · ${t.km.toFixed(1)} km · ${peso(soFar)} so far</p>
+        <div class="status-actions">
+          <button class="btn btn-ghost" data-action="open-trip" data-id="${t.id}" data-od-id="control:trip-details">Trip details</button>
+        </div>
+      </div>`;
+    return;
+  }
+  if (kind === 'fallback') {
+    const latest = latestRecordDay();
+    slot.innerHTML =
+      `<div class="glass status-card status-fallback" data-od-id="status:fallback">
+        <p class="label-s status-eyebrow">OFFLINE SNAPSHOT <span class="data-chip num">DATA DATE · ${fmtShort(latest).toUpperCase()}</span></p>
+        <h2 class="headline-s status-title">Showing the last recorded day</h2>
+        <p class="body-m status-body">This device has no record for today yet. Every figure below is labelled with the day it actually describes.</p>
+        <div class="status-actions">
+          <button class="btn btn-solid" data-action="start-trip" data-od-id="control:start-trip">
+            ${ICONS.bus.replace('width="20" height="20"', 'width="18" height="18"')} Start a trip
+          </button>
+        </div>
+      </div>`;
+    return;
+  }
+  if (kind === 'closed') {
+    slot.innerHTML =
+      `<div class="glass status-card" data-od-id="status:closed">
+        <p class="label-s status-eyebrow">PERIOD CLOSED</p>
+        <h2 class="headline-s status-title">A window from the past</h2>
+        <p class="body-m status-body">This period has already ended, so there is nothing to run from here. Review its numbers below, or step back to today.</p>
+      </div>`;
+    return;
+  }
+  if (kind === 'empty') {
+    slot.innerHTML =
+      `<div class="glass status-card" data-od-id="status:empty">
+        <p class="label-s status-eyebrow">NOTHING RECORDED</p>
+        <h2 class="headline-s status-title">No trips in this window</h2>
+        <p class="body-m status-body">Figures appear as trips are recorded on this device. Start one, or step the period back to a day with records.</p>
+        <div class="status-actions">
+          <button class="btn btn-amber" data-action="start-trip" data-od-id="control:start-trip">
+            ${ICONS.bus.replace('width="20" height="20"', 'width="18" height="18"')} Start a trip
+          </button>
+        </div>
+      </div>`;
+    return;
+  }
+  // Ready: a real day, recorded trips, nothing running.
+  slot.innerHTML =
+    `<div class="glass status-card" data-od-id="status:ready">
+      <p class="label-s status-eyebrow">READY TO START</p>
+      <h2 class="headline-s status-title">No trip running.</h2>
+      <p class="body-m status-body">Start a trip and it stays pinned here while it runs, with fares counted as they are issued.</p>
+      <p class="body-s status-meta num">${plural(c.summary.completed, 'completed trip')} · ${plural(c.summary.tickets, 'ticket')} · ${peso(c.summary.total)}</p>
+      <div class="status-actions">
+        <button class="btn btn-amber" data-action="start-trip" data-od-id="control:start-trip">
+          ${ICONS.bus.replace('width="20" height="20"', 'width="18" height="18"')} Start a trip
+        </button>
+      </div>
+    </div>`;
+}
+
+function statTile(tone, icon, label, value) {
+  return (
+    `<div class="stat-tile">
+      <span class="stat-chip tone-${tone}" aria-hidden="true">${icon}</span>
+      <span class="stat-text">
+        <span class="label-s stat-label">${label}</span><br/>
+        <span class="title-m stat-value num">${value}</span>
+      </span>
+    </div>`
+  );
+}
+
+function renderSummary(range) {
+  const scope = scopeUpper(range);
+  $('summary-label').textContent = `${scope} EARNINGS`;
+  const body = $('summary-body');
+  if (state.phase === 'loading') {
+    body.innerHTML =
+      `<div class="glass summary-card" aria-busy="true">
+        <div class="summary-head"><span class="label-s">TOTAL EARNINGS</span></div>
+        <div class="sk sk-hero"></div>
+        <div class="sk sk-meta"></div>
+      </div>`;
+    return;
+  }
+  if (state.phase === 'error') { body.innerHTML = ''; return; }
+
+  const c = compute(range);
+  if (state.phase === 'empty' || (c.summary.tickets === 0 && c.trips.length === 0)) {
+    body.innerHTML =
+      `<div class="glass state-card" data-od-id="region:summary-empty">
+        <p class="title-m state-title">No earnings in this window</p>
+        <p class="body-s state-body">Nothing was recorded in this period, so there is nothing to total.</p>
+        ${reachesToday(range) ? '' : '<button class="btn btn-ghost" data-action="show-today" data-od-id="control:show-today">Show today</button>'}
+      </div>`;
+    return;
+  }
+
+  const s = c.summary;
+  const breakdown = TYPES
+    .map((t) => ({ type: t, count: s.byType[t] ?? 0 }))
+    .filter((b) => b.count > 0)
+    .sort((a, b) => b.count - a.count);
+  const maxCount = Math.max(1, ...breakdown.map((b) => b.count));
+
+  body.innerHTML =
+    `<div class="glass summary-card" data-od-id="region:summary-card">
+      <div class="summary-head">
+        <span class="label-s">TOTAL EARNINGS</span>
+        <button class="link-btn" data-action="toggle-summary" aria-expanded="${state.summaryOpen}" aria-controls="summary-detail" data-od-id="control:toggle-summary">
+          ${state.summaryOpen ? 'Hide details' : 'Show details'} <span class="chev" aria-hidden="true">${ICONS.chevD}</span>
+        </button>
+      </div>
+      <div class="summary-hero">
+        <p class="label-s cap">TOTAL EARNINGS</p>
+        <p class="display-s summary-total num">${peso(s.total)}</p>
+        <p class="body-m summary-meta num"><b>${plural(s.completed, 'trip')}</b> &nbsp;·&nbsp; <b>${plural(s.tickets, 'ticket')}</b> &nbsp;·&nbsp; <b>${plural(s.pax, 'passenger')}</b></p>
+      </div>
+      ${state.summaryOpen ? `
+      <div id="summary-detail">
+        <div class="stat-grid">
+          ${statTile('primary', ICONS.bus, 'COMPLETED TRIPS', String(s.completed))}
+          ${statTile('secondary', ICONS.ticket, 'TICKETS', String(s.tickets))}
+          ${statTile('tertiary', ICONS.wallet, 'DISTANCE', `${s.distance.toFixed(1)} km`)}
+          ${statTile('primary', ICONS.wallet, 'AVG PER TRIP', peso(s.avg))}
+        </div>
+        <div class="breakdown">
+          <p class="label-s breakdown-title">PASSENGER BREAKDOWN</p>
+          ${breakdown.map((b) => `
+            <div class="bar-row">
+              <span class="bar-label">${TYPE_LABELS[b.type]}</span>
+              <span class="bar-track" role="img" aria-label="${plural(b.count, TYPE_LABELS[b.type].toLowerCase())}"><span class="bar-fill" style="width:${Math.round((b.count / maxCount) * 100)}%"></span></span>
+              <span class="bar-count num">${b.count}</span>
+            </div>`).join('')}
+        </div>
+      </div>` : ''}
+    </div>`;
+}
+
+function statusChipEl(status) {
+  return status === 'ACTIVE'
+    ? '<span class="status-chip chip-inprogress">In progress</span>'
+    : '<span class="status-chip chip-completed">Completed</span>';
+}
+
+function tripRow(t) {
+  const tk = ticketsOf(t.id);
+  const pax = tk.reduce((s, x) => s + x.qty, 0);
+  const total = tk.reduce((s, x) => s + ticketTotal(x), 0);
+  const label = `Trip #${t.trip_number}, ${t.origin} to ${t.destination}, ${t.status === 'ACTIVE' ? 'in progress' : 'completed'}, started ${fmtTime(t.startedAt)}. ${plural(tk.length, 'ticket')}, ${plural(pax, 'passenger')}, ${t.km.toFixed(1)} kilometres, earnings ${peso(total)}. Opens trip detail.`;
+  return (
+    `<button class="row" aria-label="${label}" data-action="open-trip" data-id="${t.id}" data-od-id="row:trip-${t.id}">
+      <span class="row-chip tone-primary" aria-hidden="true">${ICONS.bus}</span>
+      <span class="row-main">
+        <span class="row-title title-m">${t.origin} → ${t.destination}</span>
+        <span class="row-sub body-s num">Trip #${t.trip_number} · ${fmtTime(t.startedAt)}</span>
+        <span class="row-meta body-s num"><span>${tk.length} tickets · ${pax} passengers · ${t.km.toFixed(1)} km</span><b>${peso(total)}</b></span>
+      </span>
+      <span class="row-side">
+        ${statusChipEl(t.status)}
+      </span>
+      <span class="chev" aria-hidden="true">${ICONS.chevR}</span>
+    </button>`
+  );
+}
+
+function ticketRow(t) {
+  const trip = data.trips.find((x) => x.id === t.tripId);
+  const route = trip ? `${trip.origin} → ${trip.destination}` : dash;
+  const tripNo = trip ? trip.trip_number : dash;
+  const label = `Ticket #${1000 + t.id}, ${fmtDayLabel(t.at)}. ${route} on trip #${tripNo}, ${TYPE_LABELS[t.type]}, quantity ${t.qty}. Total ${peso(ticketTotal(t))}, ${peso(FARE[t.type])} each. Opens ticket detail.`;
+  return (
+    `<button class="row" aria-label="${label}" data-action="open-ticket" data-id="${t.id}" data-od-id="row:ticket-${t.id}">
+      <span class="row-chip tone-secondary" aria-hidden="true">${ICONS.ticket}</span>
+      <span class="row-main">
+        <span class="row-title title-m num">#${1000 + t.id} <span class="body-s" style="font-weight:400;color:var(--on-surface-variant)">${fmtDayLabel(t.at)}</span></span>
+        <span class="row-sub body-s num">${route} · Trip #${tripNo} · <span class="cat-chip">${TYPE_LABELS[t.type]}</span> · Qty ${t.qty}</span>
+      </span>
+      <span class="row-side">
+        <span class="row-amount body-m num">${peso(ticketTotal(t))}</span>
+        <span class="row-amount-label num">EACH ${peso(FARE[t.type])}</span>
+      </span>
+      <span class="chev" aria-hidden="true">${ICONS.chevR}</span>
+    </button>`
+  );
+}
+
+function renderTrips(range) {
+  const scope = scopeUpper(range);
+  $('trips-label').textContent = `${scope} TRIPS`;
+  const body = $('trips-body');
+  if (state.phase === 'loading') {
+    body.innerHTML = '<div class="rows" aria-hidden="true"><div class="sk sk-row"></div><div class="sk sk-row"></div></div>';
+    return;
+  }
+  if (state.phase === 'error' || state.phase === 'empty') { body.innerHTML = ''; return; }
+  const c = compute(range);
+  const rows = c.trips.slice(0, RECENT_LIMIT).map(tripRow);
+  body.innerHTML = rows.length
+    ? `<div class="rows" data-od-id="region:trip-rows">${rows.join('')}</div>`
+    : `<div class="glass state-card"><p class="title-m state-title">No trips in this window</p><p class="body-s state-body">Nothing was recorded here yet.</p></div>`;
+}
+
+function renderTickets(range) {
+  const scope = scopeUpper(range);
+  $('tickets-label').textContent = `${scope} TICKETS`;
+  const body = $('tickets-body');
+  if (state.phase === 'loading') {
+    body.innerHTML = '<div class="rows" aria-hidden="true"><div class="sk sk-row"></div></div>';
+    return;
+  }
+  if (state.phase === 'error' || state.phase === 'empty') { body.innerHTML = ''; return; }
+  const c = compute(range);
+  const rows = c.recentTickets.slice(0, RECENT_LIMIT).map(ticketRow);
+  body.innerHTML = rows.length
+    ? `<div class="rows" data-od-id="region:ticket-rows">${rows.join('')}</div>`
+    : `<div class="glass state-card"><p class="title-m state-title">No tickets in this window</p><p class="body-s state-body">Fares appear here as they are issued on a running trip.</p></div>`;
+}
+
+function renderStorage() {
+  const days = new Set(data.tickets.map((t) => dayStartOf(t.at))).size;
+  $('storage-text').innerHTML =
+    `<b>${plural(data.trips.length, 'trip')} and ${plural(data.tickets.length, 'fare')}</b> across <b>${plural(days, 'day')}</b>, all saved on this device. <b>No network is used.</b>`;
+}
+
+/* ═══════════════════════ Sheets ══════════════════════════════════════ */
+
+const sheetOverlay = $('sheet-overlay');
+const sheetBody = $('sheet-body');
+const sheetTitle = $('sheet-title-el');
+const sheetSub = $('sheet-sub');
+const sheetClose = $('sheet-close');
+const calOverlay = $('cal-overlay');
+const calBody = $('cal-body');
+let lastFocus = null;
+
+function openSheetOverlay(overlay, focusEl) {
+  lastFocus = document.activeElement;
+  overlay.hidden = false;
+  requestAnimationFrame(() => {
+    overlay.classList.add('open');
+    focusEl.focus();
+  });
+}
+
+function closeOverlay(overlay) {
+  overlay.classList.remove('open');
+  window.setTimeout(() => { overlay.hidden = true; }, 200);
+  if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
+  lastFocus = null;
+}
+
+sheetClose.addEventListener('click', () => closeOverlay(sheetOverlay));
+$('cal-close').addEventListener('click', () => closeOverlay(calOverlay));
+for (const ov of [sheetOverlay, calOverlay]) {
+  ov.addEventListener('click', (e) => {
+    // Only the backdrop itself may close: closest() would also match every
+    // control inside and swallow their clicks.
+    if (e.target.hasAttribute('data-scrim')) closeOverlay(ov);
+  });
+}
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (!calOverlay.hidden) closeOverlay(calOverlay);
+  else if (!sheetOverlay.hidden) closeOverlay(sheetOverlay);
+});
+
+const detailRows = (rows) =>
+  rows.map(([label, value]) =>
+    `<div class="detail-row"><span class="body-m detail-label">${label}</span><span class="body-m detail-value num">${value}</span></div>`
+  ).join('');
+
+let endStep = null; // null | 'confirm' — the second step inside the trip sheet
+
+function openTripSheet(id) {
+  const trip = data.trips.find((t) => t.id === id);
+  if (!trip) return;
+  endStep = null;
+  renderTripSheet(trip);
+  openSheetOverlay(sheetOverlay, sheetClose);
+}
+
+function renderTripSheet(trip) {
+  const tk = ticketsOf(trip.id).sort((a, b) => a.at - b.at);
+  const pax = tk.reduce((s, x) => s + x.qty, 0);
+  const total = tk.reduce((s, x) => s + ticketTotal(x), 0);
+  let html =
+    detailRows([
+      ['Route', `${trip.origin} → ${trip.destination}`],
+      ['Status', trip.status === 'ACTIVE' ? 'In progress' : 'Completed'],
+      ['Started', fmtTime(trip.startedAt)],
+      ['Ended', trip.endedAt ? fmtTime(trip.endedAt) : dash],
+      ['Distance', `${trip.km.toFixed(1)} km`],
+      ['Tickets', String(tk.length)],
+      ['Passengers', String(pax)],
+      ['Collected', peso(total)],
+    ]) +
+    `<p class="label-s sheet-section-label">TICKET LEDGER</p>` +
+    tk.map((t) => `
+      <div class="ledger-row">
+        <span class="body-s ledger-time num">${fmtTime(t.at)}</span>
+        <span class="body-s ledger-name">${TYPE_LABELS[t.type]}</span>
+        <span class="body-s ledger-qty num">×${t.qty}</span>
+        <span class="body-s ledger-total num">${peso(ticketTotal(t))}</span>
+      </div>`).join('');
+
+  if (trip.status === 'ACTIVE' && endStep === 'confirm') {
+    html +=
+      `<p class="label-s sheet-section-label">END TRIP #${trip.trip_number}?</p>
+       <p class="body-s confirm-warn">This cannot be undone. The closing time is ${fmtTime(Date.now())} and ${peso(total)} stays in the period total and in History — only new fares are blocked.</p>
+       <div class="sheet-actions">
+        <button class="btn btn-ghost" data-action="end-cancel" data-od-id="control:keep-running">Keep running</button>
+        <button class="btn btn-solid" data-action="end-confirmed" data-id="${trip.id}" data-od-id="control:end-trip-confirm">End trip</button>
+      </div>`;
+  } else if (trip.status === 'ACTIVE') {
+    html +=
+      `<div class="sheet-actions">
+        <button class="btn btn-solid btn-block" data-action="end-confirm" data-od-id="control:end-trip">End this trip</button>
+      </div>`;
+  }
+
+  sheetTitle.textContent = endStep === 'confirm' ? `End trip #${trip.trip_number}?` : `Trip #${trip.trip_number}`;
+  sheetSub.textContent = endStep === 'confirm' ? 'This cannot be undone.' : `${trip.origin} → ${trip.destination} · read-only`;
+  sheetBody.innerHTML = html;
+}
+
+function openTicketSheet(id) {
+  const t = data.tickets.find((x) => x.id === id);
+  if (!t) return;
+  const trip = data.trips.find((x) => x.id === t.tripId);
+  sheetTitle.textContent = `Ticket #${1000 + t.id}`;
+  sheetSub.textContent = 'Read-only record';
+  sheetBody.innerHTML = detailRows([
+    ['Ticket', `#${1000 + t.id}`],
+    ['Recorded', `${fmtDayLabel(t.at)} · ${fmtTime(t.at)}`],
+    ['Trip', trip ? `#${trip.trip_number}` : dash],
+    ['Route', trip ? `${trip.origin} → ${trip.destination}` : dash],
+    ['Category', TYPE_LABELS[t.type]],
+    ['Quantity', String(t.qty)],
+    ['Fare each', peso(FARE[t.type])],
+    ['Total', peso(ticketTotal(t))],
+  ]);
+  openSheetOverlay(sheetOverlay, sheetClose);
+}
+
+/* ── Calendar (the centred modal) ──────────────────────────────────── */
+
+let calCursor = null;
+let calStart = null;
+let calEnd = null;
+
+function openCalendar() {
+  const now = new Date();
+  calCursor = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  calStart = null;
+  calEnd = null;
+  renderCalendar();
+  openSheetOverlay(calOverlay, $('cal-close'));
+}
+
+function renderCalendar() {
+  const first = calCursor;
+  const monthLabel = monthName(first);
+  const firstDow = new Date(first).getDay();
+  const daysInMonth = new Date(new Date(first).getFullYear(), new Date(first).getMonth() + 1, 0).getDate();
+  const today = dayStartOf(Date.now());
+
+  let cells = '';
+  for (let i = 0; i < firstDow; i++) cells += '<span></span>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ms = first + (d - 1) * DAY;
+    const isStart = calStart !== null && ms === calStart;
+    const isEnd = calEnd !== null && ms === calEnd;
+    const isBetween = calStart !== null && calEnd !== null && ms > calStart && ms < calEnd;
+    const cls = isStart || isEnd ? 'edge' : isBetween ? 'between' : '';
+    cells += `<button class="cal-day ${cls}" data-cal-day="${ms}" aria-label="${fmtDayLabel(ms)}${isStart ? ', start of range' : isEnd ? ', end of range' : ''}" ${ms > today ? 'disabled' : ''}>${d}</button>`;
+  }
+
+  calBody.innerHTML =
+    `<div class="cal" data-od-id="region:calendar-body">
+      <div class="cal-head">
+        <button class="icon-btn" data-action="cal-prev" aria-label="Previous month" data-od-id="control:cal-prev">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+        <p class="title-m cal-month">${monthLabel}</p>
+        <button class="icon-btn" data-action="cal-next" aria-label="Next month" data-od-id="control:cal-next">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+      </div>
+      <div class="cal-grid">
+        ${DOW.map((d) => `<span class="cal-dow" aria-hidden="true">${d.slice(0, 1)}</span>`).join('')}
+        ${cells}
+      </div>
+      <p class="body-s cal-error" id="cal-error" role="alert"></p>
+      <div class="cal-actions">
+        <button class="btn btn-ghost" data-action="cal-cancel" data-od-id="control:cal-cancel">Cancel</button>
+        <button class="btn btn-solid" data-action="cal-apply" data-od-id="control:cal-apply">Apply range</button>
+      </div>
+    </div>`;
+}
+
+/* ═══════════════════════ Actions on the store ════════════════════════ */
+
+function startTrip() {
+  const nextNum = String(Math.max(...data.trips.map((t) => Number(t.trip_number))) + 1);
+  const route = ROUTES[Math.floor(Date.now() / HOUR) % ROUTES.length];
+  const trip = {
+    id: Math.max(...data.trips.map((t) => t.id)) + 1,
+    trip_number: nextNum,
+    origin: route.origin, destination: route.destination, km: route.km,
+    startedAt: Date.now(), endedAt: null, status: 'ACTIVE',
+  };
+  data.trips.push(trip);
+  // Its first fare, so the trip is never an empty shell.
+  data.tickets.push({ id: Math.max(0, ...data.tickets.map((t) => t.id)) + 1, tripId: trip.id, type: 'REGULAR', qty: 1, at: Date.now() });
+  state.phase = 'ready';
+  closeOverlay(sheetOverlay);
+  render();
+}
+
+/** Stamps the existing object only — the fares stay in the period total. */
+function endTrip(id) {
+  const trip = data.trips.find((t) => t.id === id);
+  if (!trip || trip.status !== 'ACTIVE') return;
+  trip.status = 'COMPLETED';
+  trip.endedAt = Date.now();
+  closeOverlay(sheetOverlay);
+  render();
+}
+
+/* ═══════════════════════ Events ═════════════════════════════════════ */
+
+$('app').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  if (document.activeElement === document.body) btn.focus();
+  const action = btn.dataset.action;
+
+  if (action === 'back') { window.location.href = 'home.html'; return; }
+  if (action === 'open-history') { window.location.href = 'index.html'; return; }
+  if (action === 'retry') { setState('loading'); return; }
+  if (action === 'show-today') { state.mode = 'day'; state.offset = 0; state.custom = null; state.phase = 'ready'; render(); return; }
+  if (action === 'toggle-summary') { state.summaryOpen = !state.summaryOpen; render(); return; }
+  if (action === 'start-trip') { startTrip(); return; }
+  if (action === 'open-trip') { openTripSheet(Number(btn.dataset.id)); return; }
+  if (action === 'open-ticket') { openTicketSheet(Number(btn.dataset.id)); return; }
+});
+
+function onSheetAction(e) {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  if (document.activeElement === document.body) btn.focus();
+  const action = btn.dataset.action;
+  if (action === 'end-confirm') {
+    const trip = data.trips.find((t) => t.status === 'ACTIVE');
+    if (trip) { endStep = 'confirm'; renderTripSheet(trip); }
+  } else if (action === 'end-cancel') {
+    const trip = data.trips.find((t) => t.id === Number(btn.dataset.id) || t.status === 'ACTIVE');
+    if (trip) { endStep = null; renderTripSheet(trip); }
+  } else if (action === 'end-confirmed') {
+    endTrip(Number(btn.dataset.id));
+  }
+}
+sheetBody.addEventListener('click', onSheetAction);
+
+calBody.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action], [data-cal-day]');
+  if (!btn) return;
+  if (document.activeElement === document.body) btn.focus();
+
+  if (btn.dataset.calDay) {
+    const ms = Number(btn.dataset.calDay);
+    if (calStart === null || (calStart !== null && calEnd !== null)) {
+      calStart = ms; calEnd = null;
+    } else if (ms < calStart) {
+      calStart = ms;
+    } else {
+      calEnd = ms;
+    }
+    renderCalendar();
+    return;
+  }
+  const action = btn.dataset.action;
+  if (action === 'cal-prev') { calCursor = new Date(new Date(calCursor).getFullYear(), new Date(calCursor).getMonth() - 1, 1).getTime(); renderCalendar(); }
+  else if (action === 'cal-next') { calCursor = new Date(new Date(calCursor).getFullYear(), new Date(calCursor).getMonth() + 1, 1).getTime(); renderCalendar(); }
+  else if (action === 'cal-cancel') { closeOverlay(calOverlay); }
+  else if (action === 'cal-apply') {
+    if (calStart === null || calEnd === null) {
+      const err = $('cal-error');
+      if (err) err.textContent = 'Choose both a start and an end date to apply the range.';
+      return;
+    }
+    state.custom = { start: calStart, end: calEnd + DAY - 1 };
+    state.mode = 'custom';
+    state.phase = 'ready';
+    closeOverlay(calOverlay);
+    render();
+  }
+});
+
+function setMode(mode) {
+  state.mode = mode;
+  if (mode !== 'custom') { state.offset = 0; state.custom = null; }
+  if (state.phase === 'fallback') state.phase = 'ready';
+  render();
+}
+
+$('segments').addEventListener('click', (e) => {
+  const seg = e.target.closest('[data-mode]');
+  if (seg) setMode(seg.dataset.mode);
+});
+$('segments').addEventListener('keydown', (e) => {
+  if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+  e.preventDefault();
+  const modes = ['day', 'week', 'month'];
+  const current = state.mode === 'custom' ? -1 : modes.indexOf(state.mode);
+  const delta = (e.key === 'ArrowRight' || e.key === 'ArrowDown') ? 1 : -1;
+  const next = Math.min(modes.length - 1, Math.max(0, (current === -1 ? 0 : current) + delta));
+  setMode(modes[next]);
+  document.querySelector(`[data-mode="${modes[next]}"]`)?.focus();
+});
+
+$('step-prev').addEventListener('click', () => { state.offset -= 1; if (state.phase === 'fallback') state.phase = 'ready'; render(); });
+$('step-next').addEventListener('click', () => { if (state.offset < 0) { state.offset += 1; render(); } });
+$('cal-btn').addEventListener('click', openCalendar);
+
+/* ═══════════════════════ Prototype control ═══════════════════════════ */
+
+const protoButtons = Array.from(document.querySelectorAll('.proto-btn'));
+let loadingTimer = null;
+
+function setState(phase) {
+  state.phase = phase;
+  if (loadingTimer) { window.clearTimeout(loadingTimer); loadingTimer = null; }
+  if (phase === 'fallback') {
+    // The store behind the fallback state: today's records simply are not
+    // there, and the scope shifts to the last recorded day.
+    data = buildData(true, false);
+    state.mode = 'day';
+    state.offset = -1;
+    state.custom = null;
+    render();
+    return;
+  }
+  if (phase === 'ready') data = buildData(false, false);
+  if (phase === 'loading') {
+    render();
+    loadingTimer = window.setTimeout(() => {
+      if (state.phase === 'loading') { state.phase = 'ready'; render(); }
+    }, 900);
+    return;
+  }
+  render();
+}
+
+protoButtons.forEach((btn) => {
+  btn.addEventListener('click', () => setState(btn.dataset.state));
+});
+
+function syncProto() {
+  // An active trip is the store's truth, not a presenter state: no button
+  // claims it.
+  const effective = state.phase === 'ready' && compute(rangeFor()).active ? null : state.phase;
+  protoButtons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.state === effective)));
+}
+
+/* ═══════════════════════ Responsive ══════════════════════════════════ */
+
+function applyResponsive() {
+  const width = Math.min(window.innerWidth, 720);
+  const fontScale = (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16) / 16;
+  document.body.classList.toggle('stack-stats', width < 300 || fontScale > 1.15);
+  document.body.classList.toggle('stack-rows', width < 400 || fontScale > 1.15);
+}
+window.addEventListener('resize', applyResponsive);
+applyResponsive();
+
+/* ═══════════════════════ Boot ════════════════════════════════════════ */
+
+setState('loading'); // the first read is real: skeletons, then the ready card
+</script>
+</body>
+</html>

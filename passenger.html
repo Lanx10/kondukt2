@@ -1,0 +1,1471 @@
+<!doctype html>
+<!--
+  Kondukt · Passengers screen — Open Design prototype.
+  Same shell, tokens and glass layer as index.html (History), dashboard.html,
+  home.html, trip.html and trip-tickets.html, so all six screens read as one
+  product. The app lives in the APP CONTENT slot; content honours the top and
+  bottom safe areas.
+
+  Redesign of src/screens/PassengerScreen.tsx. The problems it fixes:
+    1. One trip's riders, and the count was a scroll and a half away. Shipped
+       rendered the selected trip as THREE cards — identity, then
+       distance/started/elapsed, then two metrics — so the passenger count sat
+       below the fold on its own and the same trip was named three times. One
+       card now: identity, terminals, meta, the count as the lead figure, the
+       three figures the fold actually derives, and the one control that
+       changes the scope.
+    2. A printed percentage competed with the count. The share is now a filled
+       bar — the same encoding the Dashboard breakdown already uses, so the two
+       screens teach one way of reading — and it fills with --tertiary, the
+       theme's informational role, which keeps both the running-trip amber and
+       the action orange out of an element that carries neither.
+    3. The rank led every row at 16px, so the eye landed on "1" instead of the
+       place pair. It drops to a 2-digit label in a 20px slot; the count leads
+       its column at 700.
+     4. The filter chips ran to 48px and wrapped onto two rows, and "Person with
+        disability" is 23 characters wide. They are the app's own fare vocabulary
+        now — All / Regular / Student / Senior / PWD — at label size, 44px tall,
+        in one row of five equal tracks that fills the column: the row's geometry
+        no longer depends on how many characters a label carries, so the chips
+        cannot reflow under a thumb, and all five sit on a single line. The full
+        name of a fare type is carried by the summary sentence and by every
+        aria-label, so the long string costs no chrome.
+    5. Search said "Showing regular." — ungrammatical — and never said what the
+       share on a visible row was a share OF. One sentence under the field now
+       states the scope, the denominator, and that a search hides rows without
+       changing the shares. Search itself is never the denominator, so the
+       numbers under a search cannot silently start meaning something else.
+    6. The search clear button was 32px and the field had no 44px target at
+       all. Both are 44px now, and the field gains a focus ring.
+    7. Rank is stamped on the full ranked list, not on the visible array, so a
+       search can never renumber the rows it leaves on screen.
+    8. The privacy note sat third, above the answer, so the driver read a
+       guarantee before he read a number. It is last, and it names what the
+       store actually holds: no names, a quantity, and a pair of places. That is
+       the same promise the Trip-tickets screen makes, in the words this screen uses.
+    9. Amber is the app-wide invariant — amber means a trip is running right now
+       and nothing else — so the card is amber only while the selected trip is
+       ACTIVE, at parity with the Home hero, the Trip card and the Trip-tickets
+       card. Shipped used a colour chip instead, which put the running/completed
+       distinction into a 40px swatch the driver had to decode.
+    10. Six reachable states, each with a distinct reason: Active, Completed,
+       No fares (the trip exists and nothing was recorded — shipped's
+       ListEmptyComponent), Loading, No trips on this device (shipped's empty
+       LoadState), and Error. There is deliberately no not-found branch:
+       passengerState.resolveSelectedTrip falls back to the newest available
+       trip, so a stale link shows a trip rather than a dead end.
+    11. One solid primary CTA per viewport, and the ready states carry none —
+       this screen is a reader. The two ledger empties use a quiet clear, and
+       the only solid primaries are Error → Retry and No trips → Go to trips.
+    12. TripClock's 1-second setInterval is gone. The only figure that moves by
+       itself is the card's elapsed time, it is read at minute resolution, and
+       the repaint stands down while a sheet is open or the search has focus, so
+       a tick can never yank a half-typed search out from under a thumb.
+    13. PAIR_LIMIT = 12 is rendered, and the cap says how many it is not
+       showing. A cap is only worth building if a real run reaches it, so the
+       seed gives the running trip 26 boarding parties across 18 distinct pairs.
+    14. The trip picker is the card's own control, capped at 8, and states the
+       rest: 45 days at 2-4 trips a day is over a hundred rows, and scrolling
+       them inside a trip screen is the wrong place for them. The handoff to
+       Trip management is explicit.
+    15. The vocabulary split is stated, not left to be inferred. The card quotes
+       the trip's terminals, at parity with the other five screens; the ledger's
+       pairs come from the location snapshot stored on each fare, so a pair can
+       name any two places along the route. The caption under the ledger says so.
+
+  One real defect in the app this file cannot fix, recorded rather than hidden:
+  there are two parsers for the same stored string. passengerState.municipalityOf
+  splits on the LAST comma; barangayPickerState.municipalityNameOf splits on the
+  FIRST. "Barangay 1, Olongapo" therefore yields "Olongapo" here and "Barangay 1"
+  there. The rows keep municipalityOf, because that is the one the shipped
+  screen's own aggregation used, and the group sheet prints the raw stored string
+  beside the result so the reader can see which parse produced which — the
+  multi-comma string is on screen, not only in this comment.
+
+  The amber card is the app-wide invariant, copied from trip-tickets.html rather
+  than re-derived: two amber cards must never drift apart.
+-->
+<html lang="en">
+<head><script type="application/json" data-od-external-dependencies>["https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap"]</script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kondukt · Passengers</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    @layer od-layout {
+      .od-stack   { display: flex; flex-direction: column; gap: var(--od-gap, 8px); }
+      .od-row     { display: flex; align-items: center; gap: var(--od-gap, 8px); }
+      .od-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--od-gap, 8px); }
+      .od-fill    { flex: 1 1 0; min-width: 0; }
+      .od-grid    { display: grid; gap: var(--od-gap, 12px); grid-template-columns: repeat(var(--od-cols, 3), minmax(0, 1fr)); }
+      :where(.od-stack,.od-row,.od-cluster,.od-grid,.od-stat) > :where(*) { min-width: 0; }
+      .od-stat { display: grid; gap: var(--od-gap, 2px); }
+      .od-truncate { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+      .od-clamp-2 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
+    }
+
+    :root {
+      /* ── kondukt M3 warm palette (src/theme.ts) ───────────────────────── */
+      --primary:#E65100; --on-primary:#FFFFFF; --primary-container:#FFE6D2; --on-primary-container:#4E2200;
+      --primary-solid:#C2410C; --primary-solid-hover:#A93A09;
+      --secondary:#FFB300; --on-secondary:#3D2E00; --secondary-container:#FFEFC7; --on-secondary-container:#4A3600;
+      --secondary-fg:#8A6100;
+      /* Foregrounds for the solid-amber card, measured against #FFB300:
+         7.4:1 / 5.8:1 / 4.9:1. These were raw hex before; tokens keep the two
+         amber cards (Home hero, Dashboard status) provably identical. */
+      --on-secondary-detail:#4F3D2B; --on-secondary-muted:#5B4720; --on-secondary-faint:#6B5518;
+      --tertiary:#546E7A; --on-tertiary:#FFFFFF; --tertiary-container:#DDE6EA; --on-tertiary-container:#162B33;
+      --error:#BA1A1A; --on-error:#FFFFFF; --error-container:#FFDAD6; --on-error-container:#410002;
+      --background:#FDF7F3; --surface:#FDF7F3; --surface-lowest:#FFFFFF; --surface-low:#F7EFE9;
+      --surface-container:#F2E9E2; --surface-high:#ECE3DC;
+      --on-surface:#221A15; --on-surface-variant:#53433B; --outline:#85736B; --outline-variant:#D7C2B7;
+      --scrim:rgba(34,26,21,.32);
+
+      /* glass layer */
+      --glass-tint:rgba(255,255,255,.58);
+      --glass-rim:rgba(255,255,255,.85);
+      --glass-on:#1A2029; --glass-on-variant:#4A5568;
+      --glass-accent-primary:#8F3A00; --glass-accent-secondary:#6B4B00; --glass-accent-tertiary:#334A56;
+      --glass-shadow:rgba(90,106,130,.16);
+
+      --radius-sm:8px; --radius-md:12px; --radius-lg:16px; --radius-xl:24px; --radius-glass:28px; --radius-full:999px;
+      --font: 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+      /* shell vars (from the neutral OD handset) */
+      --phone-screen-width:390px; --phone-screen-height:844px; --phone-bezel:10px;
+      --phone-outer-radius:52px; --phone-screen-radius:42px;
+      --phone-safe-top:50px; --phone-safe-bottom:29px;
+      --phone-system-fg:#17181a; --phone-screen-bg:#f8f8f9; --phone-stage-bg:#eaebee;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      min-height: 100dvh; display: grid; place-items: center; padding: 32px;
+      background: radial-gradient(circle at 50% 15%, rgba(255,255,255,.94), transparent 35%), var(--phone-stage-bg);
+      color: #191a1d; font-family: var(--font);
+    }
+
+    /* ── handset shell ─────────────────────────────────────────────────── */
+    .phone-frame {
+      position: relative;
+      width: calc(var(--phone-screen-width) + var(--phone-bezel) * 2);
+      height: calc(var(--phone-screen-height) + var(--phone-bezel) * 2);
+      padding: var(--phone-bezel); border-radius: var(--phone-outer-radius);
+      background: linear-gradient(145deg, rgba(255,255,255,.2), transparent 17%), linear-gradient(160deg, #3f4146 0%, #202227 48%, #0b0c0f 100%);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.13), inset 0 0 0 2px rgba(0,0,0,.85), 0 32px 68px -20px rgba(10,12,16,.52), 0 10px 24px -10px rgba(10,12,16,.32);
+      isolation: isolate;
+    }
+    .phone-frame::before, .phone-frame::after {
+      content: ""; position: absolute; z-index: -1; top: 96px; bottom: 96px; width: 2px;
+      background: linear-gradient(to bottom, transparent, rgba(255,255,255,.13) 16%, transparent 30%, transparent 72%, rgba(255,255,255,.07) 88%, transparent);
+    }
+    .phone-frame::before { left: 0; } .phone-frame::after { right: 0; }
+    .hardware-button { position: absolute; width: 4px; border-radius: 3px; background: linear-gradient(90deg,#08090b,#2a2d33 60%,#08090b); box-shadow: inset 0 1px rgba(255,255,255,.08); }
+    .hardware-button.volume { left: -3px; top: 222px; height: 86px; }
+    .hardware-button.power { right: -3px; top: 270px; height: 82px; }
+
+    .phone-screen {
+      position: relative; width: var(--phone-screen-width); height: var(--phone-screen-height);
+      overflow: hidden; border-radius: var(--phone-screen-radius); background: var(--phone-screen-bg);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.05);
+    }
+    .phone-content { position: absolute; inset: 0; overflow: hidden; padding: 0; background: transparent; }
+
+    .status-bar { position: absolute; z-index: 40; inset: 0 0 auto; height: var(--phone-safe-top); display: grid; grid-template-columns: minmax(0,1fr) 56px minmax(0,1fr); align-items: start; padding: 14px 20px 0; color: var(--phone-system-fg); opacity: .8; pointer-events: none; }
+    .status-time { justify-self: start; display: flex; align-items: center; height: 15px; font-size: 14px; font-weight: 560; line-height: 1; letter-spacing: .01em; font-family: system-ui, sans-serif; }
+    .status-cutout-zone { width: 56px; }
+    .status-icons { justify-self: end; display: inline-flex; align-items: center; height: 15px; gap: 6px; }
+    .status-icons svg { display: block; flex: none; fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
+    .status-icons .connectivity { width: 15px; height: 12px; } .status-icons .wifi { width: 15px; height: 12px; } .status-icons .battery { width: 19px; height: 11px; }
+    .camera-dot { position: absolute; z-index: 45; top: 13px; left: 50%; width: 10px; height: 10px; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(circle at 38% 35%, #344154 0 12%, #0a0c10 34%, #000 76%); box-shadow: 0 0 0 1px rgba(255,255,255,.06); pointer-events: none; }
+    .gesture-indicator { position: absolute; z-index: 45; left: 50%; bottom: 8px; width: 96px; height: 4px; transform: translateX(-50%); border-radius: 99px; background: var(--phone-system-fg); opacity: .86; pointer-events: none; }
+
+    /* ── app root ──────────────────────────────────────────────────────── */
+    #app {
+      position: relative; height: 100%; display: flex; flex-direction: column;
+      color: var(--glass-on);
+      background:
+        radial-gradient(125% 82% at 6% -4%, #FBC9A8 0%, rgba(246,227,212,.78) 32%, rgba(244,247,251,0) 63%),
+        radial-gradient(130% 88% at 104% 104%, #C6D9E8 0%, rgba(228,233,242,.72) 34%, rgba(244,247,251,0) 66%),
+        #F4F7FB;
+    }
+    .app-scroll {
+      flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch; scrollbar-width: none;
+      padding-bottom: var(--phone-safe-bottom);
+    }
+    .app-scroll::-webkit-scrollbar { display: none; }
+
+    .readable { width: 100%; max-width: 720px; margin-inline: auto; padding-inline: 20px; }
+    .pad-x { padding-inline: 20px; }
+
+    /* ── typography roles ──────────────────────────────────────────────── */
+    .display-s { font-weight: 700; font-size: 28px; line-height: 36px; letter-spacing: -.3px; }
+    .headline-s { font-weight: 600; font-size: 20px; line-height: 27px; letter-spacing: -.3px; }
+    .title-m { font-weight: 600; font-size: 16px; line-height: 23px; }
+    .body-m { font-weight: 400; font-size: 14px; line-height: 21px; }
+    .body-s { font-weight: 400; font-size: 12px; line-height: 18px; }
+    .label-l { font-weight: 600; font-size: 15px; line-height: 20px; }
+    .label-s { font-weight: 600; font-size: 11px; line-height: 16px; letter-spacing: .6px; }
+    .tabular { font-variant-numeric: tabular-nums; }
+    .muted { color: var(--glass-on-variant); }
+    .strong { color: var(--glass-on); }
+    p { margin: 0; }
+
+    /* ── glass surface ─────────────────────────────────────────────────── */
+    .glass {
+      position: relative; border-radius: var(--radius-glass);
+      background: var(--glass-tint);
+      box-shadow: 0 8px 15px var(--glass-shadow), inset 0 1px 0 rgba(255,255,255,.55);
+      -webkit-backdrop-filter: blur(18px) saturate(180%);
+      backdrop-filter: blur(18px) saturate(180%);
+    }
+    .glass > * { position: relative; z-index: 1; }
+    .glass::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: rgba(120,130,150,.5); opacity: .035; pointer-events: none; }
+    .glass::after  { content: ""; position: absolute; inset: 0; border-radius: inherit; border: 1px solid var(--glass-rim); pointer-events: none; z-index: 2; }
+
+    /* ── chrome (SectionChrome) ────────────────────────────────────────── */
+    .chrome { display: flex; align-items: center; gap: 12px; flex: none; padding: calc(var(--phone-safe-top) + 12px) 20px 12px; }
+    .back {
+      width: 44px; height: 44px; border-radius: var(--radius-full); border: 0; background: var(--primary-solid);
+      display: grid; place-items: center; cursor: pointer; flex: none;
+      box-shadow: 0 8px 15px var(--glass-shadow);
+    }
+    .title-card {
+      flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 5px 16px; border-radius: var(--radius-full);
+      background: var(--primary-solid); display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+      box-shadow: 0 8px 15px var(--glass-shadow);
+    }
+    .chrome-title { color: var(--on-primary); margin: 0; }
+    .chrome-sub { color: var(--on-primary); margin: 1px 0 0; }
+
+    /* ── section header (SectionHeader) ────────────────────────────────── */
+    .sec-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 20px; margin-bottom: 12px; }
+    .sec-title { color: var(--glass-on-variant); margin: 0; }
+    .text-action { border: 0; background: none; padding: 0 4px; min-height: 48px; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; color: var(--glass-accent-primary); font-family: inherit; flex: none; }
+    .text-action .label-s { color: inherit; }
+    /* Hover must not lighten the label — the only change is a rule under it,
+       so the 6.9:1 default is also the hover contrast. */
+    .text-action:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+    /* ── status card: the four-way state machine ───────────────────────── */
+    .status-card { padding: 20px; }
+    .status-card .st-eyebrow { color: var(--glass-on-variant); }
+    .status-card .st-title { color: var(--glass-on); margin: 8px 0 0; }
+    .status-card .st-detail { color: var(--glass-on-variant); margin: 4px 0 0; }
+    .status-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 12px; }
+    /* Amber is reserved for the one thing a conductor registers without
+       reading: a trip that is running right now. Dark-on-amber measures
+       7.4:1 for the title and 5.8:1 for the detail line, where the pale
+       containers would sit at ~1.5:1. */
+    .amber-btn {
+      min-height: 48px; padding: 0 20px; border: 0; border-radius: var(--radius-full);
+      background: var(--secondary); color: var(--on-secondary); cursor: pointer; font-family: inherit;
+      display: inline-flex; align-items: center; gap: 8px;
+    }
+    .glass.status-solid { background: var(--secondary); }
+    .glass.status-solid::before, .glass.status-solid::after { display: none; }
+    .status-solid .st-eyebrow, .status-solid .st-title { color: var(--on-secondary); }
+    .status-solid .st-detail { color: var(--on-secondary-detail); }
+    .status-solid .st-pill { background: var(--on-secondary); }
+    .status-solid .st-pill-text { color: var(--secondary); }
+    .status-solid .st-dot { background: var(--secondary); }
+    .st-head { display: flex; align-items: center; gap: 12px; }
+    .st-icon { width: 48px; height: 48px; border-radius: var(--radius-md); display: grid; place-items: center; flex: none; }
+    .status-solid .st-icon { background: var(--on-secondary); }
+    .st-head-text { flex: 1 1 auto; min-width: 0; }
+    /* The pill is a container, so the label is its on-color. Pairing it with
+       --on-secondary-container on a --on-secondary-container fill made the
+       text the same brown as its own background: 1.0:1, invisible. */
+    .st-pill { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 3px 10px; border-radius: var(--radius-full); background: var(--secondary-container); }
+    .st-pill-text { color: var(--on-secondary-container); }
+    .status-solid .st-pill-text { color: var(--secondary); }
+    .st-dot { width: 6px; height: 6px; border-radius: 3px; background: var(--on-secondary-container); flex: none; }
+    .st-route { margin: 8px 0 0; color: var(--glass-on); }
+    .st-meta { margin: 12px 0 0; color: var(--glass-on-variant); font-variant-numeric: tabular-nums; }
+    .data-chip { display: inline-flex; align-items: center; margin-top: 10px; padding: 3px 10px; border-radius: var(--radius-full); background: var(--tertiary-container); color: var(--on-tertiary-container); }
+
+    /* ── period control (shared with History) ──────────────────────────── */
+    .range-card { padding: 14px 14px 16px; }
+    .range-top { display: flex; align-items: center; gap: 10px; }
+    .segment { flex: 1 1 auto; min-width: 0; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border-radius: var(--radius-full); background: rgba(255,255,255,.55); border: 1px solid var(--outline-variant); }
+    .seg-btn { min-height: 44px; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--glass-on-variant); cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; justify-content: center; }
+    .seg-btn[aria-checked="true"] { background: var(--primary-solid); color: var(--on-primary); }
+    .seg-btn[aria-checked="true"] .label-l { font-weight: 700; }
+    .cal-btn { width: 48px; min-height: 48px; border-radius: var(--radius-full); border: 1px solid var(--outline-variant); background: rgba(255,255,255,.55); color: var(--glass-accent-primary); cursor: pointer; flex: none; display: grid; place-items: center; }
+    .cal-btn.on { background: var(--primary-container); border: 2px solid var(--primary); color: var(--on-primary-container); }
+    .range-nav { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+    .nav-btn { width: 48px; height: 48px; border-radius: var(--radius-full); border: 1px solid var(--outline-variant); background: rgba(255,255,255,.55); color: var(--glass-on); cursor: pointer; flex: none; display: grid; place-items: center; }
+    .nav-btn:disabled { opacity: .4; cursor: default; }
+    .range-now { flex: 1 1 auto; min-width: 0; text-align: center; }
+    .range-now-main { display: block; color: var(--glass-on); }
+    .range-now-sub { display: block; color: var(--glass-on-variant); margin-top: 2px; }
+    .range-caption { margin: 10px 0 0; display: flex; align-items: flex-start; gap: 8px; color: var(--glass-on-variant); }
+    .range-caption .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--primary); flex: none; margin-top: 7px; }
+
+    /* ── summary disclosure ────────────────────────────────────────────── */
+    .summary { padding: 18px 20px; }
+    .summary-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+    .summary-eyebrow { color: var(--glass-on-variant); }
+    .detail-btn { border: 0; background: none; cursor: pointer; min-height: 44px; padding: 0 2px; display: inline-flex; align-items: center; gap: 4px; color: var(--glass-accent-primary); font-family: inherit; flex: none; }
+    .detail-btn svg { transition: transform .2s ease; }
+    .summary.open .detail-btn svg { transform: rotate(180deg); }
+    .hero { margin-top: 12px; }
+    .hero-label { color: var(--glass-on-variant); }
+    .hero-value { margin: 4px 0 0; color: var(--glass-on); }
+    .hero-meta { margin: 8px 0 0; color: var(--glass-on-variant); display: flex; flex-wrap: wrap; gap: 4px 14px; }
+    .hero-meta b { color: var(--glass-on); font-weight: 600; }
+    .summary-details { display: none; margin-top: 20px; }
+    .summary.open .summary-details { display: block; }
+    .summary-details .rule { height: 1px; background: var(--outline-variant); opacity: .7; margin: 18px 0; }
+    .stat-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+    .stat-grid.stacked { grid-template-columns: minmax(0,1fr); }
+    .stat-tile { padding: 16px; }
+    .stat-icon { width: 40px; height: 40px; border-radius: var(--radius-md); display: grid; place-items: center; }
+    .stat-label { margin: 12px 0 0; color: var(--glass-on-variant); }
+    .stat-value { margin: 4px 0 0; color: var(--glass-on); }
+    .breakdown { margin-top: 14px; display: grid; gap: 12px; }
+    .bd-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 12px; align-items: baseline; }
+    .bd-name { color: var(--glass-on); }
+    .bd-count { color: var(--glass-on); font-weight: 600; }
+    .bd-track { grid-column: 1 / -1; height: 8px; border-radius: var(--radius-full); background: var(--surface-container); overflow: hidden; }
+    .bd-fill { height: 100%; border-radius: inherit; background: var(--primary-solid); }
+
+    /* ── rows ──────────────────────────────────────────────────────────── */
+    .list { display: grid; gap: 12px; }
+    .row-card { padding: 20px; }
+    /* font-size: inherit is load-bearing here, and the four sibling screens are
+       all missing it. A button inherits the UA's 13.333px control size, so a
+       ledger row that is a <button> painted its bare .cat at 13.33px while the
+       very same row as a locked <div> painted it at 16px — one ledger, two
+       sizes, switching with the recording gate. */
+    .row-btn { border: 0; margin: 0; width: 100%; text-align: left; font-family: inherit; font-size: inherit; color: inherit; cursor: pointer; border-radius: var(--radius-glass); display: block; }
+    .row-btn:active { transform: scale(.995); }
+    /* flex-start, not center: the route column is 199px and the longest pair
+       ("Baclaran \u2192 Monumento") is 197px in Poppins 600/16, so a wider build
+       of Poppins still adds a line. Centring would then float the 40px icon and
+       the money block in the middle of a 106px card. Top-aligned, the icon and
+       the peso sit on the route's cap line whether the row is one line or two.
+       Gap is 8, not 12: measured, the 12px gap left the route 6px short of its
+       longest pair. ponytail: 2px of slack - shorten station names (or drop the
+       spaces around the arrow) if the font is ever swapped. */
+    .trip-head { display: flex; align-items: flex-start; gap: 8px; }
+    .trip-icon { width: 40px; height: 40px; border-radius: var(--radius-md); background: var(--tertiary-container); display: grid; place-items: center; flex: none; }
+    .trip-body { flex: 1 1 auto; min-width: 0; }
+    .trip-route { display: block; color: var(--glass-on); }
+    .trip-sub { display: block; margin: 4px 0 0; color: var(--glass-on-variant); }
+    .status { padding: 3px 10px; border-radius: var(--radius-full); flex: none; }
+    .status.active { background: var(--secondary-container); color: var(--on-secondary-container); }
+    .status.done { background: var(--tertiary-container); color: var(--on-tertiary-container); }
+    /* Structural dividers use --outline, not --outline-variant: the variant
+       sits at 1.7:1 on this field and the 6-row list loses its structure. */
+    .meta-line { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--outline); display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--glass-on-variant); }
+    .fare { display: inline-flex; align-items: baseline; gap: 6px; color: var(--glass-on); white-space: nowrap; }
+    .meta-line .fare { margin-left: auto; }
+    .fare b { font-weight: 700; }
+    .ticket-row { display: flex; align-items: center; gap: 12px; }
+    .ticket-id { min-width: 62px; flex: none; }
+    .ticket-id .when { display: block; color: var(--glass-on-variant); }
+    .ticket-mid { flex: 1 1 auto; min-width: 0; }
+    .ticket-route { color: var(--glass-on); }
+    .ticket-meta { margin: 4px 0 0; color: var(--glass-on-variant); display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+    .cat { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: var(--radius-full); }
+    .cat.regular { background: var(--primary-container); color: var(--on-primary-container); }
+    .cat.student, .cat.senior, .cat.pwd { background: var(--tertiary-container); color: var(--on-tertiary-container); }
+    .ticket-fare { text-align: right; color: var(--glass-on); flex: none; }
+    .ticket-fare .each { display: block; color: var(--glass-on-variant); }
+    .rows-stacked .ticket-row { flex-wrap: wrap; }
+    .rows-stacked .ticket-fare { text-align: left; width: 100%; }
+    .rows-stacked .ticket-fare .each { display: inline; margin-left: 6px; }
+    .rows-stacked .meta-line { flex-direction: column; align-items: flex-start; }
+    .rows-stacked .meta-line .fare { margin-left: 0; }
+
+    /* ── inline empty + storage ────────────────────────────────────────── */
+    .inline-empty { padding: 16px 18px; border: 1px solid var(--outline-variant); border-radius: var(--radius-xl); background: rgba(255,255,255,.5); }
+    .inline-empty p { color: var(--glass-on-variant); }
+    .storage { margin-top: 20px; padding: 12px 20px; display: flex; align-items: center; gap: 8px; }
+    .storage p { color: var(--glass-on-variant); }
+
+    /* ── states ────────────────────────────────────────────────────────── */
+    .state { padding: 20px; border-radius: var(--radius-xl); border: 1px solid var(--outline-variant); background: rgba(255,255,255,.55); }
+    .state.error { border-color: var(--error); background: var(--error-container); }
+    .state h3 { margin: 0; color: var(--glass-on); }
+    .state p { margin: 8px 0 0; color: var(--glass-on-variant); }
+    .state.error p { color: var(--on-error-container); }
+    .primary-btn { margin-top: 14px; min-height: 48px; padding: 0 20px; border-radius: var(--radius-lg); border: 0; background: var(--primary-solid); color: var(--on-primary); cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 8px; }
+    .primary-btn:hover { background: var(--primary-solid-hover); }
+    .skeleton { padding: 16px; }
+    .sk { border-radius: 8px; background: linear-gradient(90deg, rgba(0,0,0,.05) 25%, rgba(0,0,0,.09) 37%, rgba(0,0,0,.05) 63%); background-size: 400% 100%; animation: shim 1.4s ease infinite; }
+    @keyframes shim { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+    @media (prefers-reduced-motion: reduce) { .sk { animation: none; } .detail-btn svg { transition: none; } }
+
+    /* ── overlays (calendar modal / detail sheet) ──────────────────────── */
+    .overlay-root { position: absolute; inset: 0; z-index: 30; pointer-events: none; }
+    /* grid-template-rows: minmax(0, 1fr) is load-bearing, not tidiness. With an
+       auto row the grid area is indefinite in the block axis, so the sheet's
+       max-height: 100% resolved against nothing and computed to none: the trip
+       picker measured 924px and the all-groups sheet 1223px inside an 844px
+       phone, hanging 80px and 379px past the bottom edge with their last rows
+       unreachable — .sheet-body never scrolled because it was never given a
+       height to scroll inside. A definite 1fr row fixes the percentage, and the
+       two rules below fix the flex side of the same bug. */
+    .scrim { position: absolute; inset: 0; background: var(--scrim); display: grid; grid-template-rows: minmax(0, 1fr); pointer-events: auto; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
+    .scrim.center { place-items: center; padding: 16px; }
+    .scrim.bottom { align-items: end; }
+    .sheet { width: 100%; max-width: 360px; margin: 0 auto; background: var(--surface-lowest); border-radius: var(--radius-xl); pointer-events: auto; max-height: 100%; display: flex; flex-direction: column; }
+    .sheet.bottom-sheet { border-radius: var(--radius-xl) var(--radius-xl) 0 0; max-width: 720px; animation: slideUp .22s ease; }
+    @keyframes slideUp { from { transform: translateY(14px); opacity: .6; } to { transform: none; opacity: 1; } }
+    /* flex: none so the title can never be squeezed, and min-height: 0 on the
+       body so it can — a flex item defaults to min-height: auto, which pins it
+       to its content height and makes the sheet overflow instead of scrolling. */
+    .sheet-head { display: flex; align-items: center; gap: 12px; padding: 16px 20px 8px; flex: none; }
+    .sheet-titles { flex: 1 1 auto; min-width: 0; }
+    .sheet-head h2 { margin: 0; color: var(--on-surface); }
+    .sheet-titles p { margin: 2px 0 0; }
+    .sheet-body { padding: 0 20px 24px; overflow-y: auto; min-height: 0; }
+    .icon-btn { width: 44px; height: 44px; border-radius: var(--radius-full); border: 1px solid var(--outline-variant); background: transparent; color: var(--on-surface-variant); display: grid; place-items: center; cursor: pointer; flex: none; }
+    .icon-btn:hover { background: var(--surface-container); }
+    .cal-head { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+    .cal-month { color: var(--on-surface); }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-top: 8px; }
+    .cal-dow { text-align: center; color: var(--on-surface-variant); padding: 6px 0; }
+    .cal-cell { position: relative; height: 44px; border: 0; background: none; cursor: pointer; border-radius: var(--radius-md); color: var(--on-surface); font-family: inherit; }
+    .cal-cell.out { color: var(--outline); }
+    .cal-cell.inrange { background: var(--primary-container); border-radius: 0; }
+    .cal-cell.edge { background: var(--primary-solid); color: var(--on-primary); border-radius: var(--radius-md); font-weight: 600; }
+    .cal-cell.today::after { content: ""; position: absolute; left: 50%; bottom: 5px; width: 4px; height: 4px; transform: translateX(-50%); border-radius: 50%; background: var(--primary); }
+    .cal-cell.edge.today::after { background: var(--on-primary); }
+    .cal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px; }
+    .cal-actions .ghost { min-height: 48px; padding: 0 12px; border: 0; background: none; color: var(--on-surface-variant); cursor: pointer; font-family: inherit; }
+    .cal-actions .apply { min-height: 48px; padding: 0 20px; border-radius: var(--radius-lg); border: 0; background: var(--primary-solid); color: var(--on-primary); cursor: pointer; font-family: inherit; }
+    .cal-error { margin: 10px 0 0; color: var(--error); }
+    .range-preview { margin: 12px 0 0; color: var(--on-surface-variant); }
+    .detail-row { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--outline); }
+    .detail-row:last-child { border-bottom: 0; }
+    .detail-row .k { color: var(--on-surface-variant); flex: none; }
+    .detail-row .v { color: var(--on-surface); font-weight: 600; text-align: right; }
+    /* The card insets its own rows so every key in the sheet starts at the
+       same 20px column as the title, instead of drifting in by 14px. */
+    .detail-card { border: 1px solid var(--outline-variant); border-radius: var(--radius-lg); margin-top: 12px; }
+    .detail-card .detail-row { padding-inline: 12px; }
+
+    /* ── passengers: one trip's riders, grouped by where they got on ──── */
+    /* Shipped rendered the selected trip as THREE separate cards — identity,
+       then distance/started/elapsed, then the two metrics — so the number the
+       driver opened this screen for sat a scroll and a half below the route it
+       belongs to, and the same trip was named three times. One card: identity,
+       route, meta, the passenger count as the lead figure, the three figures
+       the fold actually derives, and the one control that changes the scope.
+       Amber only while the selected trip is running — the same invariant as the
+       Home hero, the Trip card and the Trip-tickets card. */
+    /* Author display rules beat the UA [hidden] rule on cascade origin, so a
+       hidden attribute on any of the flex/grid elements below (.filter-row,
+       .search, .fsummary, .search-clear) would not hide it. One guard covers
+       all four. */
+    [hidden] { display: none !important; }
+    .pass-card { padding: 20px; }
+    .pass-card .pc-eyebrow { color: var(--glass-on-variant); }
+    .pass-card .pc-title { color: var(--glass-on); margin: 8px 0 0; }
+    .pass-card .pc-detail { color: var(--glass-on-variant); margin: 4px 0 0; }
+    /* Copied from trip-tickets.html rather than re-derived: the two amber cards
+       must never drift apart, and the terminal-first layout here is the same
+       one that card measures. */
+    .pass-card .hero-route { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; color: var(--glass-on); }
+    .pass-card .hero-route .arrow { color: var(--glass-on-variant); flex: none; display: inline-flex; }
+    .pass-card .hero-figures { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--outline); }
+    .pass-card .hero-figures.stacked { grid-template-columns: minmax(0,1fr); }
+    .pass-card .hf-value { display: block; color: var(--glass-on); }
+    .pass-card .hf-label { display: block; color: var(--glass-on-variant); margin-top: 2px; }
+    .pass-card .lead-figure { margin: 12px 0 0; }
+    .pass-card .lead-value { display: block; color: var(--glass-on); }
+    .pass-card .lead-label { display: block; color: var(--glass-on-variant); margin-top: 2px; }
+    /* One column, so the card's single control is the width of the card and the
+       sheet's actions are the width of the sheet: two 44px-plus buttons sharing
+       a line at 390px leaves each of them half a thumb. The card's 20px padding
+       is the gutter, so nothing has to be re-padded here. */
+    .card-actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 16px; }
+
+    /* The running trip is a flat amber panel, not a glass one: the tint, the
+       rim and the top highlight are what make .glass read as frosted, and on a
+       solid fill they only soften it. This is the one place .pass-solid departs
+       from .status-solid (Home, Trip tickets), where the same fill keeps the
+       glass artefacts — those cards sit beside other glass cards, this card is
+       the only object on the screen carrying the invariant. The drop shadow
+       stays: without it the panel is a hole in the page gradient. */
+    .glass.pass-solid { background: var(--secondary); box-shadow: 0 8px 15px var(--glass-shadow); -webkit-backdrop-filter: none; backdrop-filter: none; }
+    .glass.pass-solid::before, .glass.pass-solid::after { display: none; }
+    /* The same safety net the other amber cards carry: --glass-on-variant is
+       4.19:1 on #FFB300, just under AA, so any text in here that forgets its
+       override fails silently. This lands first; the named rules below win on
+       specificity, and they sit after it on source order too. */
+    .pass-solid, .pass-solid p, .pass-solid span, .pass-solid b { color: var(--on-secondary-muted); }
+    .pass-solid .pc-eyebrow, .pass-solid .pc-title, .pass-solid .hero-route { color: var(--on-secondary); }
+    .pass-solid .pc-detail { color: var(--on-secondary-detail); }
+    .pass-solid .hero-route .arrow { color: var(--on-secondary-faint); }
+    .pass-solid .hero-figures { border-top-color: rgba(61,46,0,.7); }
+    .pass-solid .lead-value { color: var(--on-secondary); }
+    .pass-solid .hf-value { color: var(--on-secondary); }
+    .pass-solid .lead-label, .pass-solid .hf-label { color: var(--on-secondary-muted); }
+    .pass-solid .st-pill { background: var(--on-secondary-container); }
+    .pass-solid .st-pill-text { color: var(--secondary); }
+
+    /* The one control in the card. Ghost, not solid: this screen is a reader,
+       so the ready states carry no solid primary CTA at all, and the card's own
+       control only changes which trip is in scope. It stretches to the column
+       and centres its own label, so the glyph and the words sit on the card's
+       centre line rather than hugging the left gutter. */
+    .card-actions .ghost-btn { min-height: 48px; padding: 0 16px; border-radius: var(--radius-lg); border: 1px solid var(--outline); background: transparent; color: var(--glass-on-variant); cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .card-actions .ghost-btn:hover { background: rgba(120,130,150,.12); }
+    .pass-solid .card-actions .ghost-btn { border-color: rgba(61,46,0,.6); color: var(--on-secondary-detail); }
+    .pass-solid .card-actions .ghost-btn:hover { background: rgba(61,46,0,.1); }
+
+    /* ── filter bar ───────────────────────────────────────────────────── */
+    /* Shipped's five chips ran to 48px each and wrapped onto two rows, and its
+       "Person with disability" chip is 23 characters wide. Content-sized chips
+       kept the same defect in a smaller form: the row's width still tracks the
+       length of each label, so the chips move whenever the store's vocabulary
+       does. They are now the app's own vocabulary at label size — All / Regular
+       / Student / Senior / PWD — in one row of five equal tracks, 44px tall and
+       ~65px wide at the handset width, so the set reads left to right the way a
+       filter bar reads and clears the 44px tap minimum on both axes. The full
+       name of a fare type is carried by the summary line below and by every
+       aria-label, so nothing is lost by the short form. */
+    /* margin-top 20px, not 16: this is the first child of a section, and every
+       other section's first child carries the 20px section rhythm (.sec-head does
+       the same). At 16 the trip card and the filter bar sat closer together than
+       the filter bar and the ledger did, and the rhythm read as a mistake. */
+    /* One row of five, filling the column. Equal minmax(0,1fr) tracks, so every
+       chip is the same width whatever its label and the row cannot reflow when
+       the store's vocabulary changes. At the 390px handset each track is 65.2px
+       ((350 - 4x6) / 5) and the widest label, "Student", sets to 44px in
+       label-s — 11px with .6px tracking — so it clears the 55px of text room
+       the pill leaves after its border and padding. */
+    .filter-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 20px; }
+    /* 44px is the tap minimum; the width comes from the grid track, so padding
+       only has to clear the pill's own radius rather than set the size. */
+    .chip { min-height: 44px; padding: 0 4px; border-radius: var(--radius-full); border: 1px solid var(--outline); background: transparent; color: var(--glass-on-variant); cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; }
+    .chip:hover { background: rgba(120,130,150,.1); }
+    /* Solid, not tinted. --primary-container is a notice colour: a tinted chip
+       reads as "flagged" rather than "chosen", and this screen already uses
+       --secondary amber for the running trip, so the selected filter has to be
+       unmistakably the primary. White on --primary-solid is 5.18:1, over the AA
+       floor; the 2px border is the same colour as the fill, so choosing a chip
+       changes its colour and nothing about its size. */
+    .chip[aria-pressed="true"] { border: 2px solid var(--primary-solid); background: var(--primary-solid); color: var(--on-primary); }
+    /* Selected darkens one step on hover and press, the --primary-solid-hover
+       move .primary-btn already makes, so the fill is never dead under a
+       finger. White on it is 6.37:1. */
+    .chip[aria-pressed="true"]:hover,
+    .chip[aria-pressed="true"]:active { background: var(--primary-solid-hover); border-color: var(--primary-solid-hover); }
+    /* Pressing an unchosen chip fills it the way every other screen fills a
+       pressed control, so the tap has an answer before the re-render lands.
+       The box does not move: the grid owns the width and box-sizing owns the
+       1px → 2px border. */
+    .chip:not([aria-pressed="true"]):active { background: var(--primary-solid); border-color: var(--primary-solid); color: var(--on-primary); }
+
+    /* Shipped's search field had no 44px target of its own and its clear button
+       was 32px, under the tap minimum this app holds everything else to. */
+    /* padding 12 left, 2 right, so the 18px search glyph sits 12px off the left
+       border and the 18px clear glyph 15px off the right one. At 14/4 the icon
+       and the clear were 10px apart optically, which reads as a field that was
+       built with two different left margins. */
+    .search { display: flex; align-items: center; gap: 8px; margin-top: 12px; min-height: 48px; padding: 2px 2px 2px 12px; border-radius: var(--radius-md); border: 1px solid var(--outline); background: var(--glass-tint); }
+    .search:focus-within { border-color: var(--primary-solid); }
+    .search .s-icon { flex: none; display: inline-flex; color: var(--glass-on-variant); }
+    /* type=text, not type=search: WebKit paints its own clear affordance on a
+       search input, which would sit a 12px target beside our 44px one. */
+    .search input { flex: 1 1 auto; min-width: 0; min-height: 44px; border: 0; background: none; font-family: inherit; font-size: 14px; line-height: 21px; color: var(--glass-on); outline: none; }
+    .search input::placeholder { color: var(--outline); }
+    .search-clear { width: 44px; height: 44px; border: 0; border-radius: var(--radius-full); background: none; color: var(--glass-on-variant); cursor: pointer; display: grid; place-items: center; flex: none; }
+    .search-clear:hover { background: rgba(120,130,150,.12); }
+
+    /* One sentence that closes the ambiguity the shipped screen left open. A
+       search hides rows, so the driver has to be told what the bar on the row
+       in front of him is a share OF — and it also replaces shipped's
+       ungrammatical "Showing regular." */
+    .fsummary { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+    .fsummary p { flex: 1 1 auto; min-width: 0; color: var(--glass-on-variant); }
+
+    /* ── the group ledger ─────────────────────────────────────────────── */
+    /* Shipped led each row with a 16px rank number, so the eye landed on "1"
+       instead of the pair, and printed the count and its percentage as two
+       competing figures at the same weight. The rank drops to a 2-digit label
+       in a 20px slot, the count leads at 700, and the share becomes a filled
+       bar — the same encoding the Dashboard breakdown already uses, so the two
+       screens teach one way of reading. Tertiary, not primary: a share is
+       informational and the theme assigns informational to tertiary, which also
+       keeps the running-trip amber and the action orange out of an element that
+       carries neither status nor action. */
+    .pr-head { display: flex; align-items: flex-start; gap: 8px; }
+    /* The rank is on the screen, not on glass, so it gets a screen token.
+       --outline is a border colour: at 11px/600 it lands on 4.37:1, under AA,
+       and the ordinal is load-bearing — it is the order. --on-surface-variant
+       reads 8.9:1 here and still sits a clear step under the pair name. */
+    .pr-rank { flex: none; width: 20px; padding-top: 4px; color: var(--on-surface-variant); }
+    .pr-body { flex: 1 1 auto; min-width: 0; }
+    .pr-pair { display: block; color: var(--glass-on); }
+    .pr-sub { display: block; margin: 4px 0 0; color: var(--glass-on-variant); }
+    /* The count sits on the bar line, not beside the pair. Two reasons, and the
+       second is the one that was measured: with the count on the head line the
+       pair column is 204px, and the widest real pair here — "Cabanatuan →
+       San Simon" — is 215px in Poppins 600 16, so the twelfth row wrapped and
+       the list lost its even rhythm. And the number belongs beside the bar it
+       measures: count and share are one figure, read together. */
+    .pr-foot { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+    .pr-count { flex: none; display: flex; align-items: baseline; gap: 4px; }
+    .pr-count b { color: var(--glass-on); font-weight: 700; }
+    .pr-track { flex: 1 1 auto; height: 8px; border-radius: var(--radius-full); background: var(--surface-container); overflow: hidden; }
+    .pr-fill { display: block; height: 100%; border-radius: inherit; background: var(--tertiary); }
+    .ledger-cap { margin: 12px 0 0; color: var(--glass-on-variant); }
+    /* The caption slot that states the vocabulary split, so the reader does not
+       conclude the card and the ledger describe two different routes. */
+    .ledger-foot { margin: 12px 0 0; color: var(--glass-on-variant); }
+
+    /* ── trip picker: the list a 45-day store would otherwise wall off ── */
+    .pick-row { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 12px; border: 1px solid var(--outline); border-radius: var(--radius-lg); background: var(--surface); color: var(--on-surface); font-family: inherit; text-align: left; cursor: pointer; margin-top: 8px; width: 100%; }
+    .pick-row:hover { background: var(--surface-container); }
+    /* Same trade as the chip: a 2px border on the current trip and 1px less
+       padding, so choosing a row does not resize the list under the finger. */
+    .pick-row[aria-current="true"] { border: 2px solid var(--primary-solid); background: var(--primary-solid); color: var(--on-primary); padding: 7px 11px; }
+    .pick-row[aria-current="true"]:hover,
+    .pick-row[aria-current="true"]:active { background: var(--primary-solid-hover); border-color: var(--primary-solid-hover); }
+    .pick-row .pk-body { flex: 1 1 auto; min-width: 0; }
+    .pick-row .pk-name { display: block; }
+    .pick-row .pk-sub { display: block; margin-top: 2px; color: var(--on-surface-variant); }
+    .pick-row[aria-current="true"] .pk-sub { color: var(--on-primary); }
+    .pick-more { margin: 12px 0 0; padding: 12px 16px; border: 1px dashed var(--outline); border-radius: var(--radius-lg); color: var(--on-surface-variant); }
+    .ledger-cap { margin: 12px 0 0; color: var(--glass-on-variant); }
+    .sheet-actions { display: flex; gap: 12px; margin-top: 16px; }
+    .sheet-actions .primary-btn { flex: 1; margin-top: 0; justify-content: center; }
+    .sheet-actions .quiet-btn { flex: 1; min-height: 48px; border-radius: var(--radius-lg); border: 1px solid var(--outline); background: transparent; color: var(--on-surface-variant); font-family: inherit; cursor: pointer; }
+    .sheet-actions .quiet-btn:hover { background: var(--surface-container); }
+
+    .handoff { margin: 16px 0 0; padding: 12px 20px; border: 1px dashed var(--outline); border-radius: var(--radius-lg); background: rgba(255,255,255,.42); }
+    .handoff p { color: var(--on-surface-variant); }
+    .handoff .nb-title { color: var(--on-surface); margin: 0 0 4px; }
+    :focus-visible { outline: 2px solid var(--primary-solid); outline-offset: 2px; border-radius: 6px; }
+    /* prototype state control (outside the phone) */
+    .proto-states { position: fixed; left: 18px; bottom: 18px; z-index: 50; display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 16px; background: rgba(255,255,255,.9); border: 1px solid #dcdde1; box-shadow: 0 10px 24px rgba(20,22,28,.12); font-family: var(--font); }
+    .proto-states span { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #6b6e75; font-weight: 600; }
+    .proto-states .seg { display: flex; flex-wrap: wrap; gap: 6px; max-width: 232px; }
+    .proto-states button { font: inherit; font-size: 12px; padding: 7px 10px; border-radius: 999px; border: 1px solid #d4d5d9; background: #fff; color: #33363c; cursor: pointer; }
+    .proto-states button:hover { background: #F1F2F4; }
+    .proto-states button[aria-pressed="true"]:hover { background: #A93A09; border-color: #A93A09; }
+    .proto-states button[aria-pressed="true"] { background: #C2410C; border-color: #C2410C; color: #fff; }
+
+    @media (max-width: 480px) {
+      body { padding: 0; display: block; }
+      .phone-frame { width: 100%; height: 100dvh; padding: 0; border-radius: 0; background: none; box-shadow: none; }
+      .phone-frame::before, .phone-frame::after, .hardware-button { display: none; }
+      .phone-screen { width: 100%; height: 100%; border-radius: 0; }
+      .proto-states { display: none; }
+      /* Full-bleed handset: the five tracks now track the viewport instead of a
+         fixed 390px frame, and at 320px a track is 52px. Tracking and type
+         scale down with it (3vw, clamped to label-s's 11px ceiling) so
+         "Student" still sets inside the pill instead of spilling past it. */
+      .filter-row { gap: 5px; }
+      .chip { padding: 0 3px; font-size: clamp(10px, 3vw, 11px); letter-spacing: .3px; }
+    }
+    @media (max-height: 927px) { .phone-frame { zoom: .9; } }
+    @media (max-height: 840px) { .phone-frame { zoom: .82; } }
+    @media (max-height: 771px) { .phone-frame { zoom: .74; } }
+    @media (max-height: 702px) { .phone-frame { zoom: .66; } }
+  </style>
+</head>
+<body>
+  <div class="phone-frame" data-phone-shell data-platform="neutral">
+    <span class="hardware-button volume" aria-hidden="true"></span>
+    <span class="hardware-button power" aria-hidden="true"></span>
+
+    <section class="phone-screen" data-od-id="phone-screen" data-phone-screen>
+      <main class="phone-content" data-phone-content>
+        <!-- APP CONTENT START -->
+        <div id="app">
+          <!-- 0. Section chrome. A section screen, so it gets the back pill and
+               the title pill, not the brand bar Home wears as root. -->
+          <header class="chrome readable" data-od-id="ps-chrome">
+            <button type="button" class="back" data-act="back" data-od-id="ps-back" aria-label="Back to Home">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+            </button>
+            <div class="title-card">
+              <h1 class="chrome-title title-m">Passengers</h1>
+              <p class="chrome-sub body-s" id="chromeSub">Who is on this trip</p>
+            </div>
+          </header>
+
+          <div class="app-scroll" id="scroll">
+            <div class="readable">
+              <!-- 1. The trip and its riders, in one card. Shipped split this
+                   across three cards, which is why the count the driver opened
+                   the screen for sat a scroll and a half below the route. -->
+              <section data-od-id="pass-trip" aria-label="The selected trip">
+                <div id="cardSlot"></div>
+              </section>
+
+              <!-- 2. Filter and search. Shipped's five chips wrapped onto two
+                   rows and its disability chip is 23 characters wide, so the
+                   five now sit in one row of equal 44px-tall tracks; its search
+                   clear button was 32px — under the 44px tap minimum. -->
+              <section data-od-id="pass-filters" id="controlsSection" aria-label="Filter and search boarding groups" hidden>
+                <div class="filter-row" id="filterRow" role="group" aria-label="Filter by fare type"></div>
+                <div class="search" data-od-id="ps-search">
+                  <span class="s-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.4"/><path d="M15.8 15.8L20 20"/></svg></span>
+                  <input type="text" id="pairSearch" inputmode="search" enterkeyhint="search" autocomplete="off" spellcheck="false" placeholder="Search a place" aria-label="Search boarding and drop-off places" data-od-id="ps-search-input" />
+                  <button type="button" class="search-clear" id="searchClear" data-act="search-clear" data-od-id="ps-search-clear" aria-label="Clear the place search" hidden>
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+                  </button>
+                </div>
+                <div class="fsummary" id="fsummary"><p class="body-s" id="fsummaryText" aria-live="polite"></p></div>
+              </section>
+
+              <!-- 3. The groups. Capped at 12, and the cap is stated: the seed
+                   produces 18 distinct pairs so the cap is reachable in a real
+                   run rather than only in theory. -->
+              <section data-od-id="pass-groups" id="ledgerSection" hidden>
+                <div class="sec-head" data-od-id="ps-ledger-head">
+                  <h2 class="sec-title label-s">BOARDING GROUPS</h2>
+                  <button type="button" class="text-action" id="viewAllBtn" data-act="view-all" data-od-id="ps-view-all" hidden>
+                    <span class="label-s">ALL GROUPS</span>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+                  </button>
+                </div>
+                <div class="list" id="ledgerList"></div>
+                <p class="ledger-cap body-s" id="ledgerCap" hidden></p>
+                <p class="ledger-foot body-s" id="ledgerFoot" hidden></p>
+              </section>
+
+              <!-- 4. The privacy promise, last. Shipped put this above the
+                   answer, so the driver read a guarantee before he read a
+                   number. It is the reason the screen is safe to show. -->
+              <div class="glass storage" data-od-id="storage-footer">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--glass-on-variant)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="7.5" ry="3.2"/><path d="M4.5 6v12c0 1.8 3.4 3.2 7.5 3.2s7.5-1.4 7.5-3.2V6"/><path d="M4.5 12c0 1.8 3.4 3.2 7.5 3.2s7.5-1.4 7.5-3.2"/></svg>
+                <p class="body-s" id="storageNote"></p>
+              </div>
+            </div>
+          </div>
+
+          <div class="overlay-root" id="overlayRoot"></div>
+        </div>
+        <!-- APP CONTENT END -->
+      </main>
+
+      <div class="status-bar" aria-hidden="true">
+        <span class="status-time">9:41</span>
+        <span class="status-cutout-zone"></span>
+        <span class="status-icons">
+          <svg class="connectivity" viewBox="0 0 15 12"><path d="M1.5 10.5v-2m4 2v-4.5m4 4.5v-7m4 7v-9"/></svg>
+          <svg class="wifi" viewBox="0 0 16 12"><path d="M1.5 4.7a9.2 9.2 0 0 1 13 0M4.2 7.3a5.4 5.4 0 0 1 7.6 0M6.9 10a1.55 1.55 0 0 1 2.2 0"/></svg>
+          <svg class="battery" viewBox="0 0 20 11"><rect x=".75" y="1.25" width="16.5" height="8.5" rx="2"/><path d="M18.5 4v3M3.2 3.4h10.4v4.2H3.2z" fill="currentColor" stroke="none"/></svg>
+        </span>
+      </div>
+      <div class="camera-dot" aria-hidden="true"></div>
+      <div class="gesture-indicator" aria-hidden="true"></div>
+    </section>
+  </div>
+
+  <div class="proto-states" role="group" aria-label="Prototype state preview">
+    <span>Prototype states</span>
+    <div class="seg" id="protoSeg">
+      <button type="button" data-state="active" aria-pressed="true">Active</button>
+      <button type="button" data-state="completed" aria-pressed="false">Completed</button>
+      <button type="button" data-state="nofares" aria-pressed="false">No fares</button>
+      <button type="button" data-state="loading" aria-pressed="false">Loading</button>
+      <button type="button" data-state="notrips" aria-pressed="false">No trips</button>
+      <button type="button" data-state="error" aria-pressed="false">Error</button>
+    </div>
+  </div>
+  <script>
+  (function () {
+  'use strict';
+
+  /* ── icons (src/icons.tsx) ─────────────────────────────────────────── */
+  const ICONS = {
+    chevron: '<path d="M9 5l7 7-7 7"/>',
+    arrow: '<path d="M5 12h13M13 6l6 6-6 6"/>',
+    close: '<path d="M6 6l12 12M18 6L6 18"/>',
+    bus: '<rect x="4" y="3.5" width="16" height="14.5" rx="3"/><path d="M4 11h16"/><path d="M8 20v-1.5M16 20v-1.5"/><circle cx="8" cy="14.6" r="1.1"/><circle cx="16" cy="14.6" r="1.1"/>',
+    history: '<path d="M4 12a8 8 0 1 0 2.6-5.9"/><path d="M3.4 4.4v3.8h3.8"/><path d="M12 7.6V12l3 2"/>',
+    swap: '<path d="M4 8h13"/><path d="M14 5l3 3-3 3"/><path d="M20 16H7"/><path d="M10 13l-3 3 3 3"/>'
+  };
+  const icon = (name, size, color, sw) =>
+    '<svg viewBox="0 0 24 24" width="' + size + '" height="' + size + '" fill="none" stroke="' + color +
+    '" stroke-width="' + (sw || 1.9) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || '') + '</svg>';
+
+  const $ = id => document.getElementById(id);
+
+  /* ── formatters (src/lib/format.ts) ────────────────────────────────── */
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const km = n => Number(n).toFixed(1) + ' km';
+  /* The shipped screens' EMPTY_VALUE, verbatim: a missing distance says so
+     instead of printing 0.0 km, which is a claim about a road. */
+  const NO_DISTANCE = 'Distance not recorded';
+  const mediumDate = d => DAYS[d.getDay()] + ', ' + MONTHS[d.getMonth()] + ' ' + d.getDate();
+  const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+  /* NBSP holds the meridiem to its time. A plain space let the card's meta
+     break as "ended 10:13" / "AM", a one-word orphan on the second line. */
+  const clock = d => { const h = d.getHours(); const h12 = h % 12 === 0 ? 12 : h % 12; return h12 + ':' + String(d.getMinutes()).padStart(2, '0') + '\u00A0' + (h < 12 ? 'AM' : 'PM'); };
+  const elapsed = t => {
+    const end = t.endedAt ? t.endedAt.getTime() : Date.now();
+    const m = Math.max(0, Math.round((end - t.startedAt.getTime()) / 60000));
+    return plural(m, 'minute', 'minutes') + (t.endedAt ? ' on the road' : ' so far');
+  };
+
+  /* The fare vocabulary, straight from the store. The screen's own filter key
+     is SENIOR; the stored column value is SENIOR_CITIZEN (schema.ts:34). PT_SHORT
+     is what the ledger's one-line type mix says, so the mix reads in exactly
+     the words the chips use. */
+  const PT_ORDER = ['REGULAR', 'STUDENT', 'SENIOR_CITIZEN', 'PWD'];
+  const PT_LABEL = { REGULAR: 'Regular', STUDENT: 'Student', SENIOR_CITIZEN: 'Senior citizen', PWD: 'PWD' };
+  const PT_SHORT = { REGULAR: 'regular', STUDENT: 'student', SENIOR_CITIZEN: 'senior', PWD: 'PWD' };
+  /* The screen's filter is not the store's column, so the mapping is stated in
+     one place instead of being spelled out at each call site. */
+  const toSqlFilter = k => (k === 'ALL' ? null : k === 'SENIOR' ? 'SENIOR_CITIZEN' : k);
+  const FILTERS = [
+    { key: 'ALL', label: 'All', scope: 'all 5 fare types', noun: 'passengers' },
+    { key: 'REGULAR', label: 'Regular', scope: 'regular', noun: 'regular passengers' },
+    { key: 'STUDENT', label: 'Student', scope: 'student', noun: 'student passengers' },
+    { key: 'SENIOR', label: 'Senior', scope: 'senior citizen', noun: 'senior citizens' },
+    { key: 'PWD', label: 'PWD', scope: 'person with a disability', noun: 'passengers with a disability' }
+  ];
+
+  /* ── records ───────────────────────────────────────────────────────── */
+  /* Real Manila city routes with their fixed distances, identical to
+     home.html, dashboard.html, index.html, trip.html and trip-tickets.html, so
+     every screen quotes the same ledger. */
+  const ROUTES = [
+    ['Cubao', 'Divisoria', 7.2],
+    ['Baclaran', 'Monumento', 8.0],
+    ['Divisoria', 'Cubao', 7.2],
+    ['Monumento', 'Baclaran', 8.0],
+    ['Quiapo', 'Cubao', 5.4],
+    ['Monumento', 'Cubao', 4.1]
+  ];
+  /* 18 distinct boarding-to-drop-off pairs, all real Bulacan and Zambales
+     municipalities served off those terminals, and all in the store's own
+     shape: "<barangay>, <municipality>". The head is Poblacion because it is
+     real in every one of them, and it is never displayed on a row — the row
+     carries the municipality, which is the finest thing this app can honestly
+     claim to know about a person it never asked a name for. */
+  const PAIRS = [
+    ['Poblacion, Baliwag', 'Poblacion, Meycauayan'],
+    ['Poblacion, Meycauayan', 'Poblacion, Malolos'],
+    ['Poblacion, Santa Maria', 'Poblacion, Malolos'],
+    ['Poblacion, San Rafael', 'Poblacion, Plaridel'],
+    ['Barangay 1, Olongapo', 'Poblacion, Hagonoy'],
+    ['Poblacion, Minalin', 'Poblacion, San Simon'],
+    ['Poblacion, Candaba', 'Poblacion, San Simon'],
+    ['Poblacion, Bustos', 'Poblacion, Baliwag'],
+    ['Poblacion, Malolos', 'Poblacion, Plaridel'],
+    ['Poblacion, Baliwag', 'Poblacion, Hagonoy'],
+    ['Barangay 1, Olongapo', 'Poblacion, Iba'],
+    ['Poblacion, Iba', 'Poblacion, San Simon'],
+    ['Poblacion, Subic', 'Poblacion, Olongapo City'],
+    ['Poblacion, Masinloc', 'Poblacion, Olongapo City'],
+    ['Poblacion, Gapan', 'Poblacion, Cabanatuan'],
+    ['Poblacion, Cabanatuan', 'Poblacion, San Simon'],
+    ['Poblacion, Baliwag', 'Poblacion, Malolos'],
+    ['Poblacion, Plaridel', 'Poblacion, Meycauayan']
+  ];
+  const ACTIVE_ID = 900;
+  /* PAIR_LIMIT, actually rendered. A cap is only worth building if a real run
+     reaches it, so the seed below gives the running trip 26 boarding parties
+     against 18 distinct pairs — the cap fires on the first paint. */
+  const PAIR_LIMIT = 12;
+  /* 45 days at 2-4 trips a day is ~135 rows. The picker shows the 8 that
+     matter and says how many it is not showing, rather than becoming a second
+     trip list inside a trip screen. */
+  const PICKER_LIMIT = 8;
+
+  /* passengerState.municipalityOf, verbatim: the text after the LAST comma.
+     barangayPickerState.municipalityNameOf splits on the FIRST, so the same
+     stored string gets two different municipalities out of the two parsers in
+     this codebase. The row keeps this one, because it is the one the shipped
+     screen's own aggregation used, and the group sheet prints the raw string
+     beside the result so the reader can see which parse produced which. */
+  const municipalityOf = s => {
+    const t = s == null ? '' : String(s).trim();
+    if (!t) return 'Not recorded';
+    const i = t.lastIndexOf(',');
+    return i === -1 ? t : t.slice(i + 1).trim();
+  };
+  const pairLabel = g => municipalityOf(g.from) + ' → ' + municipalityOf(g.to);
+
+  function aggregate(rows) {
+    const map = new Map();
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const key = r.from + '|' + r.to;
+      let g = map.get(key);
+      if (!g) {
+        g = { key: key, from: r.from, to: r.to, qty: 0, fares: 0, byType: {}, first: r.at, last: r.at };
+        g.haystack = (municipalityOf(r.from) + ' ' + municipalityOf(r.to) + ' ' + r.from + ' ' + r.to).toLowerCase();
+        map.set(key, g);
+      }
+      g.qty += r.qty;
+      g.fares += 1;
+      g.byType[r.category] = (g.byType[r.category] || 0) + r.qty;
+      if (r.at < g.first) g.first = r.at;
+      if (r.at > g.last) g.last = r.at;
+    }
+    return Array.from(map.values()).sort(function (a, b) { return b.qty - a.qty || (a.key < b.key ? -1 : 1); });
+  }
+
+  function orderAvailableTrips(trips) {
+    return trips.slice().sort(function (a, b) {
+      const la = a.status === 'ACTIVE' ? 1 : 0, lb = b.status === 'ACTIVE' ? 1 : 0;
+      if (la !== lb) return lb - la;
+      return (b.endedAt || b.startedAt) - (a.endedAt || a.startedAt);
+    });
+  }
+
+  /* passengerState.resolveSelectedTrip, verbatim in spirit: a trip id that is
+     no longer in the store falls back to the newest one available. Shipped
+     rendered a bare "not found" for a link that had simply gone stale. */
+  function resolveSelectedTrip(available) {
+    return available.filter(x => x.id === state.tripId)[0] || available[0] || null;
+  }
+
+  /* One boarding party every three minutes of the trip's own duration, which is
+     how a conductor actually works a run. Step 5 over 18 pairs is coprime, so
+     18 consecutive parties are 18 distinct pairs and the cap is reachable. */
+  function addRiders(out, trip, spanMin, salt) {
+    const count = Math.max(18, Math.min(26, Math.round(spanMin / 3)));
+    const step = spanMin / (count + 1);
+    for (let k = 0; k < count; k++) {
+      const pair = PAIRS[(salt + k * 5) % PAIRS.length];
+      out.push({
+        id: trip.id * 100 + k,
+        tripId: trip.id,
+        at: new Date(trip.startedAt.getTime() + Math.round(step * (k + 1)) * 60000),
+        from: pair[0], to: pair[1],
+        category: PT_ORDER[(salt + k) % 4],
+        qty: 1 + ((salt + k) % 3)
+      });
+    }
+  }
+
+  function buildData() {
+    const now = new Date();
+    const today = startOfDay(now);
+    const trips = [], riders = [];
+    let n = 300;
+    for (let back = 45; back >= 1; back--) {
+      const day = addDays(today, -back);
+      const count = 2 + ((back * 7) % 3);
+      for (let i = 0; i < count; i++) {
+        const r = ROUTES[(back * 3 + i) % ROUTES.length];
+        const startedAt = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 5 + ((back + i) % 14), (back * 17 + i * 23) % 60);
+        const spanMin = 55 + ((back * 13 + i * 29) % 70);
+        /* Every seeded day is strictly in the past and the latest possible start
+           on it is 18:59, so this floor can only bite a trip that would
+           otherwise have run into the present. It is why dashboard.html's
+           future-ended trips are not reproduced here. */
+        const endedAt = new Date(Math.min(startedAt.getTime() + spanMin * 60000, now.getTime() - 5 * 60000));
+        const trip = { id: 1000 + trips.length, number: ++n, origin: r[0], destination: r[1], distance: r[2], startedAt: startedAt, endedAt: endedAt, status: 'COMPLETED' };
+        trips.push(trip);
+        addRiders(riders, trip, Math.round((endedAt.getTime() - startedAt.getTime()) / 60000), back + i);
+      }
+    }
+    const r0 = ROUTES[1];
+    const active = { id: ACTIVE_ID, number: ++n, origin: r0[0], destination: r0[1], distance: r0[2], startedAt: new Date(Math.max(today.getTime(), now.getTime() - 78 * 60000)), endedAt: null, status: 'ACTIVE' };
+    trips.push(active);
+    addRiders(riders, active, 78, 11);
+    return { trips: trips, riders: riders };
+  }
+
+  const state = {
+    data: null,
+    tripId: null,
+    filter: 'ALL',
+    query: '',
+    preview: 'active',
+    sheet: null,
+    pairKey: null,
+    lastFocus: null
+  };
+
+  function compute() {
+    const d = state.data;
+    const available = orderAvailableTrips(d.trips);
+    const t = resolveSelectedTrip(available);
+    const party = t ? d.riders.filter(r => r.tripId === t.id) : [];
+    const want = toSqlFilter(state.filter);
+    const scoped = want ? party.filter(r => r.category === want) : party;
+    const groups = aggregate(scoped);
+    const tripGroups = aggregate(party).length;
+    /* The bar's denominator is the chip-filtered total and never the search
+       result. A search hides rows; it does not redefine what a share is a share
+       of. The sentence under the field says so in words. */
+    const denom = scoped.reduce((s, r) => s + r.qty, 0);
+    const q = state.query.trim().toLowerCase();
+    /* Rank is stamped here, on the full ranked list, so a search can never
+       renumber the rows it leaves visible. */
+    const ranked = groups.map(function (g, i) { return { g: g, rank: i + 1 }; });
+    const visible = q ? ranked.filter(function (r) { return r.g.haystack.indexOf(q) !== -1; }) : ranked;
+    return {
+      d: d, available: available, t: t, party: party,
+      groups: groups, tripGroups: tripGroups, visible: visible,
+      shown: visible.slice(0, PAIR_LIMIT),
+      capped: visible.length > PAIR_LIMIT,
+      filtered: visible.length,
+      denom: denom,
+      q: q,
+      places: new Set(groups.map(function (g) { return municipalityOf(g.from); })).size,
+      total: party.reduce((s, r) => s + r.qty, 0),
+      fares: party.length
+    };
+  }
+
+  /* ── card ──────────────────────────────────────────────────────────── */
+  function renderChrome(c) {
+    const sub = $('chromeSub');
+    if (state.preview === 'loading') { sub.textContent = 'Reading local records…'; return; }
+    if (state.preview === 'error') { sub.textContent = 'Records unavailable'; return; }
+    if (!c.t) { sub.textContent = 'No trips on this device'; return; }
+    sub.textContent = 'Trip #' + c.t.number + ' · ' + plural(c.total, 'passenger', 'passengers');
+  }
+
+  function cardHTML(c) {
+    const t = c.t;
+    const live = t.status === 'ACTIVE';
+    return '<div class="glass pass-card' + (live ? ' pass-solid' : '') + '" data-od-id="ps-card-' + (live ? 'active' : 'completed') + '">' +
+      '<div class="st-head"><div class="st-head-text"><p class="pc-eyebrow label-s">' + (live ? 'TRIP IN PROGRESS' : 'TRIP COMPLETED') + '</p>' +
+      '<h2 class="pc-title title-m">Passengers on this trip</h2></div>' +
+      '<span class="st-pill"><span class="st-pill-text label-s">TRIP #' + t.number + '</span></span></div>' +
+      '<p class="hero-route headline-s">' + t.origin + '<span class="arrow" aria-hidden="true">' + icon('arrow', 18, 'currentColor', 2) + '</span>' + t.destination + '</p>' +
+      '<p class="pc-detail body-s">' + (t.distance === null ? NO_DISTANCE : km(t.distance)) + ' · started ' + clock(t.startedAt) + ' · ' + elapsed(t) + '</p>' +
+      '<div class="lead-figure"><b class="lead-value display-s tabular">' + c.total + '</b>' +
+      '<span class="lead-label label-s">PASSENGERS ON THIS TRIP</span></div>' +
+      '<div class="hero-figures" data-figures>' +
+        '<div><b class="hf-value title-m tabular">' + c.fares + '</b><span class="hf-label label-s">FARES</span></div>' +
+        '<div><b class="hf-value title-m tabular">' + c.groups.length + '</b><span class="hf-label label-s">GROUPS</span></div>' +
+        '<div><b class="hf-value title-m tabular">' + c.places + '</b><span class="hf-label label-s">MUNICIPALITIES</span></div>' +
+      '</div>' +
+      /* The card's only control, inside the card, and it is a ghost: this screen
+         is a reader, so no ready state on it carries a solid primary at all. */
+      '<div class="card-actions" data-od-id="ps-card-actions">' +
+        '<button type="button" class="ghost-btn" data-act="pick" data-od-id="ps-switch-trip">' +
+        icon('swap', 16, 'currentColor', 1.9) + '<span class="label-l">Switch trip</span></button></div>' +
+    '</div>';
+  }
+
+  function skeletonCard() {
+    return '<div class="glass pass-card" aria-busy="true" data-od-id="ps-loading">' +
+      '<div class="sk" style="height:11px;width:34%;border-radius:6px"></div>' +
+      '<div class="sk" style="height:22px;width:62%;border-radius:8px;margin-top:14px"></div>' +
+      '<div class="sk" style="height:34px;width:34%;border-radius:8px;margin-top:20px"></div>' +
+      '<div class="sk" style="height:44px;width:100%;border-radius:999px;margin-top:20px"></div></div>';
+  }
+
+  function errorCard() {
+    return '<div class="state error" data-od-id="ps-error">' +
+      '<h3 class="headline-s">Passenger records could not be read</h3>' +
+      '<p class="body-m">The trip and the fares on it did not answer on this device, so no count, no group and no share can be shown. Nothing was lost — the records are still here, and Retry reads them again.</p>' +
+      '<button type="button" class="primary-btn" data-act="retry" data-od-id="ps-retry">' +
+      icon('history', 18, '#fff', 1.7) + '<span class="label-l">Retry</span></button></div>';
+  }
+
+  /* The shipped empty LoadState, verbatim in meaning: this device holds no
+     trips, so there is nothing to count passengers on. There is deliberately no
+     not-found branch — a stale trip id falls back to the newest trip instead. */
+  function noTripsCard() {
+    return '<div class="state" data-od-id="ps-notrips">' +
+      '<h3 class="headline-s">No trips on this device</h3>' +
+      '<p class="body-m">Passengers are counted per trip, and there is no trip here yet. Start one, or open a trip you have already run, and everyone you carried will be here — grouped by the two places they travelled between.</p>' +
+      '<div class="sheet-actions" style="max-width:340px">' +
+      '<button type="button" class="primary-btn" data-act="go-trips" data-od-id="ps-go-trips">' +
+      icon('bus', 18, '#fff', 1.7) + '<span class="label-l">Go to trips</span></button></div></div>';
+  }
+
+  /* The card is a pure function of the preview, the trip and the minute: it
+     never reads the filter or the query, so a chip tap or a keystroke must not
+     rebuild it. The minute is in the key so the elapsed figure still advances
+     when the clock timer fires, and nothing else moves the card. */
+  var cardKey = null;
+  function renderCard(c) {
+    var key = state.preview + '|' + (c.t ? c.t.number : '-') + '|' + Math.floor(Date.now() / 60000);
+    if (key === cardKey) return;
+    cardKey = key;
+    const slot = $('cardSlot');
+    if (state.preview === 'loading') { slot.innerHTML = skeletonCard(); return; }
+    if (state.preview === 'error') { slot.innerHTML = errorCard(); return; }
+    if (!c.t) { slot.innerHTML = noTripsCard(); return; }
+    slot.innerHTML = cardHTML(c);
+  }
+
+  /* ── filter, search, and the sentence that closes the ambiguity ────── */
+  function renderFilters() {
+    $('filterRow').innerHTML = FILTERS.map(function (f) {
+      /* The chip says the short form; the aria-label carries the full name, so
+         "Person with disability" is still spoken in full and the 23-character
+         string never costs 23 characters of chrome. */
+      return '<button type="button" class="chip label-s" data-filter="' + f.key + '" data-od-id="ps-chip-' + f.key.toLowerCase() +
+        '" aria-pressed="' + (f.key === state.filter ? 'true' : 'false') + '" aria-label="Filter by ' + f.scope + '">' + f.label + '</button>';
+    }).join('');
+  }
+
+  function renderSummary(c) {
+    const f = FILTERS.filter(function (x) { return x.key === state.filter; })[0];
+    if (c.denom === 0) {
+      $('fsummaryText').textContent = f.key === 'ALL'
+        ? 'No boarding groups on this trip yet.'
+        : cap(f.scope) + ' only · no boarding groups on this trip yet.';
+      return;
+    }
+    const shown = c.filtered === c.tripGroups
+      ? plural(c.filtered, 'group', 'groups')
+      : c.filtered + ' of ' + c.tripGroups + ' groups';
+    let s = (f.key === 'ALL' ? 'All 5 fare types' : cap(f.scope) + ' only') + ' · ' + shown +
+      ' shown · each bar is that group\'s share of the ' + c.denom + ' ' + f.noun + ' on this trip.';
+    if (c.q) s += ' The search hides rows; it does not change the shares.';
+    $('fsummaryText').textContent = s;
+  }
+
+  function renderControls(c) {
+    const on = !!c.t && state.preview !== 'loading' && state.preview !== 'error';
+    $('controlsSection').hidden = !on;
+    if (!on) return;
+    renderFilters();
+    const input = $('pairSearch');
+    if (input.value !== state.query) input.value = state.query;
+    $('searchClear').hidden = !state.query;
+    renderSummary(c);
+  }
+
+  /* ── the group ledger ──────────────────────────────────────────────── */
+  /* One row. The pair leads because it is what the row is about; the fare-type
+     mix sits under it because "who did I pick up here" is the question a
+     conductor actually has; the count leads the right column at 700; the rank
+     is a 2-digit label in a 20px slot rather than the 16px number that used to
+     be the first thing the eye landed on; and the share is a bar, the same
+     encoding the Dashboard breakdown already teaches, so the two screens read
+     one way. The row is a button in every state, because reading a group is
+     never gated. */
+  function pairRow(r, denom) {
+    const g = r.g;
+    const pct = Math.round(g.qty / denom * 100);
+    const mix = PT_ORDER.filter(function (k) { return g.byType[k]; })
+      .map(function (k) { return g.byType[k] + ' ' + PT_SHORT[k]; }).join(' · ');
+    const label = 'Group ' + r.rank + '. ' + pairLabel(g) + '. ' + plural(g.qty, 'passenger', 'passengers') +
+      ', ' + pct + ' percent of the ' + denom + ' in scope. ' + cap(mix) + '. ' +
+      plural(g.fares, 'fare', 'fares') + ', first boarded ' + clock(g.first) + ', last ' + clock(g.last) + '. Opens the group.';
+    return '<button type="button" class="glass row-card row-btn pair-row" data-pair="' + esc(g.key) + '" data-od-id="ps-row" aria-label="' + esc(label) + '">' +
+      '<span class="pr-head">' +
+        '<span class="pr-rank label-s tabular">' + (r.rank < 10 ? '0' + r.rank : r.rank) + '</span>' +
+        '<span class="pr-body"><b class="pr-pair title-m">' + pairLabel(g) + '</b>' +
+        '<span class="pr-sub body-s od-truncate">' + mix + '</span></span>' +
+      '</span>' +
+      /* count and share are one figure, so they share a line: the number reads
+         against the bar that measures it, and the pair keeps the full width it
+         needs — the widest pair in the seed is 215px in Poppins 600 16. */
+      '<span class="pr-foot">' +
+        '<span class="pr-track"><span class="pr-fill" style="width:' + pct + '%"></span></span>' +
+        '<span class="pr-count"><b class="title-m tabular">' + g.qty + '</b><span class="body-s">passengers</span></span>' +
+      '</span>' +
+    '</button>';
+  }
+
+  function renderLedger(c) {
+    const sec = $('ledgerSection'), list = $('ledgerList'), capEl = $('ledgerCap'), foot = $('ledgerFoot'), all = $('viewAllBtn');
+    const on = !!c.t && state.preview !== 'loading' && state.preview !== 'error';
+    sec.hidden = !on;
+    all.hidden = true;
+    capEl.hidden = true;
+    foot.hidden = !on;
+    if (!on) { list.innerHTML = ''; return; }
+
+    /* The vocabulary split, stated. The card above quotes the trip's
+       terminals; these groups come from the location snapshot on each fare, so
+       a pair can name any two places on the route. Shipped said nothing, and
+       the driver had to assume the two disagreed. */
+    foot.textContent = 'The card above shows this trip\'s terminals. These groups come from the boarding and drop-off points stored on each fare, so a pair can name any two places along the way.';
+
+    if (c.party.length === 0) {
+      /* Shipped's ListEmptyComponent: the trip exists and nothing was recorded
+         against it. That is not the same as having no trip, and it does not
+         get a solid primary — the trip is still the way out of here. */
+      list.innerHTML = '<div class="inline-empty" data-od-id="ps-ledger-nofares">' +
+        '<p class="label-s" style="color:var(--glass-on)">NO FARES ON THIS TRIP</p>' +
+        '<p class="body-s" style="margin-top:6px">' + (c.t.status === 'ACTIVE'
+          ? 'This trip is running and nothing has been recorded against it yet. The first fare you record appears here, grouped by where its passengers got on.'
+          : 'This trip closed with nothing recorded against it.') + '</p></div>';
+      return;
+    }
+
+    if (c.filtered === 0) {
+      list.innerHTML = '<div class="inline-empty" data-od-id="ps-ledger-nomatch">' +
+        '<p class="label-s" style="color:var(--glass-on)">NO GROUP MATCHES</p>' +
+        '<p class="body-s" style="margin-top:6px">Nothing here matches &ldquo;' + esc(state.query.trim()) + '&rdquo;. The ' +
+        plural(c.denom, 'passenger', 'passengers') + ' in scope are still on this trip.</p>' +
+        '<div class="card-actions"><button type="button" class="ghost-btn" data-act="search-clear" data-od-id="ps-nomatch-clear">' +
+        '<span class="label-l">Clear the search</span></button></div></div>';
+      return;
+    }
+
+    list.innerHTML = c.shown.map(function (r) { return pairRow(r, c.denom); }).join('');
+    capEl.hidden = !c.capped;
+    if (c.capped) capEl.textContent = 'Showing the ' + PAIR_LIMIT + ' largest of ' + c.filtered + ' groups — ' + (c.filtered - PAIR_LIMIT) + ' more.';
+    /* ALL GROUPS is a reading action, so it is never gated on anything. */
+    all.hidden = false;
+  }
+
+  function renderNote(c) {
+    $('storageNote').innerHTML = state.preview === 'loading'
+      ? 'Reading the local store…'
+      : state.preview === 'error'
+        ? 'The local store did not answer. No figure on this screen is computed.'
+        : !c.t
+          ? 'Nothing is stored on this device yet. No network is used at any point.'
+          : '<b class="strong">No names.</b> A passenger is a quantity, and the finest thing this app stores about one is the pair of places they travelled between. ' +
+            (c.fares ? 'This trip&rsquo;s ' + c.total + ' were counted from ' + plural(c.fares, 'fare', 'fares') + ', ' : 'Everything here is ') +
+            'all kept on this device — no network is used.';
+  }
+
+  const FIG_STACK = 300;
+  function measure() {
+    const scroll = $('scroll');
+    const w = scroll ? Math.min(scroll.clientWidth, 720) : 390;
+    const figs = document.querySelector('[data-figures]');
+    if (figs) figs.classList.toggle('stacked', w < FIG_STACK);
+  }
+
+  function render() {
+    const c = compute();
+    renderChrome(c);
+    renderCard(c);
+    renderControls(c);
+    renderLedger(c);
+    renderNote(c);
+    measure();
+    renderOverlay();
+  }
+
+  /* ── overlays ──────────────────────────────────────────────────────── */
+  function closeOverlay() {
+    state.sheet = null;
+    state.pairKey = null;
+    renderOverlay();
+    if (state.lastFocus && document.contains(state.lastFocus)) state.lastFocus.focus();
+    state.lastFocus = null;
+  }
+  function openSheet(kind, arg) {
+    state.lastFocus = document.activeElement;
+    state.sheet = kind;
+    state.pairKey = arg === undefined ? null : arg;
+    renderOverlay();
+    const f = $('overlayRoot').querySelector('[data-autofocus]');
+    if (f) f.focus();
+  }
+
+  const detailRow = (k, v) => '<div class="detail-row"><span class="k body-m">' + k + '</span><span class="v body-m tabular">' + v + '</span></div>';
+
+  function sheet(id, title, subtitle, body, foot) {
+    return '<div class="scrim bottom" data-scrim="1"><div class="sheet bottom-sheet" role="dialog" aria-modal="true" aria-labelledby="' + id + '" data-od-id="' + id + '-sheet">' +
+      '<div class="sheet-head"><div class="sheet-titles"><h2 class="title-m" id="' + id + '">' + title + '</h2>' +
+      (subtitle ? '<p class="body-s muted">' + subtitle + '</p>' : '') + '</div>' +
+      '<button type="button" class="icon-btn" data-act="close" data-od-id="' + id + '-close" aria-label="Close" data-autofocus>' +
+      icon('close', 18, 'currentColor', 2) + '</button></div>' +
+      '<div class="sheet-body">' + body + (foot || '') + '</div></div></div>';
+  }
+
+  const handoff = (where, extra) =>
+    '<div class="handoff"><p class="nb-title label-s">WHERE THIS GOES</p>' +
+    '<p class="body-s">In the app this opens <b class="strong">' + where + '</b>. In this prototype it opens this preview, so the handoff and the figures it would carry are both visible without leaving the screen.' +
+    (extra || '') + '</p></div>';
+
+  function pickerSheetHTML(c) {
+    const list = c.available.slice(0, PICKER_LIMIT);
+    const more = c.available.length - list.length;
+    return sheet('picker', 'Switch trip', plural(c.available.length, 'trip', 'trips') + ' on this device',
+      list.map(function (t) {
+        const live = t.status === 'ACTIVE';
+        return '<button type="button" class="pick-row" data-pick="' + t.id + '" data-od-id="ps-pick-' + t.id + '" aria-current="' + (t.id === c.t.id ? 'true' : 'false') + '">' +
+          '<span class="pk-body"><span class="pk-name title-m">' + t.origin + ' → ' + t.destination + '</span>' +
+          '<span class="pk-sub body-s">#' + t.number + ' · ' + mediumDate(t.startedAt) + ' · ' +
+          (live ? 'running now' : 'ended ' + clock(t.endedAt)) + '</span></span>' +
+          (live ? '<span class="st-pill"><span class="st-pill-text label-s">RUNNING</span></span>' : '') + '</button>';
+      }).join('') +
+      (more > 0 ? '<p class="pick-more body-s">' + more + ' more ' + (more === 1 ? 'trip is' : 'trips are') +
+        ' not listed here. A 45-day store runs to over a hundred, and scrolling them inside a trip screen is the wrong place for them — the full list opens Trip management, which is where they can be searched and filtered.' +
+        '</p>' : ''),
+      handoff('Trip management, the full trip list with its search and its filters'));
+  }
+
+  /* The parser conflict, made visible. Both the raw stored string and the
+     municipality this screen derived from it are printed, because they are two
+     different facts and only one of them is what the row above said. */
+  function pairSheetHTML(c) {
+    const hit = c.groups.filter(function (g) { return g.key === state.pairKey; })[0];
+    if (!hit) return '';
+    const rank = c.groups.indexOf(hit) + 1;
+    const pct = Math.round(hit.qty / c.denom * 100);
+    const mix = PT_ORDER.filter(function (k) { return hit.byType[k]; })
+      .map(function (k) { return detailRow(PT_LABEL[k], hit.byType[k] + ' · ' + Math.round(hit.byType[k] / hit.qty * 100) + '%'); });
+    return sheet('pair', pairLabel(hit), 'Group ' + rank + ' of ' + c.groups.length + ' on trip #' + c.t.number,
+      detailRow('Passengers', hit.qty) +
+      detailRow('Share in scope', pct + '% of ' + c.denom) +
+      detailRow('Fares in this group', hit.fares) +
+      detailRow('First boarded', clock(hit.first) + ' · ' + mediumDate(hit.first)) +
+      detailRow('Last boarded', clock(hit.last) + ' · ' + mediumDate(hit.last)) +
+      '<div class="detail-card" style="margin-top:12px">' + mix.join('') + '</div>' +
+      detailRow('Boarding point, as stored', hit.from) +
+      detailRow('Boarding municipality used', municipalityOf(hit.from)) +
+      detailRow('Drop-off point, as stored', hit.to) +
+      detailRow('Drop-off municipality used', municipalityOf(hit.to)) +
+      detailRow('Trip terminals', c.t.origin + ' → ' + c.t.destination),
+      handoff('nothing — reading a group does not navigate anywhere'));
+  }
+
+  function allPairsSheetHTML(c) {
+    return sheet('allPairs', 'All boarding groups', 'Trip #' + c.t.number + ' · ' + plural(c.tripGroups, 'group', 'groups') + ' on this trip',
+      '<div class="detail-card">' + c.groups.map(function (g, i) {
+        return '<div class="detail-row"><span class="k body-m">' + (i + 1) + '. ' + pairLabel(g) + '</span>' +
+          '<span class="v body-m tabular">' + g.qty + ' · ' + Math.round(g.qty / c.denom * 100) + '%</span></div>';
+      }).join('') + '</div>' +
+      detailRow('Distinct boarding municipalities', c.places) +
+      detailRow('Fares on this trip', c.fares) +
+      detailRow('Passengers on this trip', c.total),
+      handoff('nothing on this screen — the cap is a reading limit, not a place'));
+  }
+
+  function goTripsSheetHTML(c) {
+    return sheet('goTrips', 'Go to trips', 'Trip management',
+      detailRow('Trips on this device', c.available.length) +
+      detailRow('Running now', c.t && c.t.status === 'ACTIVE' ? 'Trip #' + c.t.number : 'None') +
+      detailRow('Passengers on the running trip', c.t ? c.total : 0),
+      handoff('Trip management, where trips are started, searched and cleared'));
+  }
+
+  function backSheetHTML(c) {
+    return sheet('backHome', 'Back to Home', 'The root screen',
+      detailRow('Trips on file', c.available.length) +
+      detailRow('Running now', c.t && c.t.status === 'ACTIVE' ? 'Trip #' + c.t.number : 'None') +
+      detailRow('Passengers on this trip', c.t ? c.total : 0),
+      handoff('Home, the brand header and the quick actions'));
+  }
+
+  function renderOverlay() {
+    const root = $('overlayRoot');
+    if (!state.sheet) { root.innerHTML = ''; return; }
+    const c = compute();
+    root.innerHTML = state.sheet === 'picker' ? pickerSheetHTML(c)
+      : state.sheet === 'pair' ? pairSheetHTML(c)
+      : state.sheet === 'allPairs' ? allPairsSheetHTML(c)
+      : state.sheet === 'goTrips' ? goTripsSheetHTML(c)
+      : backSheetHTML(c);
+  }
+
+  function syncProto() {
+    Array.prototype.forEach.call($('protoSeg').querySelectorAll('button'), function (b) {
+      b.setAttribute('aria-pressed', b.dataset.state === state.preview ? 'true' : 'false');
+    });
+  }
+
+  function setPreview(name) {
+    state.preview = name;
+    state.sheet = null;
+    state.pairKey = null;
+    state.query = '';
+    state.filter = 'ALL';
+    state.data = buildData();
+    const available = orderAvailableTrips(state.data.trips);
+    if (name === 'completed') {
+      const done = available.filter(function (t) { return t.status === 'COMPLETED'; });
+      state.tripId = done.length ? done[0].id : null;
+    } else if (name === 'nofares') {
+      /* A trip that exists and has nothing recorded against it — the branch
+         shipped reached through ListEmptyComponent. */
+      state.tripId = ACTIVE_ID;
+      state.data.riders = state.data.riders.filter(function (r) { return r.tripId !== ACTIVE_ID; });
+    } else if (name === 'notrips') {
+      state.tripId = null;
+      state.data = { trips: [], riders: [] };
+    } else {
+      state.tripId = ACTIVE_ID;
+    }
+    syncProto();
+    render();
+  }
+
+  /* ── events ────────────────────────────────────────────────────────── */
+  /* Only the backdrop itself closes. closest('[data-scrim]') would also match
+     every control inside the sheet, so the sheet's own buttons would dismiss it
+     instead of acting. */
+  document.addEventListener('click', function (e) {
+    const proto = e.target.closest('#protoSeg button');
+    if (proto) { setPreview(proto.dataset.state); return; }
+    if (e.target.hasAttribute && e.target.hasAttribute('data-scrim')) { closeOverlay(); return; }
+
+    const act = e.target.closest('[data-act]');
+    if (act) {
+      const a = act.dataset.act;
+      if (a === 'close') { closeOverlay(); return; }
+      if (a === 'back') { openSheet('back'); return; }
+      if (a === 'go-trips') { openSheet('goTrips'); return; }
+      if (a === 'pick') { openSheet('picker'); return; }
+      if (a === 'view-all') { openSheet('allPairs'); return; }
+      if (a === 'retry') { setPreview('active'); return; }
+      if (a === 'search-clear') { state.query = ''; $('pairSearch').value = ''; render(); return; }
+      return;
+    }
+
+    const chip = e.target.closest('[data-filter]');
+    if (chip) { state.filter = chip.dataset.filter; render(); return; }
+
+    const pick = e.target.closest('[data-pick]');
+    if (pick) {
+      state.sheet = null;
+      state.pairKey = null;
+      state.lastFocus = null;
+      state.tripId = Number(pick.dataset.pick);
+      render();
+      return;
+    }
+
+    const row = e.target.closest('[data-pair]');
+    if (row) openSheet('pair', row.dataset.pair);
+  });
+
+  /* A search repaints the sentence and the rows, never the field, so the caret
+     and the IME composition survive. */
+  document.addEventListener('input', function (e) {
+    if (!e.target || e.target.id !== 'pairSearch') return;
+    state.query = e.target.value;
+    const c = compute();
+    $('searchClear').hidden = !state.query;
+    renderSummary(c);
+    renderLedger(c);
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && state.sheet) closeOverlay();
+  });
+
+  /* ── boot ──────────────────────────────────────────────────────────── */
+  state.data = buildData();
+  state.tripId = ACTIVE_ID;
+  syncProto();
+  render();
+  /* One paint a minute. Shipped ran TripClock's 1-second interval to keep a
+     clock face honest; the only figure on this screen that moves by itself is
+     the elapsed time on the card, and it is read at minute resolution. The
+     tick stands down while a sheet is open or the search field has focus, so
+     it can never yank a half-typed search out from under a thumb. */
+  setInterval(function () {
+    if (state.sheet) return;
+    const el = document.activeElement;
+    if (el && (el.id === 'pairSearch' || el.hasAttribute('data-autofocus'))) return;
+    render();
+  }, 60000);
+  })();
+  </script>
+</body>
+</html>

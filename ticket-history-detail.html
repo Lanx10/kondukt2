@@ -1,0 +1,732 @@
+<!doctype html>
+<!--
+  Kondukt · Ticket history detail screen — Open Design prototype.
+
+  Receipt for a fare reached from History (index.html). Same shell, tokens
+  and glass as ticket-detail.html. Ticket immutable: nine TicketRowRecord
+  fields, no status, no void, no notes. Amber while the trip runs, glass
+  when closed. Back returns to History. ?id= resolves against the same
+  generator as the History ledger.
+-->
+<html lang="en">
+<head><script type="application/json" data-od-external-dependencies>["https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap"]</script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kondukt · Ticket history detail</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    @layer od-layout {
+      .od-stack   { display: flex; flex-direction: column; gap: var(--od-gap, 8px); }
+      .od-row     { display: flex; align-items: center; gap: var(--od-gap, 8px); }
+      .od-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--od-gap, 8px); }
+      .od-fill    { flex: 1 1 0; min-width: 0; }
+      .od-grid    { display: grid; gap: var(--od-gap, 12px); grid-template-columns: repeat(var(--od-cols, 3), minmax(0, 1fr)); }
+      :where(.od-stack,.od-row,.od-cluster,.od-grid,.od-stat) > :where(*) { min-width: 0; }
+      .od-stat { display: grid; gap: var(--od-gap, 2px); }
+      .od-truncate { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+      .od-clamp-2 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
+    }
+
+    :root {
+      /* ── kondukt M3 warm palette (src/theme.ts) ───────────────────────── */
+      --primary:#E65100; --on-primary:#FFFFFF; --primary-container:#FFE6D2; --on-primary-container:#4E2200;
+      --primary-solid:#C2410C; --primary-solid-hover:#A93A09;
+      --secondary:#FFB300; --on-secondary:#3D2E00; --secondary-container:#FFEFC7; --on-secondary-container:#4A3600;
+      --secondary-fg:#8A6100;
+      /* Foregrounds for the solid-amber card, measured against #FFB300:
+         7.4:1 / 5.8:1 / 4.9:1. Tokens, so the amber cards across the product
+         cannot drift apart. */
+      --on-secondary-detail:#4F3D2B; --on-secondary-muted:#5B4720; --on-secondary-faint:#6B5518;
+      --tertiary:#546E7A; --on-tertiary:#FFFFFF; --tertiary-container:#DDE6EA; --on-tertiary-container:#162B33;
+      --error:#BA1A1A; --on-error:#FFFFFF; --error-container:#FFDAD6; --on-error-container:#410002;
+      --background:#FDF7F3; --surface:#FDF7F3; --surface-lowest:#FFFFFF; --surface-low:#F7EFE9;
+      --surface-container:#F2E9E2; --surface-high:#ECE3DC;
+      --on-surface:#221A15; --on-surface-variant:#53433B; --outline:#85736B; --outline-variant:#D7C2B7;
+      --scrim:rgba(34,26,21,.32);
+
+      /* glass layer */
+      --glass-tint:rgba(255,255,255,.58);
+      --glass-rim:rgba(255,255,255,.85);
+      --glass-on:#1A2029; --glass-on-variant:#4A5568;
+      --glass-accent-primary:#8F3A00; --glass-accent-secondary:#6B4B00; --glass-accent-tertiary:#334A56;
+      --glass-shadow:rgba(90,106,130,.16);
+
+      --radius-sm:8px; --radius-md:12px; --radius-lg:16px; --radius-xl:24px; --radius-glass:28px; --radius-full:999px;
+      --font: 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+      /* shell vars (from the neutral OD handset) */
+      --phone-screen-width:390px; --phone-screen-height:844px; --phone-bezel:10px;
+      --phone-outer-radius:52px; --phone-screen-radius:42px;
+      --phone-safe-top:50px; --phone-safe-bottom:29px;
+      --phone-system-fg:#17181a; --phone-screen-bg:#f8f8f9; --phone-stage-bg:#eaebee;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      min-height: 100dvh; display: grid; place-items: center; padding: 32px;
+      background: radial-gradient(circle at 50% 15%, rgba(255,255,255,.94), transparent 35%), var(--phone-stage-bg);
+      color: #191a1d; font-family: var(--font);
+    }
+
+    /* ── handset shell ─────────────────────────────────────────────────── */
+    .phone-frame {
+      position: relative;
+      width: calc(var(--phone-screen-width) + var(--phone-bezel) * 2);
+      height: calc(var(--phone-screen-height) + var(--phone-bezel) * 2);
+      padding: var(--phone-bezel); border-radius: var(--phone-outer-radius);
+      background: linear-gradient(145deg, rgba(255,255,255,.2), transparent 17%), linear-gradient(160deg, #3f4146 0%, #202227 48%, #0b0c0f 100%);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.13), inset 0 0 0 2px rgba(0,0,0,.85), 0 32px 68px -20px rgba(10,12,16,.52), 0 10px 24px -10px rgba(10,12,16,.32);
+      isolation: isolate;
+    }
+    .phone-frame::before, .phone-frame::after {
+      content: ""; position: absolute; z-index: -1; top: 96px; bottom: 96px; width: 2px;
+      background: linear-gradient(to bottom, transparent, rgba(255,255,255,.13) 16%, transparent 30%, transparent 72%, rgba(255,255,255,.07) 88%, transparent);
+    }
+    .phone-frame::before { left: 0; } .phone-frame::after { right: 0; }
+    .hardware-button { position: absolute; width: 4px; border-radius: 3px; background: linear-gradient(90deg,#08090b,#2a2d33 60%,#08090b); box-shadow: inset 0 1px rgba(255,255,255,.08); }
+    .hardware-button.volume { left: -3px; top: 222px; height: 86px; }
+    .hardware-button.power { right: -3px; top: 270px; height: 82px; }
+
+    .phone-screen {
+      position: relative; width: var(--phone-screen-width); height: var(--phone-screen-height);
+      overflow: hidden; border-radius: var(--phone-screen-radius); background: var(--phone-screen-bg);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.05);
+    }
+    .phone-content { position: absolute; inset: 0; overflow: hidden; padding: 0; background: transparent; }
+
+    .status-bar { position: absolute; z-index: 40; inset: 0 0 auto; height: var(--phone-safe-top); display: grid; grid-template-columns: minmax(0,1fr) 56px minmax(0,1fr); align-items: start; padding: 14px 20px 0; color: var(--phone-system-fg); opacity: .8; pointer-events: none; }
+    .status-time { justify-self: start; display: flex; align-items: center; height: 15px; font-size: 14px; font-weight: 560; line-height: 1; letter-spacing: .01em; font-family: system-ui, sans-serif; }
+    .status-cutout-zone { width: 56px; }
+    .status-icons { justify-self: end; display: inline-flex; align-items: center; height: 15px; gap: 6px; }
+    .status-icons svg { display: block; flex: none; fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
+    .status-icons .connectivity { width: 15px; height: 12px; } .status-icons .wifi { width: 15px; height: 12px; } .status-icons .battery { width: 19px; height: 11px; }
+    .camera-dot { position: absolute; z-index: 45; top: 13px; left: 50%; width: 10px; height: 10px; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(circle at 38% 35%, #344154 0 12%, #0a0c10 34%, #000 76%); box-shadow: 0 0 0 1px rgba(255,255,255,.06); pointer-events: none; }
+    .gesture-indicator { position: absolute; z-index: 45; left: 50%; bottom: 8px; width: 96px; height: 4px; transform: translateX(-50%); border-radius: 99px; background: var(--phone-system-fg); opacity: .86; pointer-events: none; }
+
+    /* ── app root ──────────────────────────────────────────────────────── */
+    #app {
+      position: relative; height: 100%; display: flex; flex-direction: column;
+      color: var(--glass-on);
+      background:
+        radial-gradient(125% 82% at 6% -4%, #FBC9A8 0%, rgba(246,227,212,.78) 32%, rgba(244,247,251,0) 63%),
+        radial-gradient(130% 88% at 104% 104%, #C6D9E8 0%, rgba(228,233,242,.72) 34%, rgba(244,247,251,0) 66%),
+        #F4F7FB;
+    }
+    .app-scroll {
+      flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch; scrollbar-width: none;
+      padding-bottom: var(--phone-safe-bottom);
+    }
+    .app-scroll::-webkit-scrollbar { display: none; }
+
+    .readable { width: 100%; max-width: 720px; margin-inline: auto; padding-inline: 20px; }
+
+    /* ── typography roles ──────────────────────────────────────────────── */
+    .display-s { font-weight: 700; font-size: 28px; line-height: 36px; letter-spacing: -.3px; }
+    .headline-s { font-weight: 600; font-size: 20px; line-height: 27px; letter-spacing: -.3px; }
+    .title-m { font-weight: 600; font-size: 16px; line-height: 23px; }
+    .body-m { font-weight: 400; font-size: 14px; line-height: 21px; }
+    .body-s { font-weight: 400; font-size: 12px; line-height: 18px; }
+    .label-l { font-weight: 600; font-size: 15px; line-height: 20px; }
+    .label-s { font-weight: 600; font-size: 11px; line-height: 16px; letter-spacing: .6px; }
+    .tabular { font-variant-numeric: tabular-nums; }
+    .muted { color: var(--glass-on-variant); }
+    .strong { color: var(--glass-on); }
+    p { margin: 0; }
+
+    /* ── glass surface ─────────────────────────────────────────────────── */
+    .glass {
+      position: relative; border-radius: var(--radius-glass);
+      background: var(--glass-tint);
+      box-shadow: 0 8px 15px var(--glass-shadow), inset 0 1px 0 rgba(255,255,255,.55);
+      -webkit-backdrop-filter: blur(18px) saturate(180%);
+      backdrop-filter: blur(18px) saturate(180%);
+    }
+    .glass > * { position: relative; z-index: 1; }
+    .glass::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: rgba(120,130,150,.5); opacity: .035; pointer-events: none; }
+    .glass::after  { content: ""; position: absolute; inset: 0; border-radius: inherit; border: 1px solid var(--glass-rim); pointer-events: none; z-index: 2; }
+
+    /* ── chrome (SectionChrome) ────────────────────────────────────────── */
+    .chrome { display: flex; align-items: center; gap: 12px; flex: none; padding: calc(var(--phone-safe-top) + 12px) 20px 20px; }
+    .back {
+      width: 44px; height: 44px; border-radius: var(--radius-full); border: 0; background: var(--primary-solid);
+      display: grid; place-items: center; cursor: pointer; flex: none;
+      box-shadow: 0 8px 15px var(--glass-shadow);
+    }
+    .back:hover { background: var(--primary-solid-hover); }
+    /* SectionChrome's title pill: centered, headline title, label sub, 56 tall
+       when a subtitle is present. The sub stays full white rather than the
+       reference screens' opacity .85 — white on #C2410C is 5.2:1, and .85
+       lands at 4.1:1, under AA for 11px text. */
+    .title-card {
+      flex: 1 1 auto; min-width: 0; min-height: 56px; padding: 6px 16px; border-radius: var(--radius-full);
+      background: var(--primary-solid); display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; box-shadow: 0 8px 15px var(--glass-shadow);
+    }
+    .chrome-title { color: var(--on-primary); margin: 0; }
+    .chrome-sub { color: var(--on-primary); margin: 0; }
+    /* The back pill is a link here, not a button: it navigates to the ledger,
+       and a control that only looks like it goes back is worse than one that
+       admits it. <a class="back"> holds an svg and no text node, so it draws
+       no underline on its own; the pair below covers the two text controls. */
+    a.back, a.primary-btn, a.quiet-btn { text-decoration: none; }
+
+    /* ── section header (SectionHeader) ────────────────────────────────── */
+    .sec-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 20px; margin-bottom: 12px; }
+    .sec-title { color: var(--glass-on-variant); margin: 0; }
+
+    /* ── the receipt card ──────────────────────────────────────────────── */
+    /* Copied, not re-derived: the amber card is the same material as Home's
+       hero and Trip's card, so all of them agree at a glance — amber means a
+       trip is running right now, and nothing else. A completed trip is the
+       same card in glass, and that one difference is the whole state machine.
+       Here it says the fare was taken on a running trip, which is the only
+       thing a reader of a receipt is checking. */
+    .hero-card { padding: 20px; }
+    .hero-card .hc-eyebrow { color: var(--glass-on-variant); }
+    .hero-card .hc-detail { color: var(--glass-on-variant); margin: 4px 0 0; }
+    .hero-route { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; color: var(--glass-on); }
+    .hero-route .arrow { color: var(--glass-on-variant); flex: none; display: inline-flex; }
+    .hero-figures { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--outline); }
+    .hero-figures.stacked { grid-template-columns: minmax(0,1fr); }
+    .hf-value { display: block; color: var(--glass-on); }
+    .hf-label { display: block; color: var(--glass-on-variant); margin-top: 2px; }
+    .glass.hero-solid { background: var(--secondary); }
+    .glass.hero-solid::before, .glass.hero-solid::after { display: none; }
+    /* The safety net. --glass-on-variant is 4.19:1 on #FFB300, just under AA,
+       so any text in here that forgets its override fails silently. This
+       lands first and the named rules below win on specificity. */
+    .hero-solid, .hero-solid p, .hero-solid span, .hero-solid b { color: var(--on-secondary-muted); }
+    .hero-solid .hc-eyebrow { color: var(--on-secondary-detail); }
+    .hero-solid .hc-detail { color: var(--on-secondary-muted); }
+    .hero-solid .hero-route { color: var(--on-secondary); }
+    .hero-solid .hero-route .arrow { color: var(--on-secondary-faint); }
+    .hero-solid .hero-figures { border-top-color: rgba(61,46,0,.7); }
+    .hero-solid .hf-value { color: var(--on-secondary); }
+    .hero-solid .hf-label { color: var(--on-secondary-detail); }
+    /* The lead figure is the one-second number on this receipt: it takes the
+       darkest amber ink (7.4:1), not the blanket's muted 5.8:1 — same rule
+       trip-tickets.html applies to its receipt card's lead figure. */
+    .hero-solid .lead-value { color: var(--on-secondary); }
+    .hero-solid .lead-label { color: var(--on-secondary-detail); }
+    .hero-solid .st-pill { background: var(--on-secondary); }
+    .hero-solid .st-pill-text { color: var(--secondary); }
+
+    .st-head { display: flex; align-items: center; gap: 8px; }
+    .st-pill { display: inline-flex; align-items: center; justify-content: center; max-width: 100%; height: 24px; padding: 0 10px; border-radius: var(--radius-full); background: var(--secondary-container); }
+    .st-pill-text { color: var(--on-secondary-container); }
+    .lead-figure { margin: 14px 0 0; }
+    .lead-value { display: block; color: var(--glass-on); }
+    .lead-label { display: block; color: var(--glass-on-variant); margin-top: 2px; }
+
+    /* ── the two fact lists ───────────────────────────────────────────── */
+    /* The shared .detail-row is for --surface-lowest inside a sheet, not for
+       the glass field, so the pairs here carry the glass on-colours. The key
+       never wraps and the value takes the slack and can break, which is what
+        keeps "Santa Cruz, Olongapo → Caloocan, Kalakhang Maynila" from shoving
+       "Trip route now" off the left edge of a 310px card. */
+    .fact-card { padding: 6px 20px; }
+    .fact-row { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 11px 0; border-bottom: 1px solid var(--outline); }
+    .fact-row:last-child { border-bottom: 0; }
+    .fact-row .k { flex: none; color: var(--glass-on-variant); }
+    .fact-row .v { flex: 1 1 auto; min-width: 0; text-align: right; color: var(--glass-on); font-weight: 600; overflow-wrap: anywhere; }
+
+    /* ── the note under the money ──────────────────────────────────────── */
+    /* The dashed outline is the one container in the system that means
+       annotation rather than record, which is exactly what the fare note is:
+       the rules' own explanation of the figure above it, not another field. */
+    .handoff { margin: 12px 0 0; padding: 14px 20px; border: 1px dashed var(--outline); border-radius: var(--radius-lg); background: rgba(255,255,255,.5); }
+    .handoff .nb-title { color: var(--glass-on); margin: 0 0 4px; }
+    .handoff p { color: var(--glass-on-variant); }
+    /* The multiplication is printed above the prose, because a note about a
+       peso the reader cannot reconstruct is a note about a different number. */
+    .handoff .nb-mult { display: block; margin: 0 0 8px; color: var(--glass-on); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+    /* ── inline storage line ───────────────────────────────────────────── */
+    .storage { margin-top: 20px; padding: 16px 20px; display: flex; align-items: flex-start; gap: 12px; }
+    .storage .icon { flex: none; margin-top: 2px; color: var(--glass-accent-tertiary); }
+    .storage p { color: var(--glass-on-variant); }
+
+    /* ── states ────────────────────────────────────────────────────────── */
+    /* The state cards sit where the receipt sits, so they are the shared
+       glass card, not a flat bordered one. The error variant swaps in the
+       errorContainer surface and drops the glass rim, exactly as the
+       reference screens' state-error does. */
+    .state { padding: 20px; }
+    .state.error { background: var(--error-container); }
+    .state.error::before, .state.error::after { display: none; }
+    .state h2 { margin: 0; color: var(--glass-on); }
+    .state.error h2 { color: var(--error); }
+    .state p { margin: 8px 0 0; color: var(--glass-on-variant); }
+    .state.error p { color: var(--on-error-container); }
+    .primary-btn { margin-top: 14px; min-height: 48px; padding: 0 20px; border-radius: var(--radius-full); border: 0; background: var(--primary-solid); color: var(--on-primary); cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 8px; }
+    .primary-btn:hover { background: var(--primary-solid-hover); }
+    .sk { border-radius: 8px; background: linear-gradient(90deg, rgba(0,0,0,.05) 25%, rgba(0,0,0,.09) 37%, rgba(0,0,0,.05) 63%); background-size: 400% 100%; animation: shim 1.4s ease infinite; }
+    @keyframes shim { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+    @media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
+
+    :focus-visible { outline: 2px solid var(--primary-solid); outline-offset: 2px; border-radius: 6px; }
+
+    /* prototype state control (outside the phone) */
+    .proto-states { position: fixed; left: 18px; bottom: 18px; z-index: 50; display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 16px; background: rgba(255,255,255,.9); border: 1px solid #dcdde1; box-shadow: 0 10px 24px rgba(20,22,28,.12); font-family: var(--font); }
+    .proto-states span { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #6b6e75; font-weight: 600; }
+    .proto-states .seg { display: flex; flex-wrap: wrap; gap: 8px; max-width: 232px; }
+    .proto-states button { font: inherit; font-size: 12px; min-height: 44px; padding: 7px 14px; display: inline-flex; align-items: center; border-radius: 999px; border: 1px solid #d4d5d9; background: #fff; color: #33363c; cursor: pointer; }
+    .proto-states button:hover { background: #F1F2F4; }
+    .proto-states button[aria-pressed="true"]:hover { background: #A93A09; border-color: #A93A09; }
+    .proto-states button[aria-pressed="true"] { background: #C2410C; border-color: #C2410C; color: #fff; }
+
+    @media (max-width: 480px) {
+      body { padding: 0; display: block; }
+      .phone-frame { width: 100%; height: 100dvh; padding: 0; border-radius: 0; background: none; box-shadow: none; }
+      .phone-frame::before, .phone-frame::after, .hardware-button { display: none; }
+      .phone-screen { width: 100%; height: 100%; border-radius: 0; }
+      .proto-states { display: none; }
+    }
+    @media (max-height: 927px) { .phone-frame { zoom: .9; } }
+    @media (max-height: 840px) { .phone-frame { zoom: .82; } }
+    @media (max-height: 771px) { .phone-frame { zoom: .74; } }
+    @media (max-height: 702px) { .phone-frame { zoom: .66; } }
+  </style>
+</head>
+<body>
+  <div class="phone-frame" data-phone-shell data-platform="neutral">
+    <span class="hardware-button volume" aria-hidden="true"></span>
+    <span class="hardware-button power" aria-hidden="true"></span>
+
+    <section class="phone-screen" data-od-id="phone-screen" data-phone-screen>
+      <main class="phone-content" data-phone-content aria-label="Kondukt ticket history detail">
+        <!-- APP CONTENT START -->
+        <div id="app">
+          <!-- 0. Section chrome: back returns to History, the only list that
+               links here. A ticket is only ever reached from a list, so
+               "back" and "History" are one place. -->
+          <header class="chrome readable" data-od-id="thd-chrome">
+            <a class="back" id="backLink" href="index.html" data-od-id="thd-back" aria-label="Back to History">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+            </a>
+            <div class="title-card">
+              <h1 class="chrome-title headline-s tabular" id="chromeTitle">Ticket</h1>
+              <p class="chrome-sub label-s tabular" id="chromeSub">Reading local records&hellip;</p>
+            </div>
+          </header>
+
+          <div class="app-scroll" id="scroll">
+            <div class="readable">
+              <!-- 1. The receipt: the peso, the multiplication that produced
+                   it, the route as it was carried, and the rules' own
+                   explanation of the figure. -->
+              <section data-od-id="ticket-receipt" id="receiptSection">
+                <div id="cardSlot"></div>
+              </section>
+
+              <!-- 2. The trip behind the fare, with its own route printed
+                   separately from the receipt's snapshot of it. -->
+              <section data-od-id="ticket-journey" id="journeySection" hidden>
+                <div class="sec-head">
+                  <h2 class="sec-title label-s" data-od-id="thd-journey-head">THE TRIP IT WAS TAKEN ON</h2>
+                </div>
+                <div class="glass fact-card" id="journeyCard"></div>
+              </section>
+
+              <!-- 3. The row that stores all of it, and the one promise this
+                   screen can actually keep. -->
+              <section data-od-id="ticket-record" id="recordSection" hidden>
+                <div class="sec-head">
+                  <h2 class="sec-title label-s" data-od-id="thd-record-head">THE RECORD</h2>
+                </div>
+                <div class="glass fact-card" id="recordCard"></div>
+                <div class="handoff" data-od-id="thd-readonly-note">
+                  <p class="nb-title label-s">READ ONLY, ALWAYS</p>
+                  <p class="body-s">A fare is written once, at the moment it is taken, and this store keeps no way to change or cancel it afterwards. So nothing on the recorded row is editable here.</p>
+                </div>
+              </section>
+
+              <!-- 4. Where the row lives. -->
+              <footer class="glass storage" data-od-id="storage-footer" aria-label="Local storage note">
+                <svg class="icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="7.5" ry="3.2"/><path d="M4.5 6v12c0 1.8 3.4 3.2 7.5 3.2s7.5-1.4 7.5-3.2V6"/><path d="M4.5 12c0 1.8 3.4 3.2 7.5 3.2s7.5-1.4 7.5-3.2"/></svg>
+                <p class="body-s tabular" id="storageNote">Reading the local store…</p>
+              </footer>
+            </div>
+          </div>
+        </div>
+        <!-- APP CONTENT END -->
+      </main>
+
+      <div class="status-bar" aria-hidden="true">
+        <span class="status-time">9:41</span>
+        <span class="status-cutout-zone"></span>
+        <span class="status-icons">
+          <svg class="connectivity" viewBox="0 0 15 12"><path d="M1.5 10.5v-2m4 2v-4.5m4 4.5v-7m4 7v-9"/></svg>
+          <svg class="wifi" viewBox="0 0 16 12"><path d="M1.5 4.7a9.2 9.2 0 0 1 13 0M4.2 7.3a5.4 5.4 0 0 1 7.6 0M6.9 10a1.55 1.55 0 0 1 2.2 0"/></svg>
+          <svg class="battery" viewBox="0 0 20 11"><rect x=".75" y="1.25" width="16.5" height="8.5" rx="2"/><path d="M18.5 4v3M3.2 3.4h10.4v4.2H3.2z" fill="currentColor" stroke="none"/></svg>
+        </span>
+      </div>
+      <div class="camera-dot" aria-hidden="true"></div>
+      <div class="gesture-indicator" aria-hidden="true"></div>
+    </section>
+  </div>
+
+  <div class="proto-states" role="group" aria-label="Prototype state preview">
+    <span>Prototype states</span>
+    <div class="seg" id="protoSeg">
+      <button type="button" data-state="ready" aria-pressed="true">Fare on a running trip</button>
+      <button type="button" data-state="completed" aria-pressed="false">Same fare, trip closed</button>
+      <button type="button" data-state="notfound" aria-pressed="false">Not found</button>
+      <button type="button" data-state="loading" aria-pressed="false">Loading</button>
+      <button type="button" data-state="error" aria-pressed="false">Error</button>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+  'use strict';
+
+  /* ── icons (src/icons.tsx) ─────────────────────────────────────────── */
+  const ICONS = {
+    arrow: '<path d="M5 12h13M13 6l6 6-6 6"/>',
+    bus: '<rect x="4" y="3.5" width="16" height="14.5" rx="3"/><path d="M4 11h16"/><path d="M8 20v-1.5M16 20v-1.5"/><circle cx="8" cy="14.6" r="1.1"/><circle cx="16" cy="14.6" r="1.1"/>',
+    history: '<path d="M4 12a8 8 0 1 0 2.6-5.9"/><path d="M3.4 4.4v3.8h3.8"/><path d="M12 7.6V12l3 2"/>'
+  };
+  const icon = (name, size, color, sw) =>
+    '<svg viewBox="0 0 24 24" width="' + size + '" height="' + size + '" fill="none" stroke="' + color +
+    '" stroke-width="' + (sw || 1.9) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || '') + '</svg>';
+
+  const $ = id => document.getElementById(id);
+
+  /* ── formatters (src/lib/format.ts, src/lib/tripTicketsFormat.ts) ─── */
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const peso = n => '₱' + Number(n).toFixed(2);
+  const km = n => Number(n).toFixed(1) + ' km';
+  /* The shipped screens' EMPTY_VALUE, verbatim: a missing distance says so
+     instead of printing 0.0 km, which is a claim about a road. */
+  const NO_DISTANCE = 'Distance not recorded';
+  const mediumDate = d => DAYS[d.getDay()] + ', ' + MONTHS[d.getMonth()] + ' ' + d.getDate();
+  const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+  const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+  /* NBSP holds the meridiem to its time. A plain space let the meta line break
+     "ended 10:13 AM" into "... ended 10:13" and a one-word "AM" line. */
+  const clock = d => { const h = d.getHours(); const h12 = h % 12 === 0 ? 12 : h % 12; return h12 + ':' + String(d.getMinutes()).padStart(2, '0') + ' ' + (h < 12 ? 'AM' : 'PM'); };
+  const stamp = d => clock(d) + ' · ' + mediumDate(d);
+  const FARE = { REGULAR: 15, STUDENT: 13, SENIOR_CITIZEN: 12, PWD: 12 };
+  /* passengerTypeLabel() title-cases the first word and lower-cases the rest,
+     so the store's PWD renders as "Pwd" — neither the acronym every sign in
+     the country prints, nor a word. The other three read correctly as words,
+     which is what the formatter was reaching for, so it keeps them and the
+     acronym stays an acronym. */
+  const PT_LABEL = { REGULAR: 'Regular', STUDENT: 'Student', SENIOR_CITIZEN: 'Senior citizen', PWD: 'PWD' };
+
+  /* ── records ───────────────────────────────────────────────────────── */
+  /* Same generator SHAPE as History (index.html): same fare table, same
+     mkTrip/mkTicketsFor/buildData, same 200/1200 counters. ROUTES pairs are
+     the store's own barangay snapshots (tripTicketsStore.ts:480-486, six
+     seeded trips), not History's Manila placeholders, so every fare reads
+     "Barangay, Municipality → Barangay, Municipality". A ticket id is only
+     meaningful against the ledger that issued it. Bare open shows the newest
+     fare on the running trip. */
+  const ROUTES = [['Santa Cruz, Olongapo','Caloocan, Kalakhang Maynila'],['Olongapo, Olongapo','Santa Cruz, Olongapo'],['Santa Cruz, Olongapo','Subic, Subic'],['Olongapo, Olongapo','Subic, Subic'],['Iba, Zambales','Caloocan, Kalakhang Maynila'],['Iba, Zambales','Santa Cruz, Olongapo']];
+  /* km_marker in thousandths, tripTicketsStore.ts:611-615. A trip's distance
+     is a subtraction of two of them, so the pairs above carry the same six
+     distances the seed trips carry: 86.2, 4.4, 21.6, 17.2, 217.4, 131.2. */
+  const KM = { 'Santa Cruz, Olongapo': 228000, 'Caloocan, Kalakhang Maynila': 314200, 'Olongapo, Olongapo': 232400, 'Subic, Subic': 249600, 'Iba, Zambales': 96800 };
+  let seqTrip = 200, seqTicket = 1200;
+  const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  function mkTrip(day, i, status) {
+    const r = ROUTES[(seqTrip + i) % ROUTES.length];
+    const tickets = 22 + ((seqTrip * 7 + i * 5) % 24);
+    const passengers = tickets + ((seqTrip + i) % 9);
+    /* Same subtraction measureTrip runs: |to − from| off the km_markers, so
+       the six pairs print the seed's own six distances. */
+    const distance = Math.round(Math.abs(KM[r[1]] - KM[r[0]]) / 100) / 10;
+    const started = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 5 + i * 3, (seqTrip + i * 13) % 60);
+    return {
+      id: seqTrip++, trip_number: seqTrip - 1,
+      origin: r[0], destination: r[1], date: started,
+      status: status || 'COMPLETED', distance: Math.round(distance * 10) / 10,
+      tickets, passengers, earnings: 0
+    };
+  }
+  function mkTicketsFor(trip, day) {
+    const out = [];
+    const kinds = ['REGULAR', 'STUDENT', 'SENIOR_CITIZEN', 'PWD'];
+    const n = 2 + (trip.trip_number % 2);
+    for (let k = 0; k < n; k++) {
+      const type = kinds[(trip.trip_number + k) % 4];
+      const qty = 1 + ((trip.trip_number + k) % 3);
+      const each = FARE[type];
+      const at = new Date(day.getFullYear(), day.getMonth(), day.getDate(), trip.date.getHours(), (trip.date.getMinutes() + k * 7) % 60);
+      out.push({ id: seqTicket++, trip: trip.trip_number, created_at: at, origin: trip.origin, destination: trip.destination, passenger_type: type, qty, each, total: qty * each });
+    }
+    return out;
+  }
+  function buildData(startDay, days) {
+    const trips = [], tickets = [], daily = [];
+    for (let d = 0; d < days; d++) {
+      const day = addDays(startDay, d);
+      const count = 3 + (d % 2);
+      let dayEarnings = 0, dayTickets = 0;
+      for (let i = 0; i < count; i++) {
+        const isActive = sameDay(day, new Date()) && d === days - 1 && i === count - 1;
+        const t = mkTrip(day, i, isActive ? 'ACTIVE' : 'COMPLETED');
+        const tks = mkTicketsFor(t, day);
+        t.earnings = tks.reduce((s, x) => s + x.total, 0);
+        trips.push(t); tickets.push.apply(tickets, tks);
+        dayEarnings += t.earnings; dayTickets += tks.length;
+      }
+      daily.push({ dayStart: day.getTime(), label: mediumDate(day), earnings: dayEarnings, count: dayTickets });
+    }
+    trips.sort((a, b) => b.date - a.date || b.trip_number - a.trip_number);
+    tickets.sort((a, b) => b.created_at - a.created_at || b.id - a.id);
+    daily.reverse();
+    return { trips, tickets, daily };
+  }
+  /* A record the store is full of and does not contain, which is what the
+     shipped notFound branch actually sees: a stale link, not an empty table. */
+  const MISSING_ID = 99999;
+
+  /* ── state ─────────────────────────────────────────────────────────── */
+  /* One variable carries the branch, so no two pieces of state can disagree
+     about which of the five the screen is in. `preview` is the prototype
+     control; the shipped LoadState union is loading | notFound | error |
+     ready, and ready then splits on the trip's status. All five reachable. */
+  const data = buildData(startOfDay(new Date()), 1);
+  const params = new URLSearchParams(window.location.search);
+  function newestFareId() {
+    const live = data.trips.filter(x => x.status === 'ACTIVE')[0] || null;
+    const pool = live ? data.tickets.filter(x => x.trip === live.trip_number) : [];
+    const sorted = (pool.length ? pool : data.tickets).slice()
+      .sort((a, b) => b.created_at - a.created_at || b.id - a.id);
+    return sorted.length ? sorted[0].id : MISSING_ID;
+  }
+  const state = {
+    preview: 'ready',      // ready | completed | notfound | loading | error
+    data: data,
+    /* ?id= is the handoff from a ledger row. Opened with no id at all, this
+       falls back to the newest fare on the running trip, because a bare file
+       open should show the screen rather than an error it did not cause. */
+    wanted: params.has('id') ? Number(params.get('id')) : newestFareId()
+  };
+
+  /* ── compute: one read of the store, every figure on this screen ───── */
+  function compute() {
+    const d = state.data;
+    const k = d.tickets.filter(x => x.id === state.wanted)[0] || null;
+    const t = k ? d.trips.filter(x => x.trip_number === k.trip)[0] || null : null;
+    return { d, k, t, live: !!t && t.status === 'ACTIVE' };
+  }
+
+  /* ── responsive algorithm (parity with the other screens) ──────────── */
+  const FIG_STACK = 300;
+  const layout = { stackFigures: false };
+  function measure() {
+    const scroll = $('scroll');
+    const w = scroll ? Math.min(scroll.clientWidth, 720) : 390;
+    layout.stackFigures = w < FIG_STACK;
+    const figs = document.querySelector('[data-figures]');
+    if (figs) figs.classList.toggle('stacked', layout.stackFigures);
+  }
+  window.addEventListener('resize', measure);
+
+  /* ── render ────────────────────────────────────────────────────────── */
+  function renderChrome(c) {
+    const title = $('chromeTitle'), sub = $('chromeSub');
+    if (state.preview === 'loading') { title.textContent = 'Ticket'; sub.textContent = 'Reading local records…'; return; }
+    if (state.preview === 'error') { title.textContent = 'Ticket'; sub.textContent = 'Records unavailable'; return; }
+    if (state.preview === 'notfound' || !c.k) { title.textContent = 'Ticket'; sub.textContent = 'No ticket with this record'; return; }
+    title.textContent = 'Ticket #' + c.k.id;
+    sub.textContent = stamp(c.k.created_at);
+  }
+
+  /* The fare note. addTicketFare.ts:288 ticketFareNote(), first branch,
+     carried across in substance: the stored row has no distance column
+     (schema.ts:58 — nine fields, none of them a leg distance), so a ticket
+     read back out of the store is exactly the null-distance case and the
+     fare comes off the amount recorded on the row rather than off a route
+     that may have been edited since. The store is an append-only ledger and
+     a peso someone has to defend in a dispute cannot be defended by a rule
+     that has since changed underneath it.
+     ponytail: the second branch, where the leg is the trip's own whole
+     distance and the floors get re-derived, needs priceTicket() and a
+     FareRules projection this prototype has no rates for. Add it when the
+     prototype carries real per-km rules instead of the flat peso table. */
+  function ticketFareNote(each) {
+    return 'This ticket recorded ' + peso(each) + ' per passenger. The leg distance is not stored with the ticket, ' +
+      'so the fare is read from the amount recorded on it rather than re-derived from a route that may have changed.';
+  }
+
+  function factRow(k, v) {
+    return '<div class="fact-row"><span class="k body-m">' + k + '</span><span class="v body-m tabular">' + v + '</span></div>';
+  }
+
+  /* The receipt card. Identity, the route as it was carried, the money, the
+     three figures that make the money reconstructable, then the note. Amber
+     only while the trip runs; a fare off a completed trip is the same card in
+     glass, and that one difference is the whole state machine. */
+  function cardHTML(c) {
+    const k = c.k, t = c.t;
+    // A route with no stored distance prints Distance not recorded, never
+    // 0 km — the shipped EMPTY_VALUE rule: a missing distance is a fact
+    // about the road, not a measurement of it.
+    const distance = t && t.distance > 0 ? km(t.distance) : NO_DISTANCE;
+    return '<div class="glass hero-card' + (c.live ? ' hero-solid' : '') + '" data-od-id="' + (c.live ? 'thd-card-running' : 'thd-card-completed') + '">' +
+      '<div class="st-head"><p class="hc-eyebrow label-s">' + (c.live ? 'FARE ON A RUNNING TRIP' : 'FARE ON A CLOSED TRIP') + '</p>' +
+      '<span class="st-pill"><span class="st-pill-text label-s tabular">TICKET #' + k.id + '</span></span></div>' +
+      '<p class="hero-route headline-s">' + k.origin +
+      '<span class="arrow" aria-hidden="true">' + icon('arrow', 18, 'currentColor', 2) + '</span>' +
+      k.destination + '</p>' +
+      '<p class="hc-detail body-s tabular">' + distance +
+      ' · taken ' + stamp(k.created_at) + '</p>' +
+      '<div class="lead-figure"><b class="lead-value display-s tabular">' + peso(k.total) + '</b>' +
+      '<span class="lead-label label-s">COLLECTED ON THIS FARE</span></div>' +
+      '<div class="hero-figures" data-figures>' +
+        '<div><b class="hf-value title-m tabular">' + peso(k.each) + '</b><span class="hf-label label-s">PER PASSENGER</span></div>' +
+        '<div><b class="hf-value title-m tabular">' + k.qty + '</b><span class="hf-label label-s">PASSENGERS</span></div>' +
+        '<div><b class="hf-value title-m">' + PT_LABEL[k.passenger_type] + '</b><span class="hf-label label-s">FARE TYPE</span></div>' +
+      '</div>' +
+      '<div class="handoff" data-od-id="thd-fare-note">' +
+        '<p class="nb-title label-s">WHY THIS AMOUNT</p>' +
+        '<b class="nb-mult">' + peso(k.each) + ' × ' + plural(k.qty, 'passenger', 'passengers') + ' = ' + peso(k.total) + '</b>' +
+        '<p class="body-s">' + ticketFareNote(k.each) + '</p>' +
+      '</div>' +
+    '</div>';
+  }
+
+  /* The trip, as it stands now. Its route is printed here and not only on the
+     card because the card's copy is a snapshot from the moment the fare was
+     taken, and the two can disagree once the road is edited. Labelled "now" so
+     a reader knows which of the two is which. */
+  function journeyHTML(c) {
+    const t = c.t;
+    if (!t) return '';
+    return factRow('Trip', '#' + t.trip_number) +
+      factRow('Trip route now', t.origin + ' → ' + t.destination) +
+      factRow('Trip distance', km(t.distance)) +
+      factRow('Started', stamp(t.date)) +
+      factRow('Trip status', t.status === 'ACTIVE' ? 'Running' : 'Completed');
+  }
+
+  /* The row itself: what the store holds, in the store's own words, and what
+     it will not let anyone do to it afterwards. */
+  function recordHTML(c) {
+    const k = c.k;
+    return factRow('Ticket number', '#' + k.id) +
+      factRow('Recorded', stamp(k.created_at)) +
+      factRow('Passenger type', PT_LABEL[k.passenger_type]) +
+      factRow('Quantity', plural(k.qty, 'passenger', 'passengers')) +
+      factRow('Fare each', peso(k.each)) +
+      factRow('Line total', peso(k.total));
+  }
+
+  /* The four branches that are not content, then the card. Shipped's error
+     and not-found copy is kept — it is already the honest version — and both
+     keep their one recovery action. */
+  function renderCard(c) {
+    const slot = $('cardSlot');
+    if (state.preview === 'loading') {
+      slot.innerHTML = '<div class="glass hero-card" role="status" aria-busy="true" data-od-id="thd-card-loading">' +
+        '<div class="sk" style="height:11px;width:34%;border-radius:6px"></div>' +
+        '<div class="sk" style="height:22px;width:66%;border-radius:8px;margin-top:14px"></div>' +
+        '<div class="sk" style="height:34px;width:48%;border-radius:8px;margin-top:20px"></div>' +
+        '<div class="sk" style="height:44px;width:100%;border-radius:999px;margin-top:20px"></div></div>';
+      return;
+    }
+    if (state.preview === 'error') {
+      slot.innerHTML = '<div class="glass state error" role="alert" data-od-id="thd-error">' +
+        '<h2 class="headline-s">Records could not be read</h2>' +
+        '<p class="body-m">This ticket did not answer on this device, so no figure on this screen can be shown. Nothing was lost — the row is still on this device.</p>' +
+        '<a class="primary-btn" href="index.html" data-od-id="thd-error-back">' +
+        icon('history', 18, '#fff', 1.7) + '<span class="label-l">Back to History</span></a></div>';
+      return;
+    }
+    if (state.preview === 'notfound' || !c.k) {
+      slot.innerHTML = '<div class="glass state" data-od-id="thd-notfound">' +
+        '<h2 class="headline-s">Ticket not found</h2>' +
+        '<p class="body-m">No ticket with this record exists on this device. Its link was stale. The ' + plural(c.d.tickets.length, 'fare', 'fares') + ' already saved here are untouched.</p>' +
+        '<a class="primary-btn" href="index.html" data-od-id="thd-notfound-back">' +
+        icon('history', 18, '#fff', 1.7) + '<span class="label-l">Back to History</span></a></div>';
+      return;
+    }
+    slot.innerHTML = cardHTML(c);
+  }
+
+  /* A stale ?id= lands here with k null: the record is absent while the
+     store is full, which is the not-found branch — never an empty ledger
+     and never a render crash on a null row. */
+  function renderSections(c) {
+    const ready = (state.preview === 'ready' || state.preview === 'completed') && !!c.k;
+    $('journeySection').hidden = !ready;
+    $('recordSection').hidden = !ready;
+    if (ready) {
+      $('journeyCard').innerHTML = journeyHTML(c);
+      $('recordCard').innerHTML = recordHTML(c);
+    }
+  }
+
+  /* The counts that back the privacy line are the store's own, not this
+     screen's: a receipt that says "saved on this device" has to be talking
+     about the same ledger the ledger is talking about. */
+  function renderNote(c) {
+    $('storageNote').innerHTML = state.preview === 'loading'
+      ? 'Reading the local store…'
+      : state.preview === 'error'
+        ? 'The local store did not answer. No figure on this screen is computed.'
+        : 'One of <b class="strong">' + c.d.tickets.length + '</b> fares recorded on this device, in a store of ' +
+          '<b class="strong">' + c.d.trips.length + '</b> trips. Nothing is sent anywhere.';
+  }
+
+  function render() {
+    const c = compute();
+    renderChrome(c);
+    renderCard(c);
+    renderSections(c);
+    renderNote(c);
+    measure();
+  }
+
+  /* ── events ────────────────────────────────────────────────────────── */
+  function syncProto() {
+    Array.prototype.forEach.call($('protoSeg').querySelectorAll('button'), function (b) {
+      b.setAttribute('aria-pressed', b.dataset.state === state.preview ? 'true' : 'false');
+    });
+  }
+
+  /* The one preview that needs a different record is "not found", because
+     the same fare cannot be both present and absent. "Same fare, trip closed"
+     re-points at the newest fare on a completed trip, which is the only
+     honest way to show the closed-trip variant of this card: the closed-ness
+     is a property of the trip, not of the ticket. */
+  function setPreview(name) {
+    state.preview = name;
+    if (name === 'completed') {
+      const done = state.data.trips.filter(t => t.status === 'COMPLETED')
+        .sort((a, b) => b.date - a.date || b.trip_number - a.trip_number);
+      const fares = done.length
+        ? state.data.tickets.filter(x => x.trip === done[0].trip_number).sort((a, b) => b.created_at - a.created_at || b.id - a.id)
+        : [];
+      state.wanted = fares.length ? fares[0].id : newestFareId();
+    } else if (name === 'notfound') {
+      state.wanted = MISSING_ID;
+    } else {
+      state.wanted = newestFareId();
+    }
+    syncProto();
+    render();
+  }
+
+  document.addEventListener('click', function (e) {
+    const proto = e.target.closest('#protoSeg button');
+    if (proto) { setPreview(proto.dataset.state); return; }
+  });
+
+  /* ── boot ──────────────────────────────────────────────────────────── */
+  syncProto();
+  render();
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,1538 @@
+<!doctype html>
+<!--
+  Kondukt · Add Trip screen — Open Design prototype.
+  Same shell, tokens and glass layer as index.html (History), dashboard.html,
+  home.html, trip.html, trip-tickets.html, passenger.html and add-ticket.html,
+  so all eight screens read as one product. The app lives in the APP CONTENT
+  slot; content honours the top and bottom safe areas.
+
+  The screen src/screens/AddTripScreen.tsx does not have yet. What it has to
+  solve, and what it does about each:
+    1. A trip is a route and no money. One row, seven columns, one insert
+       (tripTicketsStore.ts:853-863): two location snapshots, the clock, the
+       status, and the ROUTE distance as |km difference| (schema.ts:36-50). Two of
+       the inputs are picked off a board, one is a switch. So the form is
+       deliberately this short — the design work on this screen is not the inputs,
+       it is making the trip's CONSEQUENCES legible before it is committed.
+    1a. THE ROAD IS A PROPOSAL, NOT A PORT. startTrip is handed usesSctex
+       (AddTripScreen.tsx:161-165) and discards it — there is no road column on a
+       trip, and the store's own comment at :798-799 claims otherwise. The switch
+       is on this screen because the conductor is already making the decision;
+       the column is the port's first job, and every place a peso could be argued
+       about says so rather than implying a flag exists.
+     2. A TRIP CARRIES NO FARE. It has no passengers, so a peso on this screen
+        would be a fiction, and the one solid amber total that Add ticket wears
+        would be a lie with a number attached. So the money section is a
+        derivation with no sum: route distance, billable distance, and the rate
+        those are charged at, with a toll road's extra half kilometre folded
+        into the billable figure rather than given a row of its own. Every
+        boarding on the trip is priced off exactly these numbers, so showing
+        them here is showing the whole fare model, once, without inventing a
+        total.
+     3. usesSctex is a column on the TRIP row, not on the ticket
+         (tripTicketsStore.ts:753-759), so the road is a trip-level setting here
+         and nowhere else in the app. Choosing it adds distance the driver is not
+         driving but is billed for, on every boarding on the trip, so that extra
+         distance is carried by the billable figure below and explained once in
+         the rules sheet — not implied by the option's own label, and not
+         repeated in the road option's own copy.
+    4. The app has no fare calculator anywhere, and the minimum fare is the rule
+       a hand-written distance table forgets twice. The minimum distance and the
+       minimum fare are named on the card and in the rules sheet, so the floor is
+       never the thing that is quietly missing.
+    5. startTrip (tripTicketsStore.ts:801) validates the route and returns five
+       sentences; this screen carries four of them, verbatim from :823-843. A
+       prototype that skipped them would let a conductor compose a trip the store
+       then throws away, so the same words are used and the commit states its
+       reason while it is
+       disabled.
+    6. THE SCREEN EXITS ON SUCCESS, which is the one way it differs from Add
+       ticket. There is one trip at a time and the trip that just started is
+       where the conductor now works, so the commit is a navigation: it stores
+       the trip, confirms it in a sheet that says exactly what was written, and
+       hands straight to the running trip. Once started, the commit is spent —
+       the button says so and gives the number to end, because a trip number
+       issued twice is the one bug this screen must not have.
+
+  Section order is decision order: the two terminals, the road, what that road
+  will bill, and the one commit. The leg between the two terminals carries the
+  swap, because a trip runs one way and 217.4 km is not the same in reverse.
+
+  Prototype states: Ready · No terminals · Loading · No fare rules · Error.
+  All five start from the same chosen route, so they differ in what they are
+  about rather than in how much has been picked.
+-->
+<html lang="en">
+<head><script type="application/json" data-od-external-dependencies>["https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap"]</script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kondukt · Add trip</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    @layer od-layout {
+      .od-stack   { display: flex; flex-direction: column; gap: var(--od-gap, 8px); }
+      .od-row     { display: flex; align-items: center; gap: var(--od-gap, 8px); }
+      .od-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--od-gap, 8px); }
+      .od-fill    { flex: 1 1 0; min-width: 0; }
+      .od-grid    { display: grid; gap: var(--od-gap, 12px); grid-template-columns: repeat(var(--od-cols, 3), minmax(0, 1fr)); }
+      :where(.od-stack,.od-row,.od-cluster,.od-grid,.od-stat) > :where(*) { min-width: 0; }
+      .od-stat { display: grid; gap: var(--od-gap, 2px); }
+      .od-truncate { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+      .od-clamp-2 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
+    }
+
+    :root {
+      /* ── kondukt M3 warm palette (src/theme.ts) ───────────────────────── */
+      --primary:#E65100; --on-primary:#FFFFFF; --primary-container:#FFE6D2; --on-primary-container:#4E2200;
+      --primary-solid:#C2410C; --primary-solid-hover:#A93A09;
+      --secondary:#FFB300; --on-secondary:#3D2E00; --secondary-container:#FFEFC7; --on-secondary-container:#4A3600;
+      --secondary-fg:#8A6100;
+      /* Foregrounds for the solid-amber card, measured against #FFB300:
+         7.4:1 / 5.8:1 / 4.9:1. These were raw hex before; tokens keep the two
+         amber cards (Home hero, Dashboard status) provably identical. */
+      --on-secondary-detail:#4F3D2B; --on-secondary-muted:#5B4720; --on-secondary-faint:#6B5518;
+      --tertiary:#546E7A; --on-tertiary:#FFFFFF; --tertiary-container:#DDE6EA; --on-tertiary-container:#162B33;
+      --error:#BA1A1A; --on-error:#FFFFFF; --error-container:#FFDAD6; --on-error-container:#410002;
+      --background:#FDF7F3; --surface:#FDF7F3; --surface-lowest:#FFFFFF; --surface-low:#F7EFE9;
+      --surface-container:#F2E9E2; --surface-high:#ECE3DC;
+      --on-surface:#221A15; --on-surface-variant:#53433B; --outline:#85736B; --outline-variant:#D7C2B7;
+      --scrim:rgba(34,26,21,.32);
+
+      /* glass layer */
+      --glass-tint:rgba(255,255,255,.58);
+      --glass-rim:rgba(255,255,255,.85);
+      --glass-on:#1A2029; --glass-on-variant:#4A5568;
+      --glass-accent-primary:#8F3A00; --glass-accent-secondary:#6B4B00; --glass-accent-tertiary:#334A56;
+      --glass-shadow:rgba(90,106,130,.16);
+
+      --radius-sm:8px; --radius-md:12px; --radius-lg:16px; --radius-xl:24px; --radius-glass:28px; --radius-full:999px;
+      --font: 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+      /* shell vars (from the neutral OD handset) */
+      --phone-screen-width:390px; --phone-screen-height:844px; --phone-bezel:10px;
+      --phone-outer-radius:52px; --phone-screen-radius:42px;
+      --phone-safe-top:50px; --phone-safe-bottom:29px;
+      --phone-system-fg:#17181a; --phone-screen-bg:#f8f8f9; --phone-stage-bg:#eaebee;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      min-height: 100dvh; display: grid; place-items: center; padding: 32px;
+      background: radial-gradient(circle at 50% 15%, rgba(255,255,255,.94), transparent 35%), var(--phone-stage-bg);
+      color: #191a1d; font-family: var(--font);
+    }
+
+    /* ── handset shell ─────────────────────────────────────────────────── */
+    .phone-frame {
+      position: relative;
+      width: calc(var(--phone-screen-width) + var(--phone-bezel) * 2);
+      height: calc(var(--phone-screen-height) + var(--phone-bezel) * 2);
+      padding: var(--phone-bezel); border-radius: var(--phone-outer-radius);
+      background: linear-gradient(145deg, rgba(255,255,255,.2), transparent 17%), linear-gradient(160deg, #3f4146 0%, #202227 48%, #0b0c0f 100%);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.13), inset 0 0 0 2px rgba(0,0,0,.85), 0 32px 68px -20px rgba(10,12,16,.52), 0 10px 24px -10px rgba(10,12,16,.32);
+      isolation: isolate;
+    }
+    .phone-frame::before, .phone-frame::after {
+      content: ""; position: absolute; z-index: -1; top: 96px; bottom: 96px; width: 2px;
+      background: linear-gradient(to bottom, transparent, rgba(255,255,255,.13) 16%, transparent 30%, transparent 72%, rgba(255,255,255,.07) 88%, transparent);
+    }
+    .phone-frame::before { left: 0; } .phone-frame::after { right: 0; }
+    .hardware-button { position: absolute; width: 4px; border-radius: 3px; background: linear-gradient(90deg,#08090b,#2a2d33 60%,#08090b); box-shadow: inset 0 1px rgba(255,255,255,.08); }
+    .hardware-button.volume { left: -3px; top: 222px; height: 86px; }
+    .hardware-button.power { right: -3px; top: 270px; height: 82px; }
+
+    .phone-screen {
+      position: relative; width: var(--phone-screen-width); height: var(--phone-screen-height);
+      overflow: hidden; border-radius: var(--phone-screen-radius); background: var(--phone-screen-bg);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.05);
+    }
+    .phone-content { position: absolute; inset: 0; overflow: hidden; padding: 0; background: transparent; }
+
+    .status-bar { position: absolute; z-index: 40; inset: 0 0 auto; height: var(--phone-safe-top); display: grid; grid-template-columns: minmax(0,1fr) 56px minmax(0,1fr); align-items: start; padding: 14px 20px 0; color: var(--phone-system-fg); opacity: .8; pointer-events: none; }
+    .status-time { justify-self: start; display: flex; align-items: center; height: 15px; font-size: 14px; font-weight: 560; line-height: 1; letter-spacing: .01em; font-family: system-ui, sans-serif; }
+    .status-cutout-zone { width: 56px; }
+    .status-icons { justify-self: end; display: inline-flex; align-items: center; height: 15px; gap: 6px; }
+    .status-icons svg { display: block; flex: none; fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
+    .status-icons .connectivity { width: 15px; height: 12px; } .status-icons .wifi { width: 15px; height: 12px; } .status-icons .battery { width: 19px; height: 11px; }
+    .camera-dot { position: absolute; z-index: 45; top: 13px; left: 50%; width: 10px; height: 10px; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(circle at 38% 35%, #344154 0 12%, #0a0c10 34%, #000 76%); box-shadow: 0 0 0 1px rgba(255,255,255,.06); pointer-events: none; }
+    .gesture-indicator { position: absolute; z-index: 45; left: 50%; bottom: 8px; width: 96px; height: 4px; transform: translateX(-50%); border-radius: 99px; background: var(--phone-system-fg); opacity: .86; pointer-events: none; }
+
+    /* ── app root ──────────────────────────────────────────────────────── */
+    #app {
+      position: relative; height: 100%; display: flex; flex-direction: column;
+      color: var(--glass-on);
+      background:
+        radial-gradient(125% 82% at 6% -4%, #FBC9A8 0%, rgba(246,227,212,.78) 32%, rgba(244,247,251,0) 63%),
+        radial-gradient(130% 88% at 104% 104%, #C6D9E8 0%, rgba(228,233,242,.72) 34%, rgba(244,247,251,0) 66%),
+        #F4F7FB;
+    }
+    .app-scroll {
+      flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch; scrollbar-width: none;
+      padding-bottom: var(--phone-safe-bottom);
+    }
+    .app-scroll::-webkit-scrollbar { display: none; }
+
+    .readable { width: 100%; max-width: 720px; margin-inline: auto; padding-inline: 20px; }
+    .pad-x { padding-inline: 20px; }
+
+    /* ── typography roles ──────────────────────────────────────────────── */
+    .display-s { font-weight: 700; font-size: 28px; line-height: 36px; letter-spacing: -.3px; }
+    .headline-s { font-weight: 600; font-size: 20px; line-height: 27px; letter-spacing: -.3px; }
+    .title-m { font-weight: 600; font-size: 16px; line-height: 23px; }
+    .body-m { font-weight: 400; font-size: 14px; line-height: 21px; }
+    .body-s { font-weight: 400; font-size: 12px; line-height: 18px; }
+    .label-l { font-weight: 600; font-size: 15px; line-height: 20px; }
+    .label-s { font-weight: 600; font-size: 11px; line-height: 16px; letter-spacing: .6px; }
+    .tabular { font-variant-numeric: tabular-nums; }
+    .muted { color: var(--glass-on-variant); }
+    .strong { color: var(--glass-on); }
+    p { margin: 0; }
+
+    /* ── glass surface ─────────────────────────────────────────────────── */
+    .glass {
+      position: relative; border-radius: var(--radius-glass);
+      background: var(--glass-tint);
+      box-shadow: 0 8px 15px var(--glass-shadow), inset 0 1px 0 rgba(255,255,255,.55);
+      -webkit-backdrop-filter: blur(18px) saturate(180%);
+      backdrop-filter: blur(18px) saturate(180%);
+    }
+    .glass > * { position: relative; z-index: 1; }
+    .glass::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: rgba(120,130,150,.5); opacity: .035; pointer-events: none; }
+    .glass::after  { content: ""; position: absolute; inset: 0; border-radius: inherit; border: 1px solid var(--glass-rim); pointer-events: none; z-index: 2; }
+
+    /* ── chrome (SectionChrome) ────────────────────────────────────────── */
+    .chrome { display: flex; align-items: center; gap: 12px; flex: none; padding: calc(var(--phone-safe-top) + 12px) 20px 12px; }
+    .back {
+      width: 44px; height: 44px; border-radius: var(--radius-full); border: 0; background: var(--primary-solid);
+      display: grid; place-items: center; cursor: pointer; flex: none;
+      box-shadow: 0 8px 15px var(--glass-shadow);
+    }
+    .title-card {
+      flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 5px 16px; border-radius: var(--radius-full);
+      background: var(--primary-solid); display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+      box-shadow: 0 8px 15px var(--glass-shadow);
+    }
+    .chrome-title { color: var(--on-primary); margin: 0; }
+    .chrome-sub { color: var(--on-primary); margin: 1px 0 0; }
+
+    /* ── section header (SectionHeader) ────────────────────────────────── */
+    .sec-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 20px; margin-bottom: 12px; }
+    .sec-title { color: var(--glass-on-variant); margin: 0; }
+    .text-action { border: 0; background: none; padding: 0 4px; min-height: 48px; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; color: var(--glass-accent-primary); font-family: inherit; flex: none; }
+    .text-action .label-s { color: inherit; }
+    /* Hover must not lighten the label — the only change is a rule under it,
+       so the 6.9:1 default is also the hover contrast. */
+    .text-action:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+    /* ── status card: the four-way state machine ───────────────────────── */
+    .status-card { padding: 20px; }
+    .status-card .st-eyebrow { color: var(--glass-on-variant); }
+    .status-card .st-title { color: var(--glass-on); margin: 8px 0 0; }
+    .status-card .st-detail { color: var(--glass-on-variant); margin: 4px 0 0; }
+    .status-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 12px; }
+    /* Amber is reserved for the one thing a conductor registers without
+       reading: a trip that is running right now, plus the one note that states
+       what the selected road does. Dark-on-amber measures 7.4:1 for the title
+       and 5.8:1 for the detail line, where the pale containers would sit at
+       ~1.5:1. */
+    .amber-btn {
+      min-height: 48px; padding: 0 20px; border: 0; border-radius: var(--radius-full);
+      background: var(--secondary); color: var(--on-secondary); cursor: pointer; font-family: inherit;
+      display: inline-flex; align-items: center; gap: 8px;
+    }
+    .glass.status-solid { background: var(--secondary); }
+    .glass.status-solid::before, .glass.status-solid::after { display: none; }
+    .status-solid .st-eyebrow, .status-solid .st-title { color: var(--on-secondary); }
+    .status-solid .st-detail { color: var(--on-secondary-detail); }
+    .status-solid .st-pill { background: var(--on-secondary); }
+    .status-solid .st-pill-text { color: var(--secondary); }
+    .status-solid .st-dot { background: var(--secondary); }
+    .st-head { display: flex; align-items: center; gap: 12px; }
+    .st-icon { width: 48px; height: 48px; border-radius: var(--radius-md); display: grid; place-items: center; flex: none; }
+    .status-solid .st-icon { background: var(--on-secondary); }
+    .st-head-text { flex: 1 1 auto; min-width: 0; }
+    /* The pill is a container, so the label is its on-color. Pairing it with
+       --on-secondary-container on a --on-secondary-container fill made the
+       text the same brown as its own background: 1.0:1, invisible. */
+    .st-pill { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 3px 10px; border-radius: var(--radius-full); background: var(--secondary-container); }
+    .st-pill-text { color: var(--on-secondary-container); }
+    .status-solid .st-pill-text { color: var(--secondary); }
+    .st-dot { width: 6px; height: 6px; border-radius: 3px; background: var(--on-secondary-container); flex: none; }
+    .st-route { margin: 8px 0 0; color: var(--glass-on); }
+    .st-meta { margin: 12px 0 0; color: var(--glass-on-variant); font-variant-numeric: tabular-nums; }
+    .data-chip { display: inline-flex; align-items: center; margin-top: 10px; padding: 3px 10px; border-radius: var(--radius-full); background: var(--tertiary-container); color: var(--on-tertiary-container); }
+
+    /* ── period control (shared with History) ──────────────────────────── */
+    .range-card { padding: 14px 14px 16px; }
+    .range-top { display: flex; align-items: center; gap: 10px; }
+    .segment { flex: 1 1 auto; min-width: 0; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border-radius: var(--radius-full); background: rgba(255,255,255,.55); border: 1px solid var(--outline-variant); }
+    .seg-btn { min-height: 44px; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--glass-on-variant); cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; justify-content: center; }
+    .seg-btn[aria-checked="true"] { background: var(--primary-solid); color: var(--on-primary); }
+    .seg-btn[aria-checked="true"] .label-l { font-weight: 700; }
+    .cal-btn { width: 48px; min-height: 48px; border-radius: var(--radius-full); border: 1px solid var(--outline-variant); background: rgba(255,255,255,.55); color: var(--glass-accent-primary); cursor: pointer; flex: none; display: grid; place-items: center; }
+    .cal-btn.on { background: var(--primary-solid); border: 2px solid var(--primary-solid); color: var(--on-primary); }
+    .range-nav { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+    .nav-btn { width: 48px; height: 48px; border-radius: var(--radius-full); border: 1px solid var(--outline-variant); background: rgba(255,255,255,.55); color: var(--glass-on); cursor: pointer; flex: none; display: grid; place-items: center; }
+    .nav-btn:disabled { opacity: .4; cursor: default; }
+    .range-now { flex: 1 1 auto; min-width: 0; text-align: center; }
+    .range-now-main { display: block; color: var(--glass-on); }
+    .range-now-sub { display: block; color: var(--glass-on-variant); margin-top: 2px; }
+    .range-caption { margin: 10px 0 0; display: flex; align-items: flex-start; gap: 8px; color: var(--glass-on-variant); }
+    .range-caption .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--primary); flex: none; margin-top: 7px; }
+
+    /* ── summary disclosure ────────────────────────────────────────────── */
+    .summary { padding: 18px 20px; }
+    .summary-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+    .summary-eyebrow { color: var(--glass-on-variant); }
+    .detail-btn { border: 0; background: none; cursor: pointer; min-height: 44px; padding: 0 2px; display: inline-flex; align-items: center; gap: 4px; color: var(--glass-accent-primary); font-family: inherit; flex: none; }
+    .detail-btn svg { transition: transform .2s ease; }
+    .summary.open .detail-btn svg { transform: rotate(180deg); }
+    .hero { margin-top: 12px; }
+    .hero-label { color: var(--glass-on-variant); }
+    .hero-value { margin: 4px 0 0; color: var(--glass-on); }
+    .hero-meta { margin: 8px 0 0; color: var(--glass-on-variant); display: flex; flex-wrap: wrap; gap: 4px 14px; }
+    .hero-meta b { color: var(--glass-on); font-weight: 600; }
+    .summary-details { display: none; margin-top: 20px; }
+    .summary.open .summary-details { display: block; }
+    .summary-details .rule { height: 1px; background: var(--outline-variant); opacity: .7; margin: 18px 0; }
+    .stat-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+    .stat-grid.stacked { grid-template-columns: minmax(0,1fr); }
+    .stat-tile { padding: 16px; }
+    .stat-icon { width: 40px; height: 40px; border-radius: var(--radius-md); display: grid; place-items: center; }
+    .stat-label { margin: 12px 0 0; color: var(--glass-on-variant); }
+    .stat-value { margin: 4px 0 0; color: var(--glass-on); }
+    .breakdown { margin-top: 14px; display: grid; gap: 12px; }
+    .bd-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 12px; align-items: baseline; }
+    .bd-name { color: var(--glass-on); }
+    .bd-count { color: var(--glass-on); font-weight: 600; }
+    .bd-track { grid-column: 1 / -1; height: 8px; border-radius: var(--radius-full); background: var(--surface-container); overflow: hidden; }
+    .bd-fill { height: 100%; border-radius: inherit; background: var(--primary-solid); }
+
+    /* ── rows ──────────────────────────────────────────────────────────── */
+    .list { display: grid; gap: 12px; }
+    .row-card { padding: 20px; }
+    /* font-size: inherit is load-bearing here, and the four sibling screens are
+       all missing it. A button inherits the UA's 13.333px control size, so a
+       ledger row that is a <button> painted its bare .cat at 13.33px while the
+       very same row as a locked <div> painted it at 16px — one ledger, two
+       sizes, switching with the recording gate. */
+    .row-btn { border: 0; margin: 0; width: 100%; text-align: left; font-family: inherit; font-size: inherit; color: inherit; cursor: pointer; border-radius: var(--radius-glass); display: block; }
+    .row-btn:active { transform: scale(.995); }
+    /* flex-start, not center: the route column is 199px and the longest pair
+       ("Baclaran \u2192 Monumento") is 197px in Poppins 600/16, so a wider build
+       of Poppins still adds a line. Centring would then float the 40px icon and
+       the money block in the middle of a 106px card. Top-aligned, the icon and
+       the peso sit on the route's cap line whether the row is one line or two.
+       Gap is 8, not 12: measured, the 12px gap left the route 6px short of its
+       longest pair. ponytail: 2px of slack - shorten station names (or drop the
+       spaces around the arrow) if the font is ever swapped. */
+    .trip-head { display: flex; align-items: flex-start; gap: 8px; }
+    .trip-icon { width: 40px; height: 40px; border-radius: var(--radius-md); background: var(--tertiary-container); display: grid; place-items: center; flex: none; }
+    .trip-body { flex: 1 1 auto; min-width: 0; }
+    .trip-route { display: block; color: var(--glass-on); }
+    .trip-sub { display: block; margin: 4px 0 0; color: var(--glass-on-variant); }
+    .status { padding: 3px 10px; border-radius: var(--radius-full); flex: none; }
+    .status.active { background: var(--secondary-container); color: var(--on-secondary-container); }
+    .status.done { background: var(--tertiary-container); color: var(--on-tertiary-container); }
+    /* Structural dividers use --outline, not --outline-variant: the variant
+       sits at 1.7:1 on this field and the 6-row list loses its structure. */
+    .meta-line { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--outline); display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--glass-on-variant); }
+    .fare { display: inline-flex; align-items: baseline; gap: 6px; color: var(--glass-on); white-space: nowrap; }
+    .meta-line .fare { margin-left: auto; }
+    .fare b { font-weight: 700; }
+    .ticket-row { display: flex; align-items: flex-start; gap: 12px; }
+    .ticket-id { min-width: 62px; flex: none; }
+    .ticket-id .when { display: block; color: var(--glass-on-variant); }
+    .ticket-mid { flex: 1 1 auto; min-width: 0; }
+    .ticket-route { color: var(--glass-on); }
+    .ticket-meta { margin: 4px 0 0; color: var(--glass-on-variant); display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+    .cat { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: var(--radius-full); }
+    .cat.regular { background: var(--primary-container); color: var(--on-primary-container); }
+    .cat.student, .cat.senior, .cat.pwd { background: var(--tertiary-container); color: var(--on-tertiary-container); }
+    .ticket-fare { text-align: right; color: var(--glass-on); flex: none; }
+    .ticket-fare .each { display: block; color: var(--glass-on-variant); }
+    .ticket-fare b { font-weight: 700; }
+    .rows-stacked .ticket-row { flex-wrap: wrap; }
+    .rows-stacked .ticket-fare { text-align: left; width: 100%; }
+    .rows-stacked .ticket-fare .each { display: inline; margin-left: 6px; }
+    .rows-stacked .meta-line { flex-direction: column; align-items: flex-start; }
+    .rows-stacked .meta-line .fare { margin-left: 0; }
+
+    /* ── inline empty + storage ────────────────────────────────────────── */
+    .inline-empty { padding: 16px 18px; border: 1px solid var(--outline-variant); border-radius: var(--radius-xl); background: rgba(255,255,255,.5); }
+    .inline-empty p { color: var(--glass-on-variant); }
+    .storage { margin-top: 20px; padding: 12px 20px; display: flex; align-items: center; gap: 8px; }
+    .storage p { color: var(--glass-on-variant); }
+
+    /* ── states ────────────────────────────────────────────────────────── */
+    .state { padding: 20px; border-radius: var(--radius-xl); border: 1px solid var(--outline-variant); background: rgba(255,255,255,.55); }
+    .state.error { border-color: var(--error); background: var(--error-container); }
+    .state h3 { margin: 0; color: var(--glass-on); }
+    .state p { margin: 8px 0 0; color: var(--glass-on-variant); }
+    .state.error p { color: var(--on-error-container); }
+    .primary-btn { margin-top: 14px; min-height: 48px; padding: 0 20px; border-radius: var(--radius-lg); border: 0; background: var(--primary-solid); color: var(--on-primary); cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 8px; }
+    .primary-btn:hover { background: var(--primary-solid-hover); }
+    .skeleton { padding: 16px; }
+    .sk { border-radius: 8px; background: linear-gradient(90deg, rgba(0,0,0,.05) 25%, rgba(0,0,0,.09) 37%, rgba(0,0,0,.05) 63%); background-size: 400% 100%; animation: shim 1.4s ease infinite; }
+    @keyframes shim { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+    @media (prefers-reduced-motion: reduce) { .sk { animation: none; } .detail-btn svg { transition: none; } }
+
+    /* ── overlays (calendar modal / detail sheet) ──────────────────────── */
+    .overlay-root { position: absolute; inset: 0; z-index: 30; pointer-events: none; }
+    /* grid-template-rows: minmax(0, 1fr) is load-bearing, not tidiness. With an
+       auto row the grid area is indefinite in the block axis, so the sheet's
+       max-height: 100% resolved against nothing and computed to none: the trip
+       picker measured 924px and the all-groups sheet 1223px inside an 844px
+       phone, hanging 80px and 379px past the bottom edge with their last rows
+       unreachable — .sheet-body never scrolled because it was never given a
+       height to scroll inside. A definite 1fr row fixes the percentage, and the
+       two rules below fix the flex side of the same bug. */
+    .scrim { position: absolute; inset: 0; background: var(--scrim); display: grid; grid-template-rows: minmax(0, 1fr); pointer-events: auto; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
+    .scrim.center { place-items: center; padding: 16px; }
+    /* The 17-row stop list is tall enough to hit max-height: 100%, so its sheet
+       fills the phone top to bottom and .sheet-head landed at y=0 — the sheet
+       title painted underneath the fake clock and the notch. The scrim's
+       background still covers the padding (background-clip defaults to
+       border-box), only the sheet is pushed below the status bar. */
+    .scrim.bottom { align-items: end; padding-top: var(--phone-safe-top); }
+    .sheet { width: 100%; max-width: 360px; margin: 0 auto; background: var(--surface-lowest); border-radius: var(--radius-xl); pointer-events: auto; max-height: 100%; display: flex; flex-direction: column; }
+    .sheet.bottom-sheet { border-radius: var(--radius-xl) var(--radius-xl) 0 0; max-width: 720px; animation: slideUp .22s ease; }
+    @keyframes slideUp { from { transform: translateY(14px); opacity: .6; } to { transform: none; opacity: 1; } }
+    /* flex: none so the title can never be squeezed, and min-height: 0 on the
+       body so it can — a flex item defaults to min-height: auto, which pins it
+       to its content height and makes the sheet overflow instead of scrolling. */
+    .sheet-head { display: flex; align-items: center; gap: 12px; padding: 16px 20px 8px; flex: none; }
+    .sheet-titles { flex: 1 1 auto; min-width: 0; }
+    .sheet-head h2 { margin: 0; color: var(--on-surface); }
+    .sheet-titles p { margin: 2px 0 0; }
+    .sheet-body { padding: 0 20px var(--phone-safe-bottom); overflow-y: auto; min-height: 0; }
+    .icon-btn { width: 44px; height: 44px; border-radius: var(--radius-full); border: 1px solid var(--outline-variant); background: transparent; color: var(--on-surface-variant); display: grid; place-items: center; cursor: pointer; flex: none; }
+    .icon-btn:hover { background: var(--surface-container); }
+    .cal-head { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+    .cal-month { color: var(--on-surface); }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-top: 8px; }
+    .cal-dow { text-align: center; color: var(--on-surface-variant); padding: 6px 0; }
+    .cal-cell { position: relative; height: 44px; border: 0; background: none; cursor: pointer; border-radius: var(--radius-md); color: var(--on-surface); font-family: inherit; }
+    .cal-cell.out { color: var(--outline); }
+    .cal-cell.inrange { background: var(--primary-container); border-radius: 0; }
+    .cal-cell.edge { background: var(--primary-solid); color: var(--on-primary); border-radius: var(--radius-md); font-weight: 600; }
+    .cal-cell.today::after { content: ""; position: absolute; left: 50%; bottom: 5px; width: 4px; height: 4px; transform: translateX(-50%); border-radius: 50%; background: var(--primary); }
+    .cal-cell.edge.today::after { background: var(--on-primary); }
+    .cal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px; }
+    .cal-actions .ghost { min-height: 48px; padding: 0 12px; border: 0; background: none; color: var(--on-surface-variant); cursor: pointer; font-family: inherit; }
+    .cal-actions .apply { min-height: 48px; padding: 0 20px; border-radius: var(--radius-lg); border: 0; background: var(--primary-solid); color: var(--on-primary); cursor: pointer; font-family: inherit; }
+    .cal-error { margin: 10px 0 0; color: var(--error); }
+    .range-preview { margin: 12px 0 0; color: var(--on-surface-variant); }
+    .detail-row { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--outline); }
+    .detail-row:last-child { border-bottom: 0; }
+    .detail-row .k { color: var(--on-surface-variant); flex: none; }
+    .detail-row .v { color: var(--on-surface); font-weight: 600; text-align: right; }
+    /* The card insets its own rows so every key in the sheet starts at the
+       same 20px column as the title, instead of drifting in by 14px. */
+    .detail-card { border: 1px solid var(--outline-variant); border-radius: var(--radius-lg); margin-top: 12px; }
+    .detail-card .detail-row { padding-inline: 12px; }
+
+    /* ── add trip: two terminals, one road, and what that road will bill ── */
+    /* Author display rules beat the UA [hidden] rule on cascade origin, so a
+       hidden attribute on any of the flex/grid elements this screen toggles
+       would not hide it. One guard covers all of them. */
+    [hidden] { display: none !important; }
+    /* The chrome carries the trip number and the road, and the road string
+       changes length with the choice. Never let it wrap to a second line inside
+       the pill and push the title card taller than its neighbours. */
+    .chrome-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .card { margin-top: 20px; padding: 20px; border: 1px solid var(--outline-variant); border-radius: var(--radius-xl); background: rgba(255,255,255,.55); }
+    /* A .sec-head is a sibling margin, but the card already has 20px of padding,
+       so margin collapse cannot reach it: left alone it lands its title 40px
+       down. Every card on this screen has a header, so the rule is
+       unconditional here. */
+    .card > .sec-head:first-child { margin-top: 0; }
+
+    /* ── white cards become glass ────────────────────────────────────────
+       The same tint, blur, rim highlight and soft shadow .glass carries,
+       applied in place rather than by class, because .state is built by JS and
+       never carries the class. Border stays --outline-variant: the tint alone
+       leaves the panel edge at ~1.05:1 against the field, and a card with no
+       edge reads as a stray block of text. Sheets are excluded on purpose — a
+       sliding-up card sits over a scrim, and a translucent fill there shows the
+       form through it and loses the boundary the scrim exists to draw.
+       .state.error keeps --error-container: an error is not a neutral card. */
+    .card, .state:not(.error), .inline-empty {
+      background: var(--glass-tint);
+      box-shadow: 0 8px 15px var(--glass-shadow), inset 0 1px 0 rgba(255,255,255,.55);
+      -webkit-backdrop-filter: blur(18px) saturate(180%);
+      backdrop-filter: blur(18px) saturate(180%);
+    }
+
+    /* font-size: inherit is load-bearing on a <button> for the reason it is on
+       .row-btn: a button inherits the UA's 13.333px control size, and neither
+       .f-label nor .f-value sets a size, so the label and the value inside one
+       field would paint two steps apart from the sizes they declare. */
+    .field { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 60px; padding: 8px 14px; border: 1px solid var(--outline); border-radius: var(--radius-lg); background: var(--surface); color: var(--on-surface); font-family: inherit; font-size: inherit; text-align: left; cursor: pointer; }
+    .field:hover { background: var(--surface-container); }
+    .f-icon { width: 36px; height: 36px; border-radius: var(--radius-sm); display: grid; place-items: center; flex: none; background: var(--tertiary-container); color: var(--on-tertiary-container); }
+    .f-body { flex: 1 1 auto; min-width: 0; }
+    .f-label { display: block; color: var(--on-surface-variant); }
+    .f-value { display: block; color: var(--on-surface); font-weight: 600; }
+    /* --outline is a 1px border token, specified for the 3:1 non-text floor. On
+       16px text it measured 4.24:1 against the field's own surface, under AA, on
+       the one line that tells a first-time driver what this control wants. The
+       placeholder still reads as a placeholder on weight alone (500 vs 600). */
+    .f-value.empty { color: var(--on-surface-variant); font-weight: 500; }
+    .f-chev { flex: none; color: var(--on-surface-variant); display: inline-flex; }
+    /* No .field + .field rule here, and there must not be one: the leg sits
+       between the two fields and owns the space. A sibling margin would put 8px
+       of daylight above the destination and 8px below the origin, so the swap
+       control would be the only thing in the card that is off-axis. */
+
+    /* The leg between the two ends carries the swap, not a legend. A trip runs
+       one way and the direction is the thing being corrected, so the control
+       sits ON the axis joining the two ends, where it reads as the reverse of
+       the leg rather than as a third input. Note what it does NOT change: the
+       quoted distance is Math.abs(km difference), so it reads the same in
+       both directions. Only the direction of travel differs, and only the
+       direction is stored. */
+    /* 12 top AND bottom, not 12 0 0: with the bottom at 0 the swap circle's
+       edge landed on the destination's border, and two 1px borders meeting
+       read as one broken rule with the control welded to the field. */
+    /* 1fr auto 1fr, not flex with the distance as a fourth sibling: the quoted
+       distance is a CAPTION on the leg, not a rung of it. As a flex sibling it
+       took 49px off the right-hand line and pushed the swap circle 27px left of
+       the card's axis, so the control that reverses the trip was off the line
+       joining the two ends it reverses. The two 1fr columns are equal by
+       construction, so the circle is on the axis to the subpixel and the lines
+       stay mirror images. */
+    .leg { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; column-gap: 8px; row-gap: 8px; margin: 12px 0; color: var(--on-surface-variant); }
+    .leg .leg-line { height: 1px; background: var(--outline); }
+    .leg .leg-dist { grid-column: 1 / -1; text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    /* padding: 0 for the same reason .row-btn carries it: a 44x44 border-box
+       button survives the UA's 1px/6px padding in size, but the 1px top and
+       bottom push the glyph off centre in a grid-placed control. */
+    .swap-btn { width: 44px; height: 44px; flex: none; padding: 0; border-radius: var(--radius-full); border: 1px solid var(--outline); background: var(--surface); color: var(--on-surface); font-family: inherit; display: grid; place-items: center; cursor: pointer; }
+    .swap-btn:hover { background: var(--surface-container); }
+    /* .45 put the glyph at 2.82:1, under the 3:1 this screen holds everything
+       else to. .55 lands at 3.77:1 and still reads unmistakably disabled. */
+    .swap-btn:disabled { opacity: .55; cursor: default; }
+    .swap-btn:disabled:hover { background: var(--surface); }
+    .leg-hint { margin: 8px 0 0; color: var(--error); }
+
+    /* Two roads, so a two-way switch and not a chip row: a chip implies
+       filtering a set, and this is one choice between two exclusive options
+       where the second bills materially more per kilometre. */
+    .seg-route { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
+    .seg-route button { min-height: 44px; padding: 8px 10px; border: 1px solid var(--outline); border-radius: var(--radius-lg); background: var(--surface); color: var(--on-surface); font-family: inherit; font-size: inherit; text-align: left; cursor: pointer; }
+    .seg-route button:hover { background: var(--surface-container); }
+    .seg-route button[aria-pressed="true"] { border: 2px solid var(--primary-solid); background: var(--primary-solid); color: var(--on-primary); padding: 7px 9px; }
+    .seg-route .sr-name { display: block; font-weight: 600; }
+    .seg-route .sr-note { display: block; margin-top: 2px; color: var(--on-surface-variant); }
+    .seg-route button[aria-pressed="true"] .sr-note { color: var(--on-primary); }
+    /* The consequence of the chosen road, stated rather than implied: the rate
+       swap the option makes on every boarding. Solid --secondary, the amber the
+       solid fare cards wear, because this note is the selected option's own fill
+       and not a status — dark-on-amber measures 7.4:1. Neither the toll distance
+       nor the rate a card would have to restate appears in this copy. */
+    .road-note { margin: 12px 0 0; padding: 12px; border-radius: var(--radius-md); background: var(--secondary); color: var(--on-secondary); }
+
+    /* A trip has no fare, so this card has no total. It is the four inputs every
+       boarding on the trip will be priced from, and the rows reuse .detail-row —
+       the same key/value recipe the sheets use — so a figure here and a figure in
+       a ticket sheet are the same object. The wrapper exists for one reason:
+       :last-child cannot see past the footnote that follows the last row, so
+       without it the final row keeps a rule that means nothing. */
+    .est-rows > .detail-row:last-child { border-bottom: 0; }
+
+    /* ── shared with add-ticket.html and passenger.html ────────────────── */
+    /* Copied rather than renamed, so a picker row and a handoff are the same
+       56px object on all eight screens. */
+    .pick-row { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 12px; border: 1px solid var(--outline); border-radius: var(--radius-lg); background: var(--surface); color: var(--on-surface); font-family: inherit; font-size: inherit; text-align: left; cursor: pointer; margin-top: 8px; width: 100%; }
+    .pick-row:hover { background: var(--surface-container); }
+    /* 2px border on the current terminal and 1px less padding, so choosing a row
+       does not resize the list under the finger. */
+    .pick-row[aria-current="true"] { border: 2px solid var(--primary-solid); background: var(--primary-solid); color: var(--on-primary); padding: 7px 11px; }
+    .pick-row .pk-body { flex: 1 1 auto; min-width: 0; }
+    .pick-row .pk-name { display: block; }
+    .pick-row .pk-sub { display: block; margin-top: 2px; color: var(--on-surface-variant); }
+    /* No opacity on the sub line: white on --primary-solid is 5.18:1 and
+       anything under .91 alpha drops it under 4.5:1. Hierarchy comes from
+       size and weight, the same way the note and label above it do. */
+    .pick-row[aria-current="true"] .pk-sub { color: var(--on-primary); }
+
+    /* ── clicked = solid ─────────────────────────────────────────────────
+       A chosen or held control inverts to the solid brand fill instead of the
+       pale --primary-container tint, so one orange means one thing on this
+       screen: primary CTA, selected option, held option. White on
+       --primary-solid measures 5.18:1, so notes and sub lines stay full white
+       and take their hierarchy from size and weight. Selected darkens one step
+       on hover/press, the same --primary-solid-hover move .primary-btn already
+       makes, so the fill never sits dead under the cursor. */
+    .seg-route button[aria-pressed="true"]:hover,
+    .seg-route button[aria-pressed="true"]:active,
+    .pick-row[aria-current="true"]:hover,
+    .pick-row[aria-current="true"]:active,
+    .cal-btn.on:hover,
+    .cal-btn.on:active,
+    .seg-btn[aria-checked="true"]:hover,
+    .seg-btn[aria-checked="true"]:active { background: var(--primary-solid-hover); border-color: var(--primary-solid-hover); }
+
+    .seg-route button:not([aria-pressed="true"]):active,
+    .pick-row:not([aria-current="true"]):active,
+    .cal-btn:not(.on):active,
+    .seg-btn:not([aria-checked="true"]):active,
+    .icon-btn:active,
+    .nav-btn:not(:disabled):active,
+    .swap-btn:not(:disabled):active,
+    .proto-states button:not([aria-pressed="true"]):active { background: var(--primary-solid); border-color: var(--primary-solid); color: var(--on-primary); }
+
+    /* Controls that are solid already — back and the commit — take the hover
+       step on press too, so touch gets the feedback desktop gets from hover. */
+    .back:hover,
+    .back:active,
+    .primary-btn:active { background: var(--primary-solid-hover); }
+
+    /* The two disclosure rows invert the same way, and their children have to
+       come with them: .f-label, .f-value and .f-chev each carry their own
+       colour, so a fill alone would leave dark ink on a 5.2:1 fill — worse than
+       not inverting at all. .f-icon flips to the inverse chip so the leading
+       glyph keeps its own 5.18:1. */
+    .field:active { background: var(--primary-solid); border-color: var(--primary-solid); color: var(--on-primary); }
+    .field:active .f-label,
+    .field:active .f-value,
+    .field:active .f-value.empty,
+    .field:active .f-chev { color: var(--on-primary); }
+    .field:active .f-icon { background: var(--on-primary); color: var(--primary-solid); }
+
+    .pick-more { margin: 12px 0 0; padding: 12px 16px; border: 1px dashed var(--outline); border-radius: var(--radius-lg); color: var(--on-surface-variant); }
+    .handoff { margin: 16px 0 0; padding: 12px 20px; border: 1px dashed var(--outline); border-radius: var(--radius-lg); background: rgba(255,255,255,.42); }
+    .handoff p { color: var(--on-surface-variant); }
+    .handoff .nb-title { color: var(--on-surface); margin: 0 0 4px; }
+    :focus-visible { outline: 2px solid var(--primary-solid); outline-offset: 2px; border-radius: 6px; }
+
+    /* ── the one committing action ────────────────────────────────────── */
+    /* Solid, and the only solid primary in the viewport. It is also the only
+       thing on this screen that leaves it, so it gets the only amber... which
+       it does not: amber on these screens means a trip is already RUNNING, and
+       this is the screen that makes one. The one other amber here is the road
+       note, which is the selected option's own fill and not a status. The
+       commit stays --primary-solid. */
+    /* The 20px section margin belongs to the SECTION here, and .primary-btn's own
+       14px is zeroed inside it. Left alone, the button was the only thing on the
+       screen with a margin, so the estimate card and the CTA sat 14px apart while
+       every other pair of sections sat 20 — a 6px break in the rhythm at the
+       place the eye lands last. Adjacent margins collapse, so the two cannot be
+       added to reach 20; one of them has to go. This is the local version, and
+       the other seven screens keep the shell's 14px. The blocked branch states a
+       reason above the button, so it hands the gap back to .block-reason. */
+    [data-od-id="at-commit"] { margin-top: 20px; }
+    [data-od-id="at-commit"] > .primary-btn { margin-top: 0; }
+    [data-od-id="at-commit"] > .block-reason { margin-bottom: 12px; }
+
+    /* The shared shell styles .primary-btn and never once styles it disabled, so
+       on this screen a dead CTA painted as a live solid-orange button with a
+       pointer cursor — in four validation states, on the no-fare-rules state, and
+       behind the scrim after the press. Two solid primaries in one viewport is
+       the thing the one-CTA rule exists to prevent, and a conductor aiming at a
+       button that cannot fire is a tap that does nothing and looks like a bug.
+       opacity would be the wrong repair here: it blends the fill toward the page
+       and takes the white label under AA with it. Dropping the fill is the M3
+       treatment and it also settles the count, because a grey button is not a
+       primary. Local to this screen; the other seven prototypes still need it. */
+    .primary-btn:disabled { background: var(--surface-container); color: var(--on-surface-variant); cursor: default; }
+    .primary-btn:disabled:hover { background: var(--surface-container); }
+    /* "Clear" is 41px wide and "Rules" is 41px, and a 41px tap target is a
+       miss rather than a press. min-width only, and centred so the word does not
+       sit off-axis in the wider box. */
+    .card .text-action { min-width: 44px; justify-content: center; }
+
+    /* The loading branch is a card of grey bars, and a screen of grey bars read
+       out loud as nothing at all. One visually-hidden line gives it a name. */
+    .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+    .primary-btn.wide { width: 100%; justify-content: center; }
+    .block-reason { margin-top: 20px; color: var(--on-surface-variant); }
+    .commit-hint { margin: 12px 0 0; color: var(--on-surface-variant); }
+
+
+
+    /* prototype state control (outside the phone) */
+    .proto-states { position: fixed; left: 18px; bottom: 18px; z-index: 50; display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 16px; background: rgba(255,255,255,.9); border: 1px solid #dcdde1; box-shadow: 0 10px 24px rgba(20,22,28,.12); font-family: var(--font); }
+    .proto-states span { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #6b6e75; font-weight: 600; }
+    .proto-states .seg { display: flex; flex-wrap: wrap; gap: 6px; max-width: 232px; }
+    .proto-states button { font: inherit; font-size: 12px; padding: 7px 10px; border-radius: 999px; border: 1px solid #d4d5d9; background: #fff; color: #33363c; cursor: pointer; }
+    .proto-states button:hover { background: #F1F2F4; }
+    .proto-states button[aria-pressed="true"]:hover { background: #A93A09; border-color: #A93A09; }
+    .proto-states button[aria-pressed="true"] { background: #C2410C; border-color: #C2410C; color: #fff; }
+
+    @media (max-width: 480px) {
+      body { padding: 0; display: block; }
+      .phone-frame { width: 100%; height: 100dvh; padding: 0; border-radius: 0; background: none; box-shadow: none; }
+      .phone-frame::before, .phone-frame::after, .hardware-button { display: none; }
+      .phone-screen { width: 100%; height: 100%; border-radius: 0; }
+      .proto-states { display: none; }
+    }
+    @media (max-height: 927px) { .phone-frame { zoom: .9; } }
+    @media (max-height: 840px) { .phone-frame { zoom: .82; } }
+    @media (max-height: 771px) { .phone-frame { zoom: .74; } }
+    @media (max-height: 702px) { .phone-frame { zoom: .66; } }
+  </style>
+</head>
+<body>
+  <div class="phone-frame" data-phone-shell data-platform="neutral">
+    <span class="hardware-button volume" aria-hidden="true"></span>
+    <span class="hardware-button power" aria-hidden="true"></span>
+
+    <section class="phone-screen" data-od-id="phone-screen" data-phone-screen>
+      <main class="phone-content" data-phone-content>
+        <!-- APP CONTENT START -->
+        <div id="app">
+          <!-- 0. Section chrome, as the other six section screens wear it. The
+               subtitle carries the trip number this press will issue and the road
+               it will be stored with, because a number is issued at creation and
+               a conductor who cannot see the number cannot check the commit. -->
+          <header class="chrome readable" data-od-id="at-chrome">
+            <button type="button" class="back" data-act="back" data-od-id="at-back" aria-label="Back to Dashboard">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+            </button>
+            <div class="title-card">
+              <h1 class="chrome-title title-m">Add trip</h1>
+              <p class="chrome-sub body-s" id="chromeSub">Origin, destination and road</p>
+            </div>
+          </header>
+
+          <div class="app-scroll" id="scroll">
+            <div class="readable">
+              <!-- 1. The three inputs, in decision order. Each input opens
+                   its own sheet of terminals, so no control on this screen can be
+                   typed into wrongly and none of them is a dead end. -->
+              <section data-od-id="at-form" id="formSection" hidden>
+                <div class="card" data-od-id="at-route-card">
+                  <div class="sec-head">
+                    <h2 class="sec-title label-s">ROUTE</h2>
+                    <button type="button" class="text-action label-s" data-act="clear" data-od-id="at-clear" id="clearBtn">Clear</button>
+                  </div>
+
+                  <button type="button" class="field" data-act="pick-origin" data-od-id="at-origin" aria-describedby="legDist">
+                    <span class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17.5V8.2a2 2 0 0 1 1.4-1.9l6-1.9a2 2 0 0 1 2.6 1.9v11.2"/><path d="M4 17.5h16M7.5 13.5h2.5M14 13.5h2.5"/></svg></span>
+                    <span class="f-body">
+                      <span class="f-label label-s" id="originLabel">ORIGIN</span>
+                      <span class="f-value title-m" id="originValue">Choose where the bus leaves</span>
+                    </span>
+                    <span class="f-chev" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span>
+                  </button>
+
+                  <p class="leg body-s" id="legLine">
+                    <span class="leg-line" aria-hidden="true"></span>
+                    <button type="button" class="swap-btn" data-act="swap" data-od-id="at-swap" id="swapBtn" aria-label="Swap origin and destination">
+                      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4.5 4 8.5l4 4"/><path d="M4 8.5h13"/><path d="M16 19.5l4-4-4-4"/><path d="M20 15.5H7"/></svg>
+                    </button>
+                    <span class="leg-line" aria-hidden="true"></span>
+                    <span class="leg-dist" id="legDist">Distance is set once both ends are chosen</span>
+                  </p>
+
+                  <button type="button" class="field" data-act="pick-destination" data-od-id="at-destination">
+                    <span class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17.5V8.2a2 2 0 0 1 1.4-1.9l6-1.9a2 2 0 0 1 2.6 1.9v11.2"/><path d="M4 17.5h16M7.5 13.5h2.5M14 13.5h2.5"/></svg></span>
+                    <span class="f-body">
+                      <span class="f-label label-s" id="destinationLabel">DESTINATION</span>
+                      <span class="f-value title-m" id="destinationValue">Choose where the bus is going</span>
+                    </span>
+                    <span class="f-chev" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span>
+                  </button>
+                </div>
+                <p class="leg-hint body-s" id="legWarn" hidden></p>
+
+                <!-- 2. Which road. SCTEX is the expressway the app already stores
+                     as usesSctex on the trip row, and the rate it applies is
+                     stated here rather than left to the rules sheet, because it
+                     applies to every boarding on the trip. The extra distance it
+                     bills is carried by the billable figure in the card below
+                     instead. -->
+
+                <div class="card" data-od-id="at-road-card">
+                  <div class="sec-head">
+                    <h2 class="sec-title label-s">ROAD</h2>
+                  </div>
+                  <div class="seg-route" id="roadSeg" role="group" aria-label="Route type"></div>
+                  <p class="road-note body-s" id="roadNote" hidden></p>
+                </div>
+
+                <!-- 3. What the trip will bill, and no total. There is nobody on
+                     the bus yet, so these three numbers are the whole fare model
+                     for everything that happens next — see the header note. -->
+                <div class="card" data-od-id="at-est-card" id="estCard">
+                  <div class="sec-head">
+                    <h2 class="sec-title label-s">WHAT THIS TRIP WILL BILL</h2>
+                    <button type="button" class="text-action label-s" data-act="rules" data-od-id="at-rules">Rules</button>
+                  </div>
+                  <div class="est-rows">
+                    <div class="detail-row"><span class="k body-m">Route distance</span><span class="v body-m tabular" id="estDist">&mdash;</span></div>
+                    <div class="detail-row"><span class="k body-m">Billable distance</span><span class="v body-m tabular" id="estBill">&mdash;</span></div>
+                    <div class="detail-row"><span class="k body-m">Rate per km</span><span class="v body-m tabular" id="estRate">&mdash;</span></div>
+                  </div>
+                  <p class="body-s commit-hint" id="estNote" hidden></p>
+                </div>
+              </section>
+
+              <!-- The whole-screen states, plus the one that belongs beside the
+                   form rather than in place of it. A device with no fare rules
+                   can still have its route chosen, so that branch keeps the work
+                   and refuses only the commit. -->
+              <section data-od-id="at-state" id="stateSection" hidden>
+                <div id="stateSlot"></div>
+              </section>
+
+              <!-- 4. The one commit, and the only control on this screen that
+                   leaves it. -->
+              <section data-od-id="at-commit" id="commitSection" hidden>
+                <p class="body-s block-reason" id="blockReason" hidden></p>
+                <button type="button" class="primary-btn wide" id="startBtn" data-act="start" data-od-id="at-start">
+                  <span id="startLabel">Start trip</span>
+                </button>
+                <p class="body-s commit-hint" id="commitHint" hidden></p>
+              </section>
+
+              <div class="glass storage" data-od-id="storage-footer">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--glass-on-variant)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="7.5" ry="3.2"/><path d="M4.5 6v12c0 1.8 3.4 3.2 7.5 3.2s7.5-1.4 7.5-3.2V6"/><path d="M4.5 12c0 1.8 3.4 3.2 7.5 3.2s7.5-1.4 7.5-3.2"/></svg>
+                <p class="body-s" id="storageNote"></p>
+              </div>
+            </div>
+          </div>
+
+          <div class="overlay-root" id="overlayRoot"></div>
+        </div>
+
+        <!-- APP CONTENT END -->
+      </main>
+
+      <div class="status-bar" aria-hidden="true">
+        <span class="status-time">9:41</span>
+        <span class="status-cutout-zone"></span>
+        <span class="status-icons">
+          <svg class="connectivity" viewBox="0 0 15 12"><path d="M1.5 10.5v-2m4 2v-4.5m4 4.5v-7m4 7v-9"/></svg>
+          <svg class="wifi" viewBox="0 0 16 12"><path d="M1.5 4.7a9.2 9.2 0 0 1 13 0M4.2 7.3a5.4 5.4 0 0 1 7.6 0M6.9 10a1.55 1.55 0 0 1 2.2 0"/></svg>
+          <svg class="battery" viewBox="0 0 20 11"><rect x=".75" y="1.25" width="16.5" height="8.5" rx="2"/><path d="M18.5 4v3M3.2 3.4h10.4v4.2H3.2z" fill="currentColor" stroke="none"/></svg>
+        </span>
+      </div>
+      <div class="camera-dot" aria-hidden="true"></div>
+      <div class="gesture-indicator" aria-hidden="true"></div>
+    </section>
+  </div>
+
+
+  <div class="proto-states" role="group" aria-label="Prototype state preview">
+    <span>Prototype states</span>
+    <div class="seg" id="protoSeg">
+      <button type="button" data-state="ready" aria-pressed="true">Ready</button>
+      <button type="button" data-state="noterminals" aria-pressed="false">No terminals</button>
+      <button type="button" data-state="loading" aria-pressed="false">Loading</button>
+      <button type="button" data-state="nofares" aria-pressed="false">No fare rules</button>
+      <button type="button" data-state="error" aria-pressed="false">Error</button>
+    </div>
+  </div>
+  <script>
+
+  (function () {
+  'use strict';
+
+  /* ── icons (src/icons.tsx) ─────────────────────────────────────────── */
+  const ICONS = {
+    chevron: '<path d="M9 5l7 7-7 7"/>',
+    close: '<path d="M6 6l12 12M18 6L6 18"/>',
+    swap: '<path d="M8 4.5 4 8.5l4 4"/><path d="M4 8.5h13"/><path d="M16 19.5l4-4-4-4"/><path d="M20 15.5H7"/>',
+    terminal: '<path d="M4 17.5V8.2a2 2 0 0 1 1.4-1.9l6-1.9a2 2 0 0 1 2.6 1.9v11.2"/><path d="M4 17.5h16M7.5 13.5h2.5M14 13.5h2.5"/>',
+    check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    lock: '<rect x="4.5" y="10" width="15" height="10" rx="2.5"/><path d="M8 10V7.5a4 4 0 0 1 8 0V10"/>',
+    fare: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9M9.4 10h4.1a1.9 1.9 0 0 1 0 3.8h-4.1"/>',
+    database: '<ellipse cx="12" cy="6" rx="7.5" ry="3"/><path d="M4.5 6v12c0 1.8 3.4 3.2 7.5 3.2s7.5-1.4 7.5-3.2V6"/><path d="M4.5 12c0 1.8 3.4 3.2 7.5 3.2s7.5-1.4 7.5-3.2"/>'
+  };
+  const icon = (name, size, color, sw) =>
+    '<svg viewBox="0 0 24 24" width="' + size + '" height="' + size + '" fill="none" stroke="' + color +
+    '" stroke-width="' + (sw || 1.9) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || '') + '</svg>';
+
+  const $ = id => document.getElementById(id);
+  /* A count and its noun are one thing, so they break together: the terminal count
+     in a sheet subtitle is the only place here where a bare number could end a
+     line on its own. NBSP costs no horizontal space and no glyph, so every other
+     caller is unaffected. */
+  const plural = (n, one, many) => n + '\u00A0' + (n === 1 ? one : many);
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  /* Times are printed the way the app prints them, and the space between the time
+     and the meridiem is a no-break one: a stamp that can break between "6:41" and
+     "AM" is a stamp that reads as a different time. */
+  const clock = d => {
+    const h = d.getHours() % 12 || 12;
+    const m = String(d.getMinutes()).padStart(2, '0');
+    return h + ':' + m + '\u00A0' + (d.getHours() < 12 ? 'AM' : 'PM');
+  };
+
+  /* ── the fare rules ────────────────────────────────────────────────── */
+  /* The app STORES all of this and CALCULATES none of it. fareStore.ts creates the
+     table and reads it back and writes no defaults; FareSettingsScreen's
+     EMPTY_VALUES leaves every field blank on a fresh install. So these values are
+     a configuration, not a constant — which is why "No fare rules" is one of this
+     screen's five states instead of an edge case.
+
+     These are six of the ten fields of the complete-form fixture in
+     src/lib/fareFormat.test.ts:76-87, already in the units toStoredFareValues
+     writes them in (:104-109): money in centavos, distance in thousandths of a km.
+     The other four — deluxe_rate_per_km, sctex_deluxe_rate_per_km,
+     deluxe_discount_bp, sctex_discount_bp — are deliberately not read here: Deluxe
+     is a service level chosen in Fare settings, not something a conductor decides
+     at a roadside stop, and both discounts are already folded into
+     special_rate_per_km as it is stored. */
+  const FARE_CONFIG = {
+    minimumFareCentavos: 5000,        /* '50'   → 5000            */
+    minimumDistanceMilli: 4500,        /* '4.5'  → 4500            */
+    ratePerKmCentavos: 175,            /* '1.75' → 175             */
+    sctexRatePerKmCentavos: 225,       /* '2.25' → 225             */
+    specialRatePerKmCentavos: 100,     /* '1.00' → 100             */
+    sctexKmAdjustmentMilli: 500        /* '0.5'  → 500             */
+  };
+
+  /* ── terminals ─────────────────────────────────────────────────────── */
+  /* The seventeen the app lists, with km_marker in thousandths. The five marked
+     seeded are the five tripTicketsStore.ts:457-476 actually writes; the other
+     twelve are PLACED on the seeded corridor's scale, not measured from it: they
+     run along the same Olongapo → Caloocan axis the five km_markers define, and a
+     trip's distance is a subtraction of two of them, so their positions only have
+     to be consistent with each other. A real install carries the terminals its
+     operator actually configured.
+
+     The stored name is one string, "Terminal, Municipality", and the screen splits
+     it rather than storing the split — the pair the conductor reads is the pair the
+     seed wrote. */
+  const STOPS = [
+    { id: 'san-antonio',  name: 'San Antonio',        muni: 'Zambales',          km: 62400,  seeded: false },
+    { id: 'iba',          name: 'Iba',                muni: 'Zambales',          km: 96800,  seeded: true  },
+    { id: 'balanga',      name: 'Balanga',            muni: 'Bataan',            km: 121400, seeded: false },
+    { id: 'dinalupihan',  name: 'Dinalupihan',        muni: 'Bataan',            km: 150800, seeded: false },
+    { id: 'san-rafael',   name: 'San Rafael',         muni: 'Zambales',          km: 176200, seeded: false },
+    { id: 'porac',        name: 'Porac',              muni: 'Pampanga',          km: 205600, seeded: false },
+    { id: 'candaba',      name: 'Candaba',            muni: 'Pampanga',          km: 216300, seeded: false },
+    { id: 'santa-cruz',   name: 'Santa Cruz',         muni: 'Olongapo',          km: 228000, seeded: true  },
+    { id: 'olongapo',     name: 'Olongapo',           muni: 'Olongapo',          km: 232400, seeded: true  },
+    { id: 'subic',        name: 'Subic',              muni: 'Subic',             km: 249600, seeded: true  },
+    { id: 'norzagaray',   name: 'Norzagaray',         muni: 'Bulacan',           km: 259700, seeded: false },
+    { id: 'subic-bay',    name: 'Subic Bay Freeport', muni: 'Subic',             km: 258900, seeded: false },
+    { id: 'san-fernando', name: 'San Fernando',       muni: 'Pampanga',          km: 262400, seeded: false },
+    { id: 'marquez',      name: 'Marques',            muni: 'Bulacan',           km: 271800, seeded: false },
+    { id: 'meycauayan',   name: 'Meycauayan',         muni: 'Bulacan',           km: 286500, seeded: false },
+    { id: 'cubi',         name: 'Cubao',              muni: 'Quezon City',       km: 301200, seeded: false },
+    { id: 'caloocan',     name: 'Caloocan',           muni: 'Kalakhang Maynila', km: 314200, seeded: true  }
+  ];
+
+  const ROADS = [
+    { key: 'ordinary', label: 'Ordinary', note: 'National road' },
+    { key: 'sctex', label: 'SCTEX', note: 'Subic–Clark–Tarlac' }
+  ];
+  const roadByKey = key => ROADS.filter(function (r) { return r.key === key; })[0] || ROADS[0];
+
+  /* Trip #7 is the one the seeded device is already running — the same figure
+     add-ticket.html and trip.html carry. The number is the only thing this screen
+     needs from it, and it needs it because a trip number is issued at the moment
+     of creation: showing "Trip #8" before the press is what tells the conductor
+     the press is going to land somewhere specific. */
+  const LAST_TRIP_NUMBER = 7;
+  const NEXT_TRIP_NUMBER = LAST_TRIP_NUMBER + 1;
+
+  /* ── integer formatters ────────────────────────────────────────────── */
+  /* The app's scales are integers end to end (fareFormat.ts keeps money in centavos
+     and distance in thousandths and does the arithmetic as string math). These do
+     the same, so a prototype figure and a stored one cannot drift by a rounding
+     step that only exists in the prototype. */
+  const fmtKm = milli => {
+    const whole = Math.floor(milli / 1000);
+    const frac = String(milli % 1000).padStart(3, '0').replace(/0+$/, '');
+    return (frac ? whole + '.' + frac : whole) + ' km';
+  };
+  const pesos = centavos => '₱' + Math.floor(centavos / 100) + '.' + String(centavos % 100).padStart(2, '0');
+  /* formatScaled trims trailing zeros — 2.50 stores as 2.5 and 10.00 as 10 — so a
+     per-km rate is printed the way Fare Settings prints it back. */
+  const rateText = centavos => {
+    const whole = Math.floor(centavos / 100);
+    const frac = String(centavos % 100).padStart(2, '0').replace(/0+$/, '');
+    return '₱' + (frac ? whole + '.' + frac : whole);
+  };
+
+  /* ── state ─────────────────────────────────────────────────────────── */
+  const state = {
+    preview: 'ready',
+    stops: STOPS.slice(),
+    origin: 'iba',
+    destination: 'caloocan',
+    /* SCTEX, not Ordinary, and the reason is not a theme: the trip the seeded
+       device is running is on the expressway, so it is the road a conductor on
+       this run is actually choosing between. The ordinary branch is one tap
+       away and lands on the same card with the billable distance equal to the
+       route distance. */
+    road: 'sctex',
+    fares: FARE_CONFIG,
+    started: null,
+    sheet: null,
+    sheetKind: null,
+    lastFocus: null
+  };
+  const stopById = id => (id ? state.stops.filter(function (s) { return s.id === id; })[0] || null : null);
+
+  /* ── the measurement ───────────────────────────────────────────────── */
+  /* The app has no fare calculator anywhere, and a trip does not need one: the
+     row it writes carries two location snapshots, the clock, the status and the
+     ROUTE distance, and no money. It carries no road either — `startTrip` is
+     handed `usesSctex` and discards it, because there is no such column
+     (tripTicketsStore.ts:779-785, :853-863 against schema.ts:36-50) — so the road
+     switch on this screen is a proposal, and the screen says so where a peso
+     could be argued about. What a trip does need is the billable distance and
+     the rate, because those two decide every peso it will ever collect. This is
+     that missing function scoped to what a trip holds — the same integer math
+     add-ticket.html runs, so the two screens cannot disagree about a distance.
+
+     The one rule it has to invent is the order the two minimums apply in, and it
+     is stated in the Fare rules sheet rather than buried here. */
+  function measure(originId, destinationId, cfg, road) {
+    /* Not chosen yet is not a validation failure, and it must not borrow the app's
+       sentences. The store's 'A selected terminal no longer exists' is about a
+       terminal that DISAPPEARED under a filled form, which is a different event
+       from one the conductor has not filled in yet; conflating them tells a
+       first-time driver their phone is broken. */
+    if (!originId || !destinationId) return { ok: false, reason: 'Choose an origin and a destination.' };
+    const from = stopById(originId);
+    const to = stopById(destinationId);
+    /* These four sentences are the app's own, verbatim from startTrip
+       (:823-843). The prototype has to catch them
+       because the store will, and it says them the same way so the conductor is
+       not shown a refusal they have never seen. */
+    if (from && to && from.id === to.id) return { ok: false, reason: 'Origin and destination are the same terminal.' };
+    if (!from || !to) return { ok: false, reason: 'A selected terminal no longer exists. Re-choose the route.' };
+    if (from.km === null || to.km === null) return { ok: false, reason: 'A terminal KM marker is not configured.' };
+    const distMilli = Math.abs(to.km - from.km);
+    if (distMilli === 0) return { ok: false, reason: 'The route distance is zero. Choose different terminals.' };
+
+    const adjMilli = road === 'sctex' ? cfg.sctexKmAdjustmentMilli : 0;
+    const rate = road === 'sctex' ? cfg.sctexRatePerKmCentavos : cfg.ratePerKmCentavos;
+    /* max(distance, minimum distance) first, then the toll-road adjustment on top:
+       the adjustment is distance the driver is billed FOR, not distance they drove,
+       so it cannot be what the floor is measured against. */
+    const flooredMilli = Math.max(distMilli, cfg.minimumDistanceMilli);
+    const billableMilli = flooredMilli + adjMilli;
+    return {
+      ok: true, from: from, to: to, distMilli: distMilli, adjMilli: adjMilli,
+      flooredMilli: flooredMilli, billableMilli: billableMilli, rate: rate,
+      minDistBinds: distMilli < cfg.minimumDistanceMilli
+    };
+  }
+
+  function compute() {
+    const view = state.preview === 'loading' ? 'loading'
+      : state.preview === 'error' ? 'error'
+      : state.preview === 'noterminals' ? 'noterminals'
+      : state.preview === 'nofares' ? 'nofares'
+      : 'ready';
+    const cfg = state.fares;
+    /* No rates means no distance worth quoting — both the rate and the adjustment
+       come out of the table — so measure() is only ever handed a configuration that
+       exists, exactly as add-ticket.html hands price() one. */
+    const m = (view === 'ready' || view === 'nofares') && cfg && state.stops.length
+      ? measure(state.origin, state.destination, cfg, state.road)
+      : null;
+    return {
+      view: view, cfg: cfg, m: m, stops: state.stops, road: state.road,
+      origin: stopById(state.origin), destination: stopById(state.destination),
+      next: NEXT_TRIP_NUMBER, started: state.started
+    };
+  }
+
+  /* ── chrome ────────────────────────────────────────────────────────── */
+  /* The BILLABLE distance, not the route distance, because that is the number a
+     boarding is charged from and the one the road switch actually moves. It grows
+     by half a kilometre when SCTEX is chosen, which is the whole reason the chrome
+     carries it: the conductor sees what the road choice cost without scrolling to
+     look for it. */
+  function renderChrome(c) {
+    const sub = $('chromeSub');
+    if (c.view === 'loading') { sub.textContent = 'Reading local records…'; return; }
+    if (c.view === 'error') { sub.textContent = 'Records unavailable'; return; }
+    if (c.view === 'noterminals') { sub.textContent = 'No terminals on this device'; return; }
+    const road = roadByKey(c.road).label;
+    if (c.started) { sub.textContent = 'Trip #' + c.started.number + ' · ' + road; return; }
+    if (c.view === 'nofares') { sub.textContent = 'Trip #' + c.next + ' · ' + road + ' · no rate'; return; }
+    if (c.m && c.m.ok) { sub.textContent = 'Trip #' + c.next + ' · ' + road + ' · ' + fmtKm(c.m.billableMilli); return; }
+    sub.textContent = 'Trip #' + c.next + ' · ' + road;
+  }
+
+  /* ── controls, built once so a re-render never steals focus ────────── */
+  function buildControls() {
+    $('roadSeg').innerHTML = ROADS.map(function (r) {
+      return '<button type="button" data-road="' + r.key + '" data-od-id="at-road-' + r.key + '" aria-pressed="false">' +
+        '<span class="sr-name title-m">' + r.label + '</span>' +
+        '<span class="sr-note body-s">' + r.note + '</span></button>';
+    }).join('');
+  }
+
+  /* ── the form ──────────────────────────────────────────────────────── */
+  function renderForm(c) {
+    const o = c.origin;
+    const d = c.destination;
+    const ov = $('originValue');
+    const dv = $('destinationValue');
+    if (o) { ov.textContent = o.name + ' · ' + o.muni; ov.classList.remove('empty'); }
+    else { ov.textContent = 'Choose where the bus leaves'; ov.classList.add('empty'); }
+    if (d) { dv.textContent = d.name + ' · ' + d.muni; dv.classList.remove('empty'); }
+    else { dv.textContent = 'Choose where the bus is going'; dv.classList.add('empty'); }
+
+    /* The swap needs two ends to be worth anything and Clear needs anything at
+       all. Disabling them rather than hiding them keeps the card's layout fixed,
+       so the two fields never move under a thumb that was aiming at one. */
+    $('swapBtn').disabled = !(o && d);
+    $('clearBtn').disabled = !(o || d);
+
+    const dist = $('legDist');
+    if (c.m && c.m.ok) dist.textContent = fmtKm(c.m.distMilli);
+    else if (!o || !d) dist.textContent = 'Distance is set once both ends are chosen';
+    else dist.textContent = 'Distance cannot be worked out';
+
+    const warn = $('legWarn');
+    if (c.m && !c.m.ok) { warn.textContent = c.m.reason; warn.hidden = false; }
+    else warn.hidden = true;
+
+    Array.prototype.forEach.call($('roadSeg').querySelectorAll('button'), function (b) {
+      b.setAttribute('aria-pressed', b.dataset.road === c.road ? 'true' : 'false');
+    });
+
+    /* The consequence of the road, in pesos, right where the road is chosen.
+       usesSctex is a single boolean on the trip row, so this one tap reprices
+       every boarding the trip will ever take, and a switch that repriced the
+       whole trip silently would be the worst control on the screen. The copy
+       names the two rates and nothing else — the extra distance a toll road
+       bills is carried by the billable figure in the card below, once. */
+    const note = $('roadNote');
+    if (c.road === 'sctex' && c.cfg) {
+      note.hidden = false;
+      note.textContent = 'This trip is priced at the expressway rate of ' +
+        rateText(c.cfg.sctexRatePerKmCentavos) + ' per km instead of ' +
+        rateText(c.cfg.ratePerKmCentavos) + '. Both come from one road setting on the trip — which the store does not keep yet.';
+    } else note.hidden = true;
+
+    $('estCard').hidden = c.view !== 'ready';
+    if (c.view !== 'ready') return;
+
+    const m = c.m;
+    const ok = !!(m && m.ok);
+    $('estDist').textContent = ok ? fmtKm(m.distMilli) : '—';
+    $('estBill').textContent = ok ? fmtKm(m.billableMilli) : '—';
+    $('estRate').textContent = ok ? rateText(m.rate) + ' per km' : '—';
+
+    /* The minimum fare is named on every branch of this note, not only the branch
+       where it binds. A hand-written distance table is where the ₱50 minimum goes
+       missing, twice, and this is the one place on the screen where a conductor can
+       read it without opening anything. */
+    const n = $('estNote');
+    if (!ok) { n.hidden = true; return; }
+    n.hidden = false;
+    n.textContent = estNote(c, m);
+  }
+
+  function estNote(c, m) {
+    const minFare = ' The minimum fare of ' + pesos(c.cfg.minimumFareCentavos) + ' applies to every boarding on it.';
+    if (m.minDistBinds) {
+      return 'These two terminals are ' + fmtKm(m.distMilli) + ' apart, so ' + fmtKm(m.flooredMilli) +
+        ' is billed against the ' + fmtKm(c.cfg.minimumDistanceMilli) + ' minimum distance' +
+        (m.adjMilli ? ', and ' + fmtKm(m.adjMilli) + ' more is billed on this road' : '') + '.' + minFare;
+    }
+    if (m.adjMilli) {
+      return 'The billable distance is ' + fmtKm(m.billableMilli) + ' — the ' + fmtKm(m.distMilli) +
+        ' route plus ' + fmtKm(m.adjMilli) + ' on this road — and the expressway rate applies to all of it.' + minFare;
+    }
+    return 'On this road the route distance is the billable distance.' + minFare;
+  }
+
+
+  /* ── the commit ────────────────────────────────────────────────────── */
+  /* One button, and it is the only control on this screen that leaves it. Its
+     label names the trip number when it goes dead, because "Start trip" turning
+     into a disabled control is the only feedback the running state gives from
+     here — a conductor who pressed it and saw nothing happen would press it
+     again and create a second trip. */
+  function renderCommit(c) {
+    const sec = $('commitSection');
+    if (c.view !== 'ready' && c.view !== 'nofares') { sec.hidden = true; return; }
+    sec.hidden = false;
+
+    const reason = $('blockReason');
+    const hint = $('commitHint');
+    const btn = $('startBtn');
+    let why = '';
+
+    if (c.started) {
+      why = 'Trip #' + c.started.number + ' is running. It ends on the Dashboard, where the next trip is started.';
+    } else if (c.view === 'nofares') {
+      why = 'No fare rules are set, so this trip cannot be started.';
+    } else if (!c.m || !c.m.ok) {
+      why = c.m ? c.m.reason : 'Choose an origin and a destination.';
+    }
+    reason.hidden = !why;
+    if (why) reason.textContent = why;
+
+    btn.disabled = !!(c.started || c.view !== 'ready' || !c.m || !c.m.ok);
+    $('startLabel').textContent = c.started ? 'Trip #' + c.started.number + ' running' : 'Start trip';
+
+    /* The press writes three columns and nothing else — a trip is a route, not a
+       fare. The hint says where they go, because "the trip number is issued now"
+       is the only part of this the app does at press time. */
+    hint.hidden = !c.started;
+    if (c.started) {
+      hint.textContent = 'Trip #' + c.started.number + ' is stored with its two ends, its start time and its route distance. ' +
+        'Fares are priced per boarding, on the trip, later.';
+    }
+  }
+
+  function startTrip(c) {
+    if (c.started || c.view !== 'ready' || !c.m || !c.m.ok) return;
+    /* startTrip(origin, destination, usesSctex) is the entire write. The number
+       is the row's own id and the started_at is the clock, both filled in by the
+       store. Nothing here is a fare, because the app has no fare column on a
+       trip to fill. It also skips the store's two trip-level guards, which are
+       the first thing to restore in a port: a trip already running (:811) and a
+       terminal that is present but inactive (:828). */
+    const t = {
+      number: c.next,
+      originId: state.origin,
+      destinationId: state.destination,
+      usesSctex: state.road === 'sctex',
+      from: c.m.from.name + ' · ' + c.m.from.muni,
+      to: c.m.to.name + ' · ' + c.m.to.muni,
+      at: clock(new Date()),
+      distMilli: c.m.distMilli,
+      billableMilli: c.m.billableMilli,
+      rate: c.m.rate
+    };
+    state.started = t;
+    state.sheet = startedSheetHTML(compute());
+  }
+
+  function renderNote(c) {
+    const p = $('storageNote');
+    if (c.started) {
+      p.textContent = 'One row stored. No fare is written at this step — the trip is the only thing that exists until a boarding is added to it.';
+      return;
+    }
+    p.textContent = 'Starting a trip stores where it leaves from, where it is going, when it started, the route distance in km, and that it is running. ' +
+      'No passenger and no fare yet — those are added to the trip afterwards.';
+  }
+
+  /* ── whole-screen states ───────────────────────────────────────────── */
+  /* Four of the five views. Three replace the screen, because a form that cannot
+     do anything is worse than no form; the fourth — no fare rules — sits under a
+     form that still works, because a route can be chosen on a device that has no
+     rates and choosing it is not wasted. */
+  function stateHTML(c) {
+    if (c.view === 'loading') {
+      return '<div class="card" data-od-id="at-loading">' +
+        '<div class="skeleton" aria-hidden="true">' +
+        '<div class="sk" style="height:13px;width:34%"></div>' +
+        '<div class="sk" style="height:60px;margin-top:12px"></div>' +
+        '<div class="sk" style="height:13px;width:22%;margin-top:20px"></div>' +
+        '<div class="sk" style="height:60px;margin-top:12px"></div>' +
+        '<div class="sk" style="height:44px;margin-top:24px"></div>' +
+        '</div></div>' +
+        '<p class="sr-only" role="status">Reading local records.</p>';
+    }
+    if (c.view === 'error') {
+      return '<div class="state error" data-od-id="at-error">' +
+        '<h3 class="title-m">Local records unavailable</h3>' +
+        '<p class="body-s">The trips table could not be read, so there is no number to give this trip and nothing safe to write.</p>' +
+        '<p class="body-s">The app has no network path for this screen. Retry, and if it keeps failing the device is the thing to check.</p>' +
+        '<button type="button" class="pick-row center" data-act="retry" data-od-id="at-retry">' +
+        icon('check', 18, 'currentColor') + '<span class="pk-name body-m">Retry</span></button>' +
+        '</div>';
+    }
+    if (c.view === 'noterminals') {
+      return '<div class="state" data-od-id="at-noterminals">' +
+        '<h3 class="title-m">No terminals on this device</h3>' +
+        '<p class="body-s">A trip is a difference between two KM markers, so a device with no terminals cannot record one.</p>' +
+        '<p class="body-s">In the app this is Settings &rarr; Terminals, which writes the name and the KM marker together. Five of the seventeen are seeded; the rest are added by the operator.</p>' +
+        '<div class="handoff" data-od-id="at-noterminals-handoff">' +
+        '<p class="nb-title label-s">HANDOFF</p>' +
+        '<p class="body-s">Terminals live in Settings. There is no way to add one from this screen, and no way to add a trip without two.</p>' +
+        '</div></div>';
+    }
+    /* nofares — under the form, never in place of it. */
+    return '<div class="state" data-od-id="at-nofares">' +
+      '<h3 class="title-m">No fare rules set</h3>' +
+      '<p class="body-s">Fare settings are created empty, so a device that has never opened them has no rate and no minimum. A trip is still worth recording — the route does not depend on a peso — but nothing can be billed against it yet.</p>' +
+      '<button type="button" class="pick-row center" data-act="rules" data-od-id="at-nofares-rules">' +
+      icon('fare', 18, 'currentColor') + '<span class="pk-name body-m">See what a rate would be used for</span></button>' +
+      '</div>';
+  }
+
+  function renderStates(c) {
+    const whole = c.view === 'loading' || c.view === 'error' || c.view === 'noterminals';
+    $('formSection').hidden = whole;
+    $('stateSection').hidden = !(whole || c.view === 'nofares');
+    $('stateSlot').innerHTML = (whole || c.view === 'nofares') ? stateHTML(c) : '';
+  }
+
+  /* ── overlays ──────────────────────────────────────────────────────── */
+  function closeOverlay() {
+    const root = $('overlayRoot');
+    if (!root.firstChild) return;
+    /* Focus goes back where it came from, and only if that control still exists —
+       a re-render between open and close will have replaced it. */
+    if (state.lastFocus && state.lastFocus.isConnected) state.lastFocus.focus();
+    root.innerHTML = '';
+    state.sheet = null;
+  }
+
+  function openSheet(html, scrimClass) {
+    state.lastFocus = document.activeElement;
+    $('overlayRoot').innerHTML = '<div class="scrim ' + (scrimClass || 'bottom') + '" data-scrim="1">' + html + '</div>';
+    state.sheet = html;
+    const af = $('overlayRoot').querySelector('[data-autofocus]');
+    if (af) af.focus();
+  }
+
+  function detailRow(k, v) {
+    return '<div class="detail-row"><span class="k body-m">' + k + '</span><span class="v body-m tabular">' + v + '</span></div>';
+  }
+
+  function sheet(title, sub, body) {
+    return '<div class="sheet bottom-sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">' +
+      '<div class="sheet-head">' +
+      '<div class="sheet-titles">' +
+      '<h2 class="headline-s" id="sheetTitle">' + title + '</h2>' +
+      (sub ? '<p class="body-s muted">' + sub + '</p>' : '') +
+      '</div>' +
+      '<button type="button" class="icon-btn" data-act="close" data-od-id="at-sheet-close" data-autofocus aria-label="Close">' +
+      icon('close', 20, 'currentColor') + '</button>' +
+      '</div>' +
+      '<div class="sheet-body">' + body + '</div>' +
+      '</div>';
+  }
+
+  function handoff(title, body) {
+    return '<div class="handoff" data-od-id="at-handoff">' +
+      '<p class="nb-title label-s">' + title + '</p>' +
+      '<p class="body-s">' + body + '</p></div>';
+  }
+
+  /* ── the two pickers ───────────────────────────────────────────────── */
+  /* One list, two callers: the same seeded rows open for either end, and the
+     distance is quoted against the OTHER end because that is the only number a
+     conductor choosing a terminal is actually shopping on. */
+  function stopSheetHTML(which, c) {
+    const from = which === 'origin' ? state.destination : state.origin;
+    const chosen = which === 'origin' ? state.origin : state.destination;
+    const other = from ? stopById(from) : null;
+    const rows = state.stops.map(function (s) {
+      const dist = other && s.km !== null && other.km !== null
+        ? ' · ' + fmtKm(Math.abs(s.km - other.km)) + ' away'
+        : '';
+      return '<button type="button" class="pick-row" data-stop="' + s.id + '" data-od-id="at-stop-' + s.id + '"' +
+        (chosen === s.id ? ' aria-current="true"' : '') + '>' +
+        '<span class="f-icon" aria-hidden="true" style="width:32px;height:32px">' + icon('terminal', 18, 'currentColor', 1.8) + '</span>' +
+        '<span class="pk-body"><span class="pk-name body-m">' + s.name + '</span>' +
+        '<span class="pk-sub body-s">' + s.muni + dist + '</span></span>' +
+        (chosen === s.id ? '<span class="f-chev" aria-hidden="true">' + icon('check', 18, 'currentColor') + '</span>' : '') +
+        '</button>';
+    }).join('');
+
+    return sheet(
+      which === 'origin' ? 'Where does the bus leave?' : 'Where is the bus going?',
+      plural(state.stops.length, 'terminal', 'terminals') + ' on this device',
+      rows + '<p class="pick-more body-s">A terminal with no KM marker cannot be used as either end of a route.</p>'
+    );
+  }
+
+  /* ── the rules sheet ───────────────────────────────────────────────── */
+  /* The five values this screen prints, and the two decisions the app leaves
+     open that a reader of this screen has to be told about. Both are stated
+     here rather than in code, because a prototype that hides an invented rule
+     behind a plausible number is worse than one that admits to it. The toll
+     road's extra half kilometre is read from the table and applied to the
+     billable distance, but it is not a row here — the card above already
+     shows route and billable as two numbers. */
+  function rulesSheetHTML(c) {
+    const cfg = c.cfg || state.fares;
+    const rows = [
+      detailRow('Rate per km', rateText(cfg.ratePerKmCentavos)),
+      detailRow('SCTEX rate per km', rateText(cfg.sctexRatePerKmCentavos)),
+      detailRow('Minimum distance', fmtKm(cfg.minimumDistanceMilli)),
+      detailRow('Minimum fare', pesos(cfg.minimumFareCentavos)),
+      detailRow('Special rate per km', rateText(cfg.specialRatePerKmCentavos))
+    ].join('');
+
+    return sheet('Fare rules', 'The rates and floors this trip is read against',
+      '<div class="detail-card">' + rows + '</div>' +
+      '<p class="body-s commit-hint">These are read from the fare settings table, which is created empty and filled by Fare settings. A trip stores none of them: it stores the route distance it was started with and no road, and every boarding on it is priced from the values above at the moment it is added.</p>' +
+      handoff('THE ROAD THE TRIP DOES NOT KEEP', 'This screen asks for the road, because the road moves every peso on the run, and the store is then handed that answer and throws it away — there is no road column on a trip, so a boarding on an SCTEX trip is priced on the ordinary rate until one is added. The switch is here to show the decision a conductor is already making; the column is the port\'s first job.') +
+      handoff('HOW A BOARDING IS PRICED', 'A boarding takes the rate for its road, multiplies it by the billable distance, rounds down, and compares the result with the minimum fare. The floor comes last, so a short trip is never billed below ' + pesos(cfg.minimumFareCentavos) + '.') +
+      handoff('THE ORDER THIS SCREEN CHOSE', 'The minimum distance is applied to the ROUTE distance first, and the half kilometre a toll road bills is added after it, not before. That half kilometre is distance a driver is billed for and not distance they drive, so it cannot be part of what the floor is measured against. The app does not compute any of this — this order is a prototype decision, and it is the one thing here that could reasonably be written the other way.') +
+      handoff('WHAT IS NOT HERE', 'The Deluxe rate and both discount fields are set in Fare settings and are not read by this screen: Deluxe is a service level, not something a conductor decides at a roadside stop, and the discounts are already folded into the special rate as it is stored. The special rate is shown because it is a stored value, not because this screen can produce it.')
+    );
+  }
+
+  /* ── after the press ───────────────────────────────────────────────── */
+  /* The one thing the press did, stated, plus the two places it can go next. A
+     sheet rather than a toast: the trip number is a reference the conductor may
+     have to read out, and a toast is gone in two seconds. */
+  function startedSheetHTML(c) {
+    const t = c.started;
+    const road = t.usesSctex ? 'SCTEX' : 'Ordinary';
+    const rows = [
+      detailRow('Trip', '#' + t.number),
+      detailRow('Leaves from', t.from),
+      detailRow('Going to', t.to),
+      detailRow('Road', road),
+      detailRow('Route distance', fmtKm(t.distMilli)),
+      detailRow('Billable distance', fmtKm(t.billableMilli)),
+      detailRow('Rate per km', rateText(t.rate)),
+      detailRow('Started', t.at)
+    ].join('');
+
+    return sheet('Trip #' + t.number + ' is running', t.from + ' → ' + t.to,
+      '<div class="detail-card">' + rows + '</div>' +
+      '<p class="body-s commit-hint">The trip keeps the route distance it was started with, but neither the billable distance nor the rate. Those two are shown so the road choice can be checked; the boarding screen recomputes them from the same values.</p>' +
+      '<a class="primary-btn wide" href="add-ticket.html" data-od-id="at-started-add">Add the first boarding</a>' +
+      handoff('WHERE THIS GOES NEXT', 'A boarding is added to this trip and prices itself against it. The Dashboard shows the running trip and is where the next one is started — not this screen, which will offer Trip #' + t.number + ' again until this one ends.')
+    );
+  }
+
+  /* ── back ──────────────────────────────────────────────────────────── */
+  function backSheetHTML(c) {
+    const running = !!c.started;
+    return sheet(running ? 'Leave while this trip runs?' : 'Leave this screen?',
+      running ? 'Trip #' + c.started.number + ' keeps running' : 'Nothing has been stored yet',
+      handoff('BACK GOES TO THE DASHBOARD', 'A trip is started from the Dashboard, which is also where a running trip ends. A trip cannot be started from anywhere else in the app, so this screen is a detail of the Dashboard rather than a page of its own.') +
+      '<p class="body-s commit-hint">' + (running
+        ? 'The trip stays open on the Dashboard. Adding a boarding is the only thing that changes it.'
+        : 'Choosing a route and leaving costs nothing. The commit is the only write on this screen.') + '</p>');
+  }
+
+
+  function renderOverlay() {
+    $('overlayRoot').innerHTML = state.sheet || '';
+  }
+
+  /* ── prototype states, outside the phone ───────────────────────────── */
+  function syncProto() {
+    Array.prototype.forEach.call($('protoSeg').querySelectorAll('button'), function (b) {
+      b.setAttribute('aria-pressed', b.dataset.state === state.preview ? 'true' : 'false');
+    });
+  }
+
+  function setPreview(v) {
+    state.preview = v;
+    /* A state switch is a different device, so a trip that was started on the
+       previous one does not exist on this one. */
+    state.started = null;
+    state.sheet = null;
+    syncProto();
+    render();
+  }
+
+  /* ── one render ────────────────────────────────────────────────────── */
+  function render() {
+    const c = compute();
+    renderChrome(c);
+    renderForm(c);
+    renderStates(c);
+    renderCommit(c);
+    renderNote(c);
+    /* Last, so a sheet survives the render that opened it: state.sheet holds the
+       markup and renderOverlay re-emits it, which means the sheet's inputs are
+       rebuilt rather than left stale. */
+    renderOverlay();
+  }
+
+  /* ── wiring ────────────────────────────────────────────────────────── */
+  document.addEventListener('click', function (e) {
+    const t = e.target;
+
+    /* Scrim close by attribute test and never by closest(): the sheet markup
+       contains its own data-* attributes, and a close that walks up from a node
+       inside the sheet would close the sheet on any tap that missed a control. */
+    if (t.hasAttribute && t.hasAttribute('data-scrim')) { closeOverlay(); return; }
+
+    const proto = t.closest && t.closest('#protoSeg button');
+    if (proto) { setPreview(proto.dataset.state); return; }
+
+    const road = t.closest && t.closest('[data-road]');
+    if (road) {
+      state.road = road.dataset.road;
+      render();
+      return;
+    }
+
+    const stop = t.closest && t.closest('[data-stop]');
+    if (stop) {
+      const id = stop.dataset.stop;
+      /* Which end is being filled is a property of the sheet, not of the row, so
+         the same list markup opens for both and cannot set the wrong one. */
+      if (state.sheetKind === 'origin') state.origin = id; else state.destination = id;
+      state.sheet = null;
+      state.sheetKind = null;
+      render();
+      return;
+    }
+
+    const act = t.closest && t.closest('[data-act]');
+    if (!act) return;
+    const c = compute();
+
+    switch (act.dataset.act) {
+      case 'back':
+        openSheet(backSheetHTML(c), 'center');
+        break;
+      case 'close':
+        closeOverlay();
+        break;
+      case 'clear':
+        state.origin = null;
+        state.destination = null;
+        state.sheet = null;
+        render();
+        break;
+      case 'swap': {
+        const o = state.origin;
+        state.origin = state.destination;
+        state.destination = o;
+        render();
+        break;
+      }
+      case 'pick-origin':
+        state.sheetKind = 'origin';
+        openSheet(stopSheetHTML('origin', c));
+        break;
+      case 'pick-destination':
+        state.sheetKind = 'destination';
+        openSheet(stopSheetHTML('destination', c));
+        break;
+      case 'rules':
+        openSheet(rulesSheetHTML(c));
+        break;
+      case 'retry':
+        setPreview('ready');
+        break;
+      case 'start':
+        startTrip(c);
+        render();
+        break;
+    }
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeOverlay();
+  });
+
+  buildControls();
+  syncProto();
+  render();
+  })();
+
+  </script>
+</body>
+</html>

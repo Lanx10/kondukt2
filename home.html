@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kondukt — Home prototype</title>
+<!--
+  KONDUKT · HOME — single-file prototype (HTML + CSS + JS, no build, no storage APIs).
+
+  Three defects this redesign fixes, versus the shipped React Native screen:
+
+  1. THE STORE WAS NOT THE SOURCE OF TRUTH. The shipped screen held
+     `const [activeTrip, setActiveTrip] = useState(false)` — local UI state — so Home
+     rendered "NO ACTIVE TRIP" while the SQLite seed carried an ACTIVE trip. Here every
+     figure on screen derives from one compute() over the same records the Dashboard
+     uses; there is no second copy of "is a trip running" anywhere.
+
+  2. NOTHING ON HOME COULD END A TRIP. `activeTrip` was never reset, so one press of
+     START TRIP left the screen permanently stuck behind a disabled button. End trip is
+     now reachable from the hero's sheet, behind a two-step confirmation; the closing
+     write touches only endedAt and status, never the fares already recorded — the
+     money stays in today's total and in History.
+
+  3. TODAY'S COMPLETED TRIPS WERE STAMPED IN THE FUTURE. The seed gave them fixed
+     5 + i*4 o'clock times with no clamp, so before ~09:30 a trip you had just ended was
+     outranked by a trip that had not happened yet and "last trip" lied. Completed trips
+     are clamped into the elapsed part of today, and the clamp never spills a trip into
+     yesterday, where it would stop counting as today's work.
+
+  Structure: brand header · trip hero (5 states) · last completed trip (idle only) ·
+  six quick-action tiles · unbuilt note · storage footer · overlays.
+-->
+<style>
+  :root {
+    --primary: #E65100;
+    --primary-solid: #C2410C;
+    --primary-container: #FFE6D2;
+    --on-primary-container: #4E2200;
+    --secondary: #FFB300;
+    --on-secondary: #3D2E00;
+    --secondary-container: #FFEFC7;
+    --on-secondary-container: #4A3600;
+    --secondary-detail: #4F3D2B;
+    --secondary-muted: #5B4720;
+    --secondary-faint: #6B5518;
+    --secondary-fg: #8A6100;
+    --tertiary: #546E7A;
+    --tertiary-container: #DDE6EA;
+    --on-tertiary-container: #162B33;
+    --error: #BA1A1A;
+    --error-container: #FFDAD6;
+    --surface: #FDF7F3;
+    --surface-low: #F7EFE9;
+    --surface-container: #F2E9E2;
+    --surface-high: #ECE3DC;
+    --on-surface: #221A15;
+    --on-surface-variant: #53433B;
+    --outline: #85736B;
+    --outline-variant: #D7C2B7;
+    --scrim: rgba(34, 26, 21, .32);
+
+    --glass-tint: rgba(255, 255, 255, .58);
+    --glass-rim: rgba(255, 255, 255, .85);
+    --glass-shadow: 0 8px 15px rgba(90, 106, 130, .16);
+    --glass-text: #1A2029;
+    --glass-text-variant: #4A5568;
+    --glass-primary: #8F3A00;
+    --glass-secondary: #6B4B00;
+    --glass-tertiary: #334A56;
+    --hover-tint: rgba(120, 130, 150, .1);
+    --active-tint: rgba(120, 130, 150, .17);
+
+    --radius-s: 8px;
+    --radius-m: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
+    --radius-glass: 28px;
+    --radius-full: 999px;
+
+    --gutter: 20px;
+    --card-gap: 12px;
+    --section-margin: 20px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: 'Poppins', sans-serif;
+    background: #E9E4E0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 24px 0;
+  }
+
+  .phone {
+    width: 390px;
+    height: 844px;
+    border-radius: 44px;
+    border: 11px solid #111;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 24px 48px rgba(34, 26, 21, .25);
+    flex-shrink: 0;
+  }
+
+  .phone-content { position: relative; width: 100%; height: 100%; overflow: hidden; }
+
+  /* The fixed warm-to-cool field every glass panel refracts. */
+  .field {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, #FBC9A8 0%, #F4F7FB 52%, #C6D9E8 100%);
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    height: 100%;
+    overflow-y: auto;
+    padding: 50px 0 29px;
+    scrollbar-width: none;
+  }
+  .app::-webkit-scrollbar { display: none; }
+
+  .container { padding: 0 20px; }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px; height: 1px;
+    margin: -1px; padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* ── Glass ─────────────────────────────────────────────────────────── */
+
+  .glass {
+    position: relative;
+    background: var(--glass-tint);
+    border: 1px solid var(--glass-rim);
+    border-radius: var(--radius-glass);
+    box-shadow: var(--glass-shadow);
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+  }
+  .glass::before, .glass::after {
+    content: '';
+    position: absolute;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .glass::before { inset: 0; border-radius: inherit; background: var(--glass-tint); opacity: .35; }
+  .glass::after {
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(160deg, rgba(255, 255, 255, .5), transparent 45%);
+    mix-blend-mode: screen;
+  }
+  /* The one solid card in the app keeps no rim, no tint, no sheen. */
+  .glass.hero-solid::before, .glass.hero-solid::after { display: none; }
+
+  .glass > * { position: relative; z-index: 1; }
+
+  /* ── Type ──────────────────────────────────────────────────────────── */
+
+  .display-s { font-size: 28px; line-height: 36px; letter-spacing: -.3px; font-weight: 700; }
+  .headline-s { font-size: 20px; line-height: 27px; letter-spacing: -.3px; font-weight: 600; }
+  .title-m { font-size: 16px; line-height: 23px; font-weight: 600; }
+  .body-m { font-size: 14px; line-height: 21px; font-weight: 400; }
+  .body-s { font-size: 12px; line-height: 18px; font-weight: 400; }
+  .label-l { font-size: 15px; line-height: 20px; font-weight: 600; }
+  .label-s { font-size: 11px; line-height: 16px; letter-spacing: .6px; font-weight: 600; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ── Header ────────────────────────────────────────────────────────── */
+
+  .header { display: flex; align-items: center; gap: 12px; margin: 8px 0 var(--section-margin); }
+  .brand-mark {
+    width: 48px; height: 48px;
+    border-radius: 14px;
+    background: var(--primary-solid);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; flex-shrink: 0;
+  }
+  .header-text { flex: 1; min-width: 0; }
+  .header-title { color: var(--glass-text); }
+  .header-tagline { color: var(--glass-text-variant); }
+  .trip-pill {
+    display: flex; align-items: center; gap: 6px;
+    height: 32px; padding: 0 12px;
+    border-radius: var(--radius-full);
+    background: var(--secondary-container);
+    color: var(--on-secondary-container);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .trip-pill[hidden] { display: none; }
+  .trip-pill .dot {
+    width: 8px; height: 8px; border-radius: 999px;
+    background: var(--secondary-fg);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+
+  /* ── Hero ──────────────────────────────────────────────────────────── */
+
+  .hero { padding: 20px; margin-bottom: var(--section-margin); }
+  .hero-solid { background: var(--secondary); border: none; box-shadow: 0 8px 15px rgba(90, 106, 130, .2); }
+  .hero-error { background: var(--error-container); border: none; }
+  .hero-eyebrow { display: flex; align-items: center; gap: 8px; color: var(--secondary-fg); }
+  .hero-glass .hero-eyebrow, .hero-error .hero-eyebrow { color: var(--glass-text-variant); }
+  .hero-chip {
+    background: var(--on-secondary);
+    color: var(--secondary);
+    font-size: 11px; line-height: 16px; letter-spacing: .6px; font-weight: 600;
+    height: 24px; padding: 0 10px;
+    border-radius: var(--radius-full);
+    display: inline-flex; align-items: center;
+  }
+  .hero-chip[hidden] { display: none; }
+  .hero-route {
+    margin-top: 6px;
+    color: var(--on-secondary);
+    display: flex; flex-wrap: wrap; align-items: center;
+    column-gap: 8px; row-gap: 2px;
+  }
+  .hero-route .arrow { color: var(--secondary-fg); }
+  .hero-glass .hero-route, .hero-error .hero-route { color: var(--glass-text); }
+  .hero-glass .hero-route .arrow, .hero-error .hero-route .arrow { color: var(--glass-text-variant); }
+  .hero-when { margin-top: 2px; color: var(--secondary-muted); }
+  .hero-glass .hero-when, .hero-error .hero-when { color: var(--glass-text-variant); }
+  .hero-body { margin-top: 8px; color: var(--glass-text-variant); }
+  .hero-solid .hero-body { color: var(--secondary-muted); }
+  .hero-last { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--outline); color: var(--glass-text-variant); }
+  .hero-last b { color: var(--glass-text); }
+  .hero-figures {
+    display: flex; gap: 24px;
+    border-top: 1px solid rgba(61, 46, 0, .25);
+    margin-top: 14px; padding-top: 14px;
+  }
+  .hero-glass .hero-figures, .hero-error .hero-figures { border-top-color: var(--outline); }
+  .hero-figure { display: flex; flex-direction: column; }
+  .hero-figure b { color: var(--on-secondary); }
+  .hero-glass .hero-figure b, .hero-error .hero-figure b { color: var(--glass-text); }
+  .hero-figure span { color: var(--secondary-faint); font-size: 11px; line-height: 16px; letter-spacing: .6px; font-weight: 600; }
+  .hero-glass .hero-figure span, .hero-error .hero-figure span { color: var(--glass-text-variant); }
+  @media (max-width: 299px) { .hero-figures { flex-direction: column; gap: 12px; } }
+  .hero-actions { display: flex; gap: 8px; margin-top: 16px; }
+  .hero-actions .btn { flex: 1; padding: 0 12px; }
+  .hero-error-text { color: var(--on-surface-variant); margin-top: 6px; }
+  .hero-error-head { color: var(--error); }
+
+  /* Skeleton */
+  .sk { border-radius: var(--radius-m); background: rgba(120, 130, 150, .14); position: relative; overflow: hidden; }
+  .sk::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(120, 130, 150, .18), transparent);
+    animation: shimmer 1.4s infinite;
+  }
+  @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+  .sk-eyebrow { width: 130px; height: 12px; }
+  .sk-route { width: 70%; height: 26px; margin-top: 12px; }
+  .sk-when { width: 45%; height: 16px; margin-top: 8px; }
+  .sk-figs { display: flex; gap: 24px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--outline); }
+  .sk-fig { flex: 1; height: 30px; }
+  .sk-btn { width: 55%; height: 48px; margin-top: 16px; border-radius: var(--radius-full); }
+
+  /* ── Buttons ───────────────────────────────────────────────────────── */
+
+  .btn {
+    min-height: 48px;
+    border: none;
+    border-radius: var(--radius-full);
+    padding: 0 20px;
+    font-family: inherit;
+    font-size: 15px; line-height: 20px; font-weight: 600;
+    white-space: nowrap;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  .btn-solid { background: var(--primary-solid); color: #fff; }
+  .btn-solid:hover { background: #A63808; }
+  .btn-ghost { background: transparent; border: 1px solid var(--outline); color: var(--on-surface); }
+  .hero-glass .btn-ghost, .hero-error .btn-ghost { color: var(--glass-text); }
+  .hero-solid .btn-ghost { color: var(--on-secondary); }
+  .btn-ghost:hover { background: var(--active-tint); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn-ghost:disabled:hover { background: transparent; }
+  .btn-block { width: 100%; }
+
+  /* ── Sections ──────────────────────────────────────────────────────── */
+
+  .section-label { color: var(--glass-text-variant); margin: 0 0 10px; }
+  .last-trip { margin-bottom: var(--section-margin); }
+  .last-trip[hidden] { display: none; }
+  .last-trip-card { padding: 14px 20px; display: flex; align-items: center; gap: 12px; }
+  .last-trip-main { flex: 1; min-width: 0; }
+  .last-trip-route { color: var(--glass-text); }
+  .last-trip-sub { color: var(--glass-text-variant); margin-top: 2px; }
+  .last-trip-side { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+  .last-trip-total { color: var(--glass-text); white-space: nowrap; }
+  .link-btn {
+    background: none; border: none; padding: 0;
+    font-family: inherit; font-size: 12px; line-height: 18px; font-weight: 600;
+    color: var(--glass-primary);
+    cursor: pointer;
+    min-height: 44px;
+  }
+  .link-btn:hover { text-decoration: underline; }
+
+  /* ── Quick actions ─────────────────────────────────────────────────── */
+
+  .qa-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--card-gap);
+    margin-bottom: var(--section-margin);
+  }
+  .qa-item { display: block; }
+  .qa-btn {
+    width: 100%;
+    min-height: 112px;
+    padding: 14px;
+    border-radius: var(--radius-lg);
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    transition: background-color .15s;
+  }
+  .qa-btn:hover { background-color: var(--hover-tint); }
+  .qa-btn:active { background-color: var(--active-tint); }
+  .qa-btn:disabled { opacity: .5; cursor: default; }
+  .qa-btn:disabled:hover { background-color: transparent; }
+  .qa-chip {
+    width: 40px; height: 40px;
+    border-radius: var(--radius-m);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .qa-chip.tone-primary { background: var(--primary-container); color: var(--primary-solid); }
+  .qa-chip.tone-secondary { background: var(--secondary-container); color: var(--secondary-fg); }
+  .qa-chip.tone-tertiary { background: var(--tertiary-container); color: var(--tertiary); }
+  .qa-title { margin-top: 10px; color: var(--glass-text); }
+  .qa-value {
+    color: var(--glass-text-variant);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+  }
+  .qa-value b { color: var(--glass-text); }
+
+  /* ── Unbuilt note + storage footer ─────────────────────────────────── */
+
+  .unbuilt {
+    border: 1.5px dashed var(--outline);
+    border-radius: var(--radius-lg);
+    padding: 16px 20px;
+    margin-bottom: var(--section-margin);
+  }
+  .unbuilt-title { color: var(--glass-text); margin-bottom: 4px; }
+  .unbuilt-body { color: var(--glass-text-variant); }
+
+  .storage-note { padding: 16px 20px; display: flex; gap: 12px; align-items: flex-start; }
+  .storage-note .icon { color: var(--glass-tertiary); flex-shrink: 0; margin-top: 2px; }
+  .storage-text { color: var(--glass-text-variant); }
+  .storage-text b { color: var(--glass-text); }
+
+  .footnote { text-align: center; padding: 16px 0 4px; color: var(--glass-text-variant); }
+
+  /* ── Overlays ──────────────────────────────────────────────────────── */
+
+  .overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 40;
+    display: flex;
+    align-items: flex-end;
+    visibility: hidden;
+  }
+  .overlay.open { visibility: visible; }
+  .scrim { position: absolute; inset: 0; background: var(--scrim); opacity: 0; transition: opacity .2s; }
+  .overlay.open .scrim { opacity: 1; }
+  .sheet {
+    position: relative;
+    width: 100%;
+    border-radius: var(--radius-glass) var(--radius-glass) 0 0;
+    border-bottom: none;
+    padding: 12px 20px 49px;
+    transform: translateY(100%);
+    transition: transform .25s ease;
+    max-height: 88%;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .sheet::-webkit-scrollbar { display: none; }
+  .overlay.open .sheet { transform: translateY(0); }
+  .sheet-grabber { width: 36px; height: 4px; border-radius: 999px; background: var(--outline-variant); margin: 0 auto 12px; }
+  .sheet-head { display: flex; align-items: flex-start; gap: 12px; }
+  .sheet-head-text { flex: 1; min-width: 0; }
+  .sheet-title { color: var(--glass-text); }
+  .sheet-sub { color: var(--glass-text-variant); margin-top: 2px; }
+  .sheet-close {
+    width: 44px; height: 44px;
+    margin: -6px -10px 0 0;
+    border: none; border-radius: var(--radius-full);
+    background: var(--surface-high);
+    color: var(--on-surface-variant);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .sheet-close:hover { background: var(--outline-variant); }
+  .sheet-body { margin-top: 14px; }
+
+  .detail-row {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--outline);
+  }
+  .detail-row:last-of-type { border-bottom: none; }
+  .detail-label { color: var(--glass-text-variant); }
+  .detail-value { color: var(--glass-text); text-align: right; }
+
+  .sheet-note {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: var(--radius-m);
+    background: var(--surface-container);
+    color: var(--on-surface-variant);
+  }
+  .sheet-note b { color: var(--on-surface); }
+
+  .confirm-figure {
+    margin: 14px 0 0;
+    padding: 14px 16px;
+    border-radius: var(--radius-m);
+    background: var(--surface-low);
+    border: 1px solid var(--outline-variant);
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  }
+  .confirm-figure-label { color: var(--on-surface-variant); }
+  .confirm-figure b { color: var(--on-surface); }
+  .confirm-warn { margin-top: 10px; font-size: 12px; line-height: 18px; color: var(--on-surface-variant); }
+  .sheet-actions { display: flex; gap: 8px; margin-top: 16px; }
+  .sheet-actions .btn { flex: 1; }
+
+  /* Fare recording */
+  .type-row {
+    width: 100%;
+    min-height: 56px;
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-m);
+    background: var(--surface);
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+  }
+  .type-row + .type-row { margin-top: 8px; }
+  .type-row:hover { background: var(--surface-low); }
+  .type-row[aria-checked="true"] { border-color: var(--primary); border-width: 2px; padding: 11px 13px; background: var(--primary-container); }
+  .type-check { width: 20px; height: 20px; border-radius: 999px; border: 1.5px solid var(--outline); display: flex; align-items: center; justify-content: center; color: transparent; flex-shrink: 0; }
+  .type-row[aria-checked="true"] .type-check { background: var(--primary-solid); border-color: var(--primary-solid); color: #fff; }
+  .type-name { flex: 1; color: var(--on-surface); font-weight: 600; font-size: 14px; }
+  .type-row[aria-checked="true"] .type-name { font-weight: 700; }
+  .type-price { color: var(--on-surface-variant); font-size: 12px; }
+  .qty-row { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+  .qty-label { color: var(--on-surface-variant); flex: 1; }
+  .qty-btn {
+    width: 44px; height: 44px;
+    border: 1px solid var(--outline);
+    border-radius: var(--radius-m);
+    background: var(--surface);
+    color: var(--on-surface);
+    font-size: 18px;
+    cursor: pointer;
+  }
+  .qty-btn:hover { background: var(--surface-high); }
+  .qty-btn:disabled { opacity: .4; cursor: default; }
+  .qty-num { min-width: 32px; text-align: center; color: var(--on-surface); }
+
+  /* ── Prototype control (outside the phone) ─────────────────────────── */
+
+  .proto {
+    position: fixed;
+    left: 20px;
+    bottom: 20px;
+    z-index: 90;
+    background: #fff;
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-lg);
+    padding: 14px;
+    box-shadow: 0 8px 24px rgba(34, 26, 21, .12);
+  }
+  .proto-label { color: var(--on-surface-variant); margin-bottom: 8px; }
+  .proto-row { display: flex; flex-wrap: wrap; gap: 8px; max-width: 250px; }
+  .proto-btn {
+    min-height: 44px;
+    padding: 0 16px;
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-full);
+    background: #fff;
+    color: var(--on-surface);
+    font-family: inherit;
+    font-size: 13px; font-weight: 600;
+    cursor: pointer;
+  }
+  .proto-btn:hover { background: var(--surface-low); }
+  .proto-btn[aria-pressed="true"] { background: var(--primary-solid); color: #fff; border-color: var(--primary-solid); }
+  @media (max-width: 480px) { .proto { display: none; } }
+
+  /* ── Focus + motion ────────────────────────────────────────────────── */
+
+  button:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(194, 65, 12, .4);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sk::after { animation: none; }
+    .trip-pill .dot { animation: none; }
+    .scrim, .sheet { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="phone-content">
+    <div class="field" aria-hidden="true"></div>
+
+    <main class="app" id="app" aria-label="Kondukt home">
+      <div class="container">
+        <header class="header" data-od-id="region:header">
+          <div class="brand-mark" aria-hidden="true">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v11"/><path d="M2 17h20"/><circle cx="6.5" cy="19.5" r="1.5"/><circle cx="17.5" cy="19.5" r="1.5"/><path d="M4 11h16"/></svg>
+          </div>
+          <div class="header-text">
+            <h1 class="headline-s header-title">KONDUKT</h1>
+            <p class="body-s header-tagline" id="header-tagline">Reading records</p>
+          </div>
+          <div class="trip-pill label-s num" id="trip-pill" hidden data-od-id="control:live-trip-pill">
+            <span class="dot" aria-hidden="true"></span>
+            <span id="trip-pill-text"></span>
+            <span class="visually-hidden">. Trip in progress.</span>
+          </div>
+        </header>
+
+        <section id="hero-slot" data-od-id="region:hero" aria-label="Trip status"></section>
+
+        <section id="last-trip-slot" data-od-id="region:last-trip" aria-label="Last completed trip"></section>
+
+        <section data-od-id="region:quick-actions" aria-labelledby="qa-label">
+          <h2 class="label-s section-label" id="qa-label">QUICK ACTIONS</h2>
+          <div class="qa-grid" role="list" id="qa-grid" aria-labelledby="qa-label"></div>
+        </section>
+
+        <section class="unbuilt" data-od-id="region:unbuilt" aria-labelledby="unbuilt-title">
+          <p class="body-m unbuilt-title" id="unbuilt-title"><b>Configuration screens not built yet</b></p>
+          <p class="body-s unbuilt-body">Fare, Terminal and Barangay configuration are registered in Settings but have no screen in this prototype. Records for them are not faked.</p>
+        </section>
+
+        <footer class="glass storage-note" data-od-id="region:storage" aria-label="Local storage note">
+          <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+          <p class="body-s storage-text" id="storage-text"></p>
+        </footer>
+
+        <p class="body-s footnote">Kondukt — fares stay on this device.</p>
+      </div>
+    </main>
+
+    <div class="overlay" id="overlay" hidden>
+      <div class="scrim" data-scrim></div>
+      <div class="glass sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title-el" id="sheet" data-od-id="region:sheet">
+        <div class="sheet-grabber" aria-hidden="true"></div>
+        <div class="sheet-head">
+          <div class="sheet-head-text">
+            <h2 class="headline-s sheet-title" id="sheet-title-el"></h2>
+            <p class="body-s sheet-sub" id="sheet-sub"></p>
+          </div>
+          <button class="sheet-close" id="sheet-close" aria-label="Close sheet" data-od-id="control:sheet-close">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="sheet-body" id="sheet-body"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="proto" role="group" aria-label="Prototype states">
+  <p class="label-s proto-label">PROTOTYPE STATES</p>
+  <div class="proto-row">
+    <button class="proto-btn" data-state="running" aria-pressed="true">Running</button>
+    <button class="proto-btn" data-state="idle" aria-pressed="false">Idle</button>
+    <button class="proto-btn" data-state="loading" aria-pressed="false">Loading</button>
+    <button class="proto-btn" data-state="empty" aria-pressed="false">Empty</button>
+    <button class="proto-btn" data-state="error" aria-pressed="false">Error</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ═════════════════════════════ Seed data ═════════════════════════════ */
+
+const FARE = { REGULAR: 15, STUDENT: 13, SENIOR_CITIZON: 12, PWD: 12 };
+const TYPE_LABELS = { REGULAR: 'Regular', STUDENT: 'Student', SENIOR_CITIZON: 'Senior citizen', PWD: 'PWD' };
+const TYPES = Object.keys(FARE);
+const DAY = 86400000;
+const HOUR = 3600000;
+
+const ROUTES = [
+  { origin: 'Cubao', destination: 'Divisoria', km: 7.2 },
+  { origin: 'Baclaran', destination: 'Monumento', km: 8.0 },
+  { origin: 'Divisoria', destination: 'Cubao', km: 7.2 },
+  { origin: 'Monumento', destination: 'Baclaran', km: 8.0 },
+  { origin: 'Quiapo', destination: 'Cubao', km: 5.4 },
+  { origin: 'Monumento', destination: 'Cubao', km: 4.1 },
+];
+
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * One pass produces 45 days of consistent trips + fares. A fresh install
+ * seeds an ACTIVE trip, so RUNNING is the honest default and idle is the
+ * state after one is ended. Completed trips are clamped into the elapsed
+ * part of today — never into the future, never into yesterday.
+ */
+function buildData(activeToday) {
+  const rand = mulberry32(7);
+  const now = Date.now();
+  const dayStart = new Date(now); dayStart.setHours(0, 0, 0, 0);
+  const start = dayStart.getTime();
+  const trips = [];
+  const fares = [];
+  let fareId = 1;
+
+  const addFares = (trip, count) => {
+    const span = (trip.endedAt ?? Math.max(now, trip.startedAt + HOUR)) - trip.startedAt;
+    for (let k = 0; k < count; k++) {
+      fares.push({
+        id: fareId++,
+        tripId: trip.id,
+        type: TYPES[Math.floor(rand() * TYPES.length)],
+        qty: 1 + (rand() < 0.25 ? 1 : 0),
+        at: trip.startedAt + span * ((k + 1) / (count + 1)),
+      });
+    }
+  };
+
+  // Yesterday's five completed trips.
+  const yStart = start - DAY;
+  [
+    { r: 1, s: 8.0, e: 9.4 }, { r: 3, s: 10.0, e: 11.2 }, { r: 5, s: 11.9, e: 13.1 },
+    { r: 0, s: 13.6, e: 15.0 }, { r: 2, s: 15.5, e: 17.0 },
+  ].forEach((t, i) => {
+    const route = ROUTES[t.r];
+    const trip = {
+      id: i + 1, trip_number: String(131 + i),
+      origin: route.origin, destination: route.destination, km: route.km,
+      startedAt: yStart + t.s * HOUR, endedAt: yStart + t.e * HOUR,
+      status: 'COMPLETED',
+    };
+    trips.push(trip);
+    addFares(trip, 8 + Math.floor(rand() * 9));
+  });
+
+  // Today's five completed trips — clamped into the elapsed part of today
+  // (defect 3). The clamp never pushes a start before dayStart.
+  const todayRoutes = [0, 2, 4, 5, 1];
+  for (let i = 0; i < 5; i++) {
+    const route = ROUTES[todayRoutes[i]];
+    const durMin = 72 + Math.floor(rand() * 26);
+    const endRaw = start + (5 + i * 4) * HOUR;
+    let endedAt = Math.min(endRaw, now - 15 * 60000);
+    if (endedAt >= now) endedAt = now - 60000;
+    let startedAt = Math.max(start, endedAt - durMin * 60000);
+    if (startedAt >= endedAt) startedAt = endedAt - 60000;
+    const trip = {
+      id: 6 + i, trip_number: String(136 + i),
+      origin: route.origin, destination: route.destination, km: route.km,
+      startedAt, endedAt, status: 'COMPLETED',
+    };
+    trips.push(trip);
+    addFares(trip, 7 + Math.floor(rand() * 9));
+  }
+
+  // The active trip, seeded only when the state asks for one.
+  if (activeToday) {
+    const route = ROUTES[1];
+    const trip = {
+      id: 11, trip_number: '437',
+      origin: route.origin, destination: route.destination, km: route.km,
+      startedAt: Math.max(start, now - 78 * 60000),
+      endedAt: null, status: 'ACTIVE',
+    };
+    trips.push(trip);
+    addFares(trip, 9);
+  }
+
+  return { trips, fares };
+}
+
+/* ═════════════════════════════ Store read ════════════════════════════ */
+
+let data = buildData(true);
+let forceState = null; // 'loading' | 'empty' | 'error' | null (null → derive running/idle)
+
+function faresFor(tripId) { return data.fares.filter((f) => f.tripId === tripId); }
+function tripTotal(t) { return faresFor(t.id).reduce((s, f) => s + FARE[f.type] * f.qty, 0); }
+function tripPax(t) { return faresFor(t.id).reduce((s, f) => s + f.qty, 0); }
+function tripFareCount(t) { return faresFor(t.id).length; }
+
+/** The one read of the store every figure on screen comes from. */
+function compute() {
+  const now = Date.now();
+  const dayStart = new Date(now); dayStart.setHours(0, 0, 0, 0);
+  const start = dayStart.getTime();
+  const active = data.trips.find((t) => t.status === 'ACTIVE') ?? null;
+  const completedToday = data.trips
+    .filter((t) => t.status === 'COMPLETED' && t.startedAt >= start)
+    .sort((a, b) => b.endedAt - a.endedAt);
+  const todayFares = data.fares.filter((f) => f.at >= start);
+  const yesterdayFares = data.fares.filter((f) => f.at >= start - DAY && f.at < start);
+  const days = new Set(data.fares.map((f) => f.at - (new Date(f.at).getTimezoneOffset() * 60000)));
+  return {
+    now, start, active, completedToday, empty: false,
+    todayTotal: todayFares.reduce((s, f) => s + FARE[f.type] * f.qty, 0),
+    todayFareCount: todayFares.length,
+    todayPax: todayFares.reduce((s, f) => s + f.qty, 0),
+    todayTripCount: data.trips.filter((t) => t.startedAt >= start).length,
+    yesterdayTotal: yesterdayFares.reduce((s, f) => s + FARE[f.type] * f.qty, 0),
+    lastCompleted: completedToday[0] ?? null,
+    allTrips: data.trips.length,
+    recordDays: days.size,
+  };
+}
+
+/** The empty state's view of the same store: nothing recorded yet. */
+function emptyCompute() {
+  const now = Date.now();
+  return {
+    now, start: 0, active: null, completedToday: [], empty: true,
+    todayTotal: 0, todayFareCount: 0, todayPax: 0, todayTripCount: 0,
+    yesterdayTotal: 0, lastCompleted: null, allTrips: 0, recordDays: 0,
+  };
+}
+
+/* ═════════════════════════════ Formatters ════════════════════════════ */
+
+const peso = (n) => '\u20B1' + n.toFixed(2);
+/** "1 fare" / "2 fares" — a count and its noun never disagree in number. */
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+function fmtTime(ms) {
+  return new Date(ms).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+}
+function fmtDur(ms) {
+  const m = Math.max(0, Math.round(ms / 60000));
+  const h = Math.floor(m / 60);
+  return h > 0 ? `${h}h ${String(m % 60).padStart(2, '0')}m` : `${m}m`;
+}
+const dash = '\u2014';
+
+/* ═════════════════════════════ Icons ═════════════════════════════════ */
+
+const svg = (path, size = 22) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
+const ICONS = {
+  grid: svg('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>'),
+  history: svg('<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>'),
+  bus: svg('<path d="M4 17V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v11"/><path d="M2 17h20"/><circle cx="6.5" cy="19.5" r="1.5"/><circle cx="17.5" cy="19.5" r="1.5"/><path d="M4 11h16"/>'),
+  ticket: svg('<path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/>'),
+  person: svg('<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'),
+  sun: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>'),
+  check: svg('<path d="M20 6 9 17l-5-5"/>', 14),
+};
+
+/* ═════════════════════════════ Header ════════════════════════════════ */
+
+function renderHeader(c) {
+  const pill = document.getElementById('trip-pill');
+  const text = document.getElementById('trip-pill-text');
+  const tagline = document.getElementById('header-tagline');
+  // The forced states speak first: while loading or in a read error the
+  // screen cannot honestly claim a live trip, even though the seed carries
+  // one.
+  if (forceState === 'loading') {
+    pill.hidden = true;
+    tagline.textContent = 'Reading records';
+  } else if (forceState === 'error') {
+    pill.hidden = true;
+    tagline.textContent = 'Records could not be read';
+  } else if (c.active) {
+    text.textContent = `#${c.active.trip_number} \u00B7 ${fmtDur(c.now - c.active.startedAt)}`;
+    pill.hidden = false;
+    tagline.textContent = 'Fares are being recorded';
+  } else if (c.empty) {
+    pill.hidden = true;
+    tagline.textContent = 'Nothing recorded yet';
+  } else {
+    pill.hidden = true;
+    tagline.textContent = 'Ready when you are';
+  }
+}
+
+/* ═════════════════════════════ Hero ══════════════════════════════════ */
+
+function routeLine(origin, destination) {
+  return `<span>${origin}</span><span class="arrow" aria-hidden="true">\u2192</span><span>${destination}</span>`;
+}
+
+function renderHero(c) {
+  const slot = document.getElementById('hero-slot');
+  if (forceState === 'loading') {
+    slot.innerHTML =
+      `<div class="glass hero hero-glass" role="status" aria-busy="true" data-od-id="hero:loading">
+        <div class="sk sk-eyebrow"></div>
+        <div class="sk sk-route"></div>
+        <div class="sk sk-when"></div>
+        <div class="sk-figs"><div class="sk sk-fig"></div><div class="sk sk-fig"></div><div class="sk sk-fig"></div></div>
+        <div class="sk sk-btn"></div>
+      </div>`;
+    return;
+  }
+  if (forceState === 'error') {
+    slot.innerHTML =
+      `<div class="glass hero hero-error" role="alert" data-od-id="hero:error">
+        <p class="label-s hero-eyebrow"><span class="hero-error-head">RECORDS UNAVAILABLE</span></p>
+        <h2 class="headline-s hero-route">Could not read the saved records</h2>
+        <p class="body-m hero-error-text">Nothing was lost. The trip and fare records are still on this device, and reading them again is safe.</p>
+        <div class="hero-actions">
+          <button class="btn btn-solid" data-action="retry" data-od-id="control:retry">Read records again</button>
+        </div>
+      </div>`;
+    return;
+  }
+  if (c.active) { renderHeroRunning(slot, c); return; }
+  if (c.empty) {
+    slot.innerHTML =
+      `<div class="glass hero hero-glass" data-od-id="hero:empty">
+        <p class="label-s hero-eyebrow">NO TRIPS RECORDED</p>
+        <h2 class="headline-s hero-route">Start the first trip</h2>
+        <p class="body-m hero-body">Fares can only be recorded while a trip runs. Start one and the figures on this screen will fill in as the day goes.</p>
+        <div class="hero-actions">
+          <button class="btn btn-solid" data-action="start-trip" data-od-id="control:start-trip">Start trip</button>
+        </div>
+      </div>`;
+    return;
+  }
+  renderHeroIdle(slot, c);
+}
+
+function renderHeroRunning(slot, c) {
+  const t = c.active;
+  slot.innerHTML =
+    `<div class="glass hero hero-solid" data-od-id="hero:running">
+      <div class="hero-eyebrow">
+        <span>TRIP IN PROGRESS</span>
+        <span class="hero-chip num">TRIP #${t.trip_number}</span>
+      </div>
+      <h2 class="headline-s hero-route">${routeLine(t.origin, t.destination)}</h2>
+      <p class="body-m hero-when num" id="hero-when">Started ${fmtTime(t.startedAt)} \u00B7 ${fmtDur(c.now - t.startedAt)} running</p>
+      <div class="hero-figures num">
+        <div class="hero-figure"><b>${peso(c.todayTotal)}</b><span>COLLECTED TODAY</span></div>
+        <div class="hero-figure"><b>${c.todayFareCount}</b><span>FARES TODAY</span></div>
+        <div class="hero-figure"><b>${c.todayPax}</b><span>PASSENGERS</span></div>
+      </div>
+      <div class="hero-actions">
+        <button class="btn btn-solid" data-action="record-open" data-od-id="control:record-fare">
+          ${ICONS.ticket.replace('width="22" height="22"', 'width="18" height="18"')}
+          Record a fare
+        </button>
+        <button class="btn btn-ghost" data-action="trip-sheet" data-od-id="control:trip-details">Trip details</button>
+      </div>
+    </div>`;
+}
+
+function renderHeroIdle(slot, c) {
+  const last = c.lastCompleted;
+  const lastLine = last
+    ? `<p class="body-s hero-last num">Last trip ended <b>${fmtTime(last.endedAt)}</b> \u00B7 <b>${peso(tripTotal(last))}</b></p>`
+    : '';
+  slot.innerHTML =
+    `<div class="glass hero hero-glass" data-od-id="hero:idle">
+      <p class="label-s hero-eyebrow">NO ACTIVE TRIP</p>
+      <h2 class="headline-s hero-route">Ready for the next run</h2>
+      <p class="body-m hero-body">Fares can only be recorded while a trip runs. Start the next trip and the ticket flow takes over from here.</p>
+      ${lastLine}
+      <div class="hero-actions">
+        <button class="btn btn-solid" data-action="start-trip" data-od-id="control:start-trip">Start trip</button>
+      </div>
+    </div>`;
+}
+
+/* ═══════════════════════ Last completed trip ═════════════════════════ */
+
+function renderLastTrip(c) {
+  const slot = document.getElementById('last-trip-slot');
+  const last = c.lastCompleted;
+  if (!last || c.active || c.empty) { slot.innerHTML = ''; slot.hidden = true; return; }
+  slot.hidden = false;
+  slot.innerHTML =
+    `<section data-od-id="region:last-trip-card" aria-labelledby="last-trip-title">
+      <h2 class="label-s section-label" id="last-trip-title">LAST TRIP</h2>
+      <div class="glass last-trip-card">
+        <div class="last-trip-main">
+          <p class="title-m last-trip-route">${last.origin} \u2192 ${last.destination}</p>
+          <p class="body-s last-trip-sub num">Ended ${fmtTime(last.endedAt)} \u00B7 ${plural(tripFareCount(last), 'fare')} \u00B7 ${plural(tripPax(last), 'passenger')}</p>
+        </div>
+        <div class="last-trip-side">
+          <span class="title-m last-trip-total num">${peso(tripTotal(last))}</span>
+          <button class="link-btn" data-action="open-history" data-od-id="control:open-history">View all in History</button>
+        </div>
+      </div>
+    </section>`;
+}
+
+/* ═══════════════════════ Quick actions ═══════════════════════════════ */
+
+const QA = [
+  {
+    key: 'dashboard', title: 'Dashboard', tone: 'primary', icon: 'grid', screen: 'Dashboard',
+    blurb: 'Earnings and today\u2019s summary',
+    value: (c) => c.empty ? `${dash} today` : `${peso(c.todayTotal)} today`,
+    extra: (c) => c.empty ? 'Nothing recorded yet' : `${plural(c.todayTripCount, 'trip')} today \u00B7 ${plural(c.todayFareCount, 'fare')}`,
+  },
+  {
+    key: 'history', title: 'History', tone: 'secondary', icon: 'history', screen: 'History',
+    blurb: 'Past trips and records',
+    value: (c) => c.empty ? 'No trips on file' : `${plural(c.allTrips, 'trip')} on file`,
+    extra: (c) => c.empty ? 'Nothing recorded yet' : `Yesterday collected ${peso(c.yesterdayTotal)}`,
+  },
+  {
+    key: 'trips', title: 'Trips', tone: 'primary', icon: 'bus', screen: 'Trip management',
+    blurb: 'Start and manage trips',
+    value: (c) => c.active ? `Trip #${c.active.trip_number} running` : (c.empty ? 'No trips yet' : `${plural(c.todayTripCount, 'trip')} today`),
+    extra: (c) => c.active ? `Started ${fmtTime(c.active.startedAt)}` : 'Ending a trip lives in the trip sheet',
+  },
+  {
+    key: 'tickets', title: 'Tickets', tone: 'secondary', icon: 'ticket', screen: 'Trip Tickets',
+    blurb: 'Fares recorded on a trip',
+    value: (c) => c.empty ? 'No fares yet' : `<b>${plural(c.todayFareCount, 'fare')}</b> \u00B7 ${peso(c.todayTotal)}`,
+    extra: (c) => c.empty ? 'Nothing recorded yet' : `Across ${plural(c.todayTripCount, 'trip')} today`,
+  },
+  {
+    key: 'passengers', title: 'Passengers', tone: 'tertiary', icon: 'person', screen: 'Passenger summary',
+    blurb: 'Anonymous passenger counts',
+    value: (c) => c.empty ? 'No passengers yet' : `<b>${plural(c.todayPax, 'passenger')}</b> today`,
+    extra: (c) => c.active ? `${tripPax(c.active)} on the running trip` : 'Counts only \u2014 no passenger names exist',
+  },
+  {
+    key: 'settings', title: 'Settings', tone: 'tertiary', icon: 'sun', screen: 'Settings',
+    blurb: 'Appearance and configuration',
+    value: () => '1 of 4 built',
+    extra: () => 'Fare, Terminal and Barangay have no screen yet',
+  },
+];
+
+function renderQa(c) {
+  const grid = document.getElementById('qa-grid');
+  grid.innerHTML = QA.map((q) => {
+    const valueHtml = q.value(c);
+    const valuePlain = valueHtml.replace(/<[^>]+>/g, '');
+    const name = `${q.title}. ${q.blurb}. ${valuePlain}. ${q.extra(c)}. Opens ${q.screen}.`;
+    return (
+      `<div class="qa-item" role="listitem">
+        <button class="glass qa-btn" data-action="qa" data-key="${q.key}" aria-label="${name}" data-od-id="qa:${q.key}">
+          <span class="qa-chip tone-${q.tone}" aria-hidden="true">${ICONS[q.icon]}</span>
+          <span class="title-m qa-title">${q.title}</span>
+          <span class="body-s qa-value num">${valueHtml}</span>
+        </button>
+      </div>`
+    );
+  }).join('');
+}
+
+/* ═══════════════════════ Storage footer ══════════════════════════════ */
+
+function renderStorage(c) {
+  const el = document.getElementById('storage-text');
+  el.innerHTML = c.empty
+    ? 'Nothing is saved on this device yet. Everything you record will stay here \u2014 <b>no network is used</b>.'
+    : `<b>${plural(c.allTrips, 'trip')} and ${plural(data.fares.length, 'fare')}</b> across <b>${plural(Math.max(c.recordDays, 1), 'day')}</b>, all saved on this device. <b>No network is used.</b>`;
+}
+
+/* ═══════════════════════ Overlays ════════════════════════════════════ */
+
+const overlay = document.getElementById('overlay');
+const sheetBody = document.getElementById('sheet-body');
+const sheetTitle = document.getElementById('sheet-title-el');
+const sheetSub = document.getElementById('sheet-sub');
+const sheetClose = document.getElementById('sheet-close');
+let lastFocus = null;
+
+function openSheet(title, sub, bodyHtml) {
+  lastFocus = document.activeElement;
+  sheetTitle.textContent = title;
+  sheetSub.textContent = sub;
+  sheetBody.innerHTML = bodyHtml;
+  overlay.hidden = false;
+  // The close button takes focus only once the sheet is visible — a hidden
+  // element cannot take focus.
+  requestAnimationFrame(() => {
+    overlay.classList.add('open');
+    sheetClose.focus();
+  });
+}
+
+function closeSheet() {
+  overlay.classList.remove('open');
+  window.setTimeout(() => { overlay.hidden = true; }, 200);
+  if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
+  lastFocus = null;
+}
+
+sheetClose.addEventListener('click', closeSheet);
+overlay.addEventListener('click', (e) => {
+  // Only the backdrop itself may close: closest() would also match every
+  // control inside the sheet and swallow their clicks.
+  if (e.target.hasAttribute('data-scrim')) closeSheet();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !overlay.hidden) closeSheet();
+});
+
+const detailRows = (rows) =>
+  rows.map(([label, value]) =>
+    `<div class="detail-row"><span class="body-m detail-label">${label}</span><span class="body-m detail-value num">${value}</span></div>`
+  ).join('');
+const goesNote = (text) =>
+  `<div class="sheet-note"><p class="body-s"><b>WHERE THIS GOES</b><br>${text}</p></div>`;
+
+function tripSheetHtml(step, c) {
+  const t = c.active;
+  if (step === 'confirm') {
+    return (
+      `<div data-od-id="sheet:end-confirm">
+        ${detailRows([
+          ['Closing time', fmtTime(Date.now())],
+          ['Fares at stake', plural(tripFareCount(t), 'fare')],
+          ['Collected on this trip', peso(tripTotal(t))],
+        ])}
+        <p class="confirm-warn">The recorded fares stay in today\u2019s total and in History \u2014 only new fares are blocked once the trip ends.</p>
+        <div class="sheet-actions">
+          <button class="btn btn-ghost" data-action="end-cancel" data-od-id="control:keep-running">Keep running</button>
+          <button class="btn btn-solid" data-action="end-confirmed" data-od-id="control:end-trip-confirm">End trip</button>
+        </div>
+      </div>`
+    );
+  }
+  return (
+    `<div data-od-id="sheet:trip">
+      ${detailRows([
+        ['Route', `${t.origin} \u2192 ${t.destination}`],
+        ['Trip number', `#${t.trip_number}`],
+        ['Distance', `${t.km.toFixed(1)} km`],
+        ['Started', fmtTime(t.startedAt)],
+        ['Running for', `<span id="trip-run">${fmtDur(Date.now() - t.startedAt)}</span>`],
+        ['Fares recorded', String(tripFareCount(t))],
+        ['Passengers', String(tripPax(t))],
+        ['Collected on this trip', peso(tripTotal(t))],
+        ['Collected today', peso(c.todayTotal)],
+        ['Ended', dash],
+      ])}
+      <div class="sheet-actions">
+        <button class="btn btn-solid btn-block" data-action="end-confirm" data-od-id="control:end-trip">End this trip</button>
+      </div>
+    </div>`
+  );
+}
+
+function openTripSheet(step) {
+  const c = compute();
+  if (!c.active) return;
+  const t = c.active;
+  openSheet(
+    step === 'confirm' ? `End trip #${t.trip_number}?` : `Trip #${t.trip_number}`,
+    step === 'confirm' ? 'This cannot be undone.' : `${t.origin} \u2192 ${t.destination}`,
+    tripSheetHtml(step, c),
+  );
+}
+
+function destinationSheet(key) {
+  const c = compute();
+  let title = '', sub = 'Preview', rows = [], note = '';
+  switch (key) {
+    case 'dashboard':
+      title = 'Dashboard'; sub = 'Earnings and today\u2019s summary';
+      rows = [
+        ['Collected today', peso(c.todayTotal)],
+        ['Fares today', String(c.todayFareCount)],
+        ['Passengers today', String(c.todayPax)],
+        ['Trips today', String(c.todayTripCount)],
+        ['Yesterday', peso(c.yesterdayTotal)],
+      ];
+      note = 'Opens the <b>Dashboard screen</b> (dashboard.html) \u2014 the earnings summary over the same store.';
+      break;
+    case 'history':
+      title = 'History'; sub = 'Past trips and records';
+      rows = [
+        ['Trips on file', String(c.allTrips)],
+        ['Trips today', String(c.todayTripCount)],
+        ['Collected today', peso(c.todayTotal)],
+        ['Last trip', c.lastCompleted ? `#${c.lastCompleted.trip_number} \u00B7 ${fmtTime(c.lastCompleted.endedAt)}` : dash],
+        ['Days with records', String(Math.max(c.recordDays, 1))],
+      ];
+      note = 'Opens the <b>History screen</b> (index.html) \u2014 the trip and fare ledger.';
+      break;
+    case 'trips':
+      title = 'Trips'; sub = 'Start and manage trips';
+      rows = c.active
+        ? [
+            ['Running', `Trip #${c.active.trip_number}`],
+            ['Route', `${c.active.origin} \u2192 ${c.active.destination}`],
+            ['Started', fmtTime(c.active.startedAt)],
+            ['Running for', fmtDur(Date.now() - c.active.startedAt)],
+            ['Trips today', String(c.todayTripCount)],
+          ]
+        : [
+            ['Running', dash],
+            ['Trips today', String(c.todayTripCount)],
+            ['Last trip', c.lastCompleted ? `#${c.lastCompleted.trip_number} \u00B7 ${fmtTime(c.lastCompleted.endedAt)}` : dash],
+            ['Trips on file', String(c.allTrips)],
+          ];
+      note = 'Opens <b>Trip management</b> \u2014 start a trip, review the board, end the running one.';
+      break;
+    case 'tickets':
+      title = 'Trip Tickets'; sub = 'Fares recorded on a trip';
+      rows = [
+        ['Fares today', String(c.todayFareCount)],
+        ['Collected today', peso(c.todayTotal)],
+        ['On the running trip', c.active ? `${tripFareCount(c.active)} fares \u00B7 ${peso(tripTotal(c.active))}` : dash],
+        ['Passengers today', String(c.todayPax)],
+      ];
+      note = 'Opens <b>Trip Tickets</b> for the running trip, or the latest one \u2014 the per-trip fare ledger.';
+      break;
+    case 'passengers':
+      title = 'Passengers'; sub = 'Anonymous passenger counts';
+      rows = [
+        ['Passengers today', String(c.todayPax)],
+        ['On the running trip', c.active ? String(tripPax(c.active)) : dash],
+        ['Fares behind the count', String(c.todayFareCount)],
+        ['Passenger names on file', 'None \u2014 by design'],
+      ];
+      note = 'Opens the <b>Passenger summary</b> \u2014 counts and categories only; Kondukt stores no passenger names.';
+      break;
+    case 'settings':
+      title = 'Settings'; sub = 'Appearance and configuration';
+      rows = [
+        ['Appearance (light / dark)', 'Built'],
+        ['Fare configuration', 'Not built'],
+        ['Terminal configuration', 'Not built'],
+        ['Barangay configuration', 'Not built'],
+      ];
+      note = 'Opens <b>Advanced Settings</b> in the app \u2014 the other three modules are registered but have no screen yet.';
+      break;
+  }
+  openSheet(title, sub, detailRows(rows) + goesNote(note));
+}
+
+/* ═══════════════════════ Fare recording ══════════════════════════════ */
+
+const recordQty = { REGULAR: 1, STUDENT: 1, SENIOR_CITIZON: 1, PWD: 1 };
+let recordType = 'REGULAR';
+
+function recordSheetHtml() {
+  const c = compute();
+  const t = c.active;
+  const rows = TYPES.map((type) => {
+    const sel = type === recordType;
+    return (
+      `<button class="type-row" role="radio" aria-checked="${sel}" data-action="type" data-type="${type}" data-od-id="control:type-${type}">
+        <span class="type-check" aria-hidden="true">${sel ? ICONS.check : ''}</span>
+        <span class="type-name">${TYPE_LABELS[type]}</span>
+        <span class="type-price num">${peso(FARE[type])}</span>
+      </button>`
+    );
+  }).join('');
+  const total = FARE[recordType] * recordQty[recordType];
+  return (
+    `<div role="radiogroup" aria-label="Passenger type" data-od-id="sheet:record">
+      ${rows}
+      <div class="qty-row">
+        <span class="body-m qty-label">Quantity \u2014 ${TYPE_LABELS[recordType]}</span>
+        <button class="qty-btn" data-action="qty-minus" aria-label="Decrease quantity" ${recordQty[recordType] <= 1 ? 'disabled' : ''}>\u2212</button>
+        <span class="title-m qty-num num" id="qty-num">${recordQty[recordType]}</span>
+        <button class="qty-btn" data-action="qty-plus" aria-label="Increase quantity">+</button>
+      </div>
+      <p class="body-s confirm-warn">Posts to trip #${t.trip_number} immediately and counts in Collected today.</p>
+      <div class="sheet-actions">
+        <button class="btn btn-solid btn-block" data-action="record-confirm" data-od-id="control:record-confirm">
+          Add fare \u00B7 ${peso(total)}
+        </button>
+      </div>
+    </div>`
+  );
+}
+
+function refreshRecordSheet() {
+  const c = compute();
+  if (!c.active) { closeSheet(); return; }
+  const t = c.active;
+  sheetTitle.textContent = 'Record a fare';
+  sheetSub.textContent = `Trip #${t.trip_number} \u00B7 ${t.origin} \u2192 ${t.destination}`;
+  sheetBody.innerHTML = recordSheetHtml();
+}
+
+function openRecordSheet() {
+  recordType = 'REGULAR';
+  recordQty.REGULAR = 1;
+  refreshRecordSheet();
+}
+
+/* ═══════════════════════ Actions on the store ════════════════════════ */
+
+function startTrip() {
+  const nextNum = String(Math.max(...data.trips.map((t) => Number(t.trip_number))) + 1);
+  const route = ROUTES[data.trips.length % ROUTES.length];
+  data.trips.push({
+    id: Math.max(...data.trips.map((t) => t.id)) + 1,
+    trip_number: nextNum,
+    origin: route.origin, destination: route.destination, km: route.km,
+    startedAt: Date.now(), endedAt: null, status: 'ACTIVE',
+  });
+  forceState = null; // the store decides the state again
+  closeSheet();
+  render();
+}
+
+/** Ends the trip by stamping the existing record — its fares are untouched. */
+function endTrip() {
+  const active = data.trips.find((t) => t.status === 'ACTIVE');
+  if (!active) return;
+  active.status = 'COMPLETED';
+  active.endedAt = Date.now();
+  forceState = null;
+  closeSheet();
+  render();
+}
+
+/* ═══════════════════════ Event delegation ════════════════════════════ */
+
+document.getElementById('app').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const action = btn.dataset.action;
+  if (action === 'trip-sheet') openTripSheet('overview');
+  else if (action === 'start-trip') startTrip();
+  else if (action === 'record-open') openRecordSheet();
+  else if (action === 'retry') { forceState = null; render(); }
+  else if (action === 'open-history') destinationSheet('history');
+  else if (action === 'qa') destinationSheet(btn.dataset.key);
+});
+
+sheetBody.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const action = btn.dataset.action;
+  if (action === 'end-confirm') openTripSheet('confirm');
+  else if (action === 'end-cancel') openTripSheet('overview');
+  else if (action === 'end-confirmed') endTrip();
+  else if (action === 'type') { recordType = btn.dataset.type; refreshRecordSheet(); }
+  else if (action === 'qty-minus') { recordQty[recordType] = Math.max(1, recordQty[recordType] - 1); refreshRecordSheet(); }
+  else if (action === 'qty-plus') { recordQty[recordType] = Math.min(9, recordQty[recordType] + 1); refreshRecordSheet(); }
+  else if (action === 'record-confirm') {
+    const active = data.trips.find((t) => t.status === 'ACTIVE');
+    if (active) {
+      data.fares.push({ id: Math.max(0, ...data.fares.map((f) => f.id)) + 1, tripId: active.id, type: recordType, qty: recordQty[recordType], at: Date.now() });
+    }
+    closeSheet();
+    render();
+  }
+});
+
+/* ═══════════════════════ Prototype control ═══════════════════════════ */
+
+const protoButtons = Array.from(document.querySelectorAll('.proto-btn'));
+protoButtons.forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const state = btn.dataset.state;
+    if (state === 'running') { data = buildData(true); forceState = null; }
+    else if (state === 'idle') { data = buildData(false); forceState = null; }
+    else forceState = state;
+    closeSheet();
+    render();
+  });
+});
+
+function syncProto(c) {
+  const effective = forceState ?? (c.active ? 'running' : 'idle');
+  protoButtons.forEach((btn) => {
+    btn.setAttribute('aria-pressed', String(btn.dataset.state === effective));
+  });
+}
+
+/* ═══════════════════════ Render + timers ═════════════════════════════ */
+
+function render() {
+  const c = forceState === 'empty' ? emptyCompute() : compute();
+  renderHeader(c);
+  renderHero(c);
+  renderLastTrip(c);
+  renderQa(c);
+  renderStorage(c);
+  syncProto(c);
+}
+
+/** Patches the running-time strings in place; the store is not re-read. */
+function tick() {
+  const c = compute();
+  if (!c.active) return;
+  const when = document.getElementById('hero-when');
+  if (when) when.textContent = `Started ${fmtTime(c.active.startedAt)} \u00B7 ${fmtDur(Date.now() - c.active.startedAt)} running`;
+  const run = document.getElementById('trip-run');
+  if (run) run.textContent = fmtDur(Date.now() - c.active.startedAt);
+  if (!document.getElementById('trip-pill').hidden) {
+    document.getElementById('trip-pill-text').textContent =
+      `#${c.active.trip_number} \u00B7 ${fmtDur(Date.now() - c.active.startedAt)}`;
+  }
+}
+window.setInterval(tick, 30000);
+
+render();
+</script>
+</body>
+</html>

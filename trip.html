@@ -1,0 +1,1466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kondukt — Trip prototype</title>
+<!--
+  KONDUKT · TRIP — single-file prototype (HTML + CSS + JS, no build, no storage APIs).
+
+  The screen a conductor lives inside for one run. Two jobs only: how much has
+  this trip taken, and how do I close it. CurrentTripScreen and AddTripScreen
+  are separate screens in the app and their features are deliberately not
+  folded in here.
+
+  Six defects this redesign fixes, versus the shipped TripScreen.tsx:
+
+  1. TWO FULL-WIDTH SOLID BUTTONS, AMBER ABOVE RED. `recordButton` filled
+     secondary (amber) and `endButton` filled error, stacked in one viewport,
+     so the two halves of a single trip competed for the same gesture.
+     Recording fares is the job a conductor does all day, so it is the solid
+     primary (primarySolid, the only solid fill behind white text). Ending is
+     destructive and rare, so it is outlined in the deep red ink
+     (--on-error-container): 9.5:1 unfilled on amber, 13.3:1 once the
+     destructive hover fills with --error-container.
+
+  2. THE RUNNING-TRIP CARD CARRIED NO MONEY. ActiveTripCard printed route,
+     distance and two timestamps; the amount lived one screen over on Current
+     Trip, which is a route nothing navigates to. The amber card now leads
+     with COLLECTED ON THIS TRIP and a 3-up Fares / Passengers / Elapsed row.
+
+  3. RECENT ROWS HAD NO TRIP NUMBER AND NO PESO. CompletedTripRow printed
+     route, date, distance and two times, so two Cubao–Divisoria runs on one
+     day were indistinguishable and unrankable. Rows now carry #number, date,
+     km, a right-aligned peso at weight 700 and the fare count.
+
+  4. ONLY FOUR STATES EXISTED. LoadState was loading | error | ready, and
+     `ready` conflated "no trip running" with "nothing recorded" — a driver
+     with no trips and a driver with a failed read saw the same screen. All
+     five branches are real and reachable from the control outside the phone.
+
+  5. START TRIP WAS A DEAD END. onAddTrip only existed inside AddTripCard,
+     which rendered under the empty state, and the button itself was inert in
+     the prototype. It now opens the honest Add trip preview: two selects over
+     TERMINALS, a live distance from routeDistance(), each select excluding
+     its own peer, and a disabled Apply while the distance is unknown.
+
+  6. THE BACK BUTTON WENT NOWHERE — and so did Record a fare and View all
+     trips. Every control now opens a handoff sheet naming the screen or file
+     the tap opens in the app. No control on this screen is inert.
+
+  Scope notes, so the next reader does not read these as drift:
+
+  · The .hero-solid rules are copied from home.html verbatim, so the two amber
+    cards cannot drift. Two token values are deliberately NOT copied:
+      - --on-error-container is #410002, the value in src/theme.ts. The design
+        note lists it as #FFDAD6, which is 1.5:1 on #FFB300 — the brief's own
+        9.6:1 / 13.3:1 figures are only reachable with the deep red.
+      - Text inside the amber card uses --secondary-detail (5.8:1) and
+        --secondary-muted (4.9:1) rather than --secondary-fg (3.1:1) and
+        --secondary-faint (3.9:1), which this brief reserves for icons and
+        rules. home.html's hero eyebrow and figure labels sit below 4.5:1;
+        fixing that here is the point of the tokenisation.
+  · The chrome's back pill and title pill are solid primarySolid. They are the
+    navigation surface, carried unchanged from index.html/home.html; the
+    one-solid-fill rule governs the action pair inside the card, which is
+    where defect 1 lived.
+  · `.phone` is content-box so the screen is the 390 x 844 the row geometry
+    below was measured at (the siblings' border-box makes it 368 wide, and
+    every number in the Recent section stops holding at 368).
+  · Recent rows print "Origin → Destination" like index.html, not the en dash
+    of the comp, so the trip reads identically on both screens.
+
+  Verified, not estimated: at 390px the row card's computed padding is 20px
+  and its columns are 198.88px (route) / 55.12px (money) in a 310px content
+  box. "Baclaran → Monumento" measures 196.94px in real Poppins 600 and
+  "₱104.00" at body-m/700 measures 54.63px, so neither column wraps at the
+  design size. Both columns are flexible: an unusual amount widens the money
+  column and the route wraps rather than clipping or shrinking type.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --primary: #E65100;
+    --primary-solid: #C2410C;
+    --on-primary: #FFFFFF;
+    --primary-container: #FFE6D2;
+    --on-primary-container: #4E2200;
+    --secondary: #FFB300;
+    --on-secondary: #3D2E00;
+    --secondary-container: #FFEFC7;
+    --on-secondary-container: #4A3600;
+    --secondary-detail: #4F3D2B;
+    --secondary-muted: #5B4720;
+    --secondary-faint: #6B5518;
+    --secondary-fg: #8A6100;
+    --tertiary: #546E7A;
+    --tertiary-container: #DDE6EA;
+    --on-tertiary-container: #162B33;
+    --error: #BA1A1A;
+    --error-container: #FFDAD6;
+    --on-error-container: #410002;
+    --surface: #FDF7F3;
+    --surface-low: #F7EFE9;
+    --surface-container: #F2E9E2;
+    --surface-high: #ECE3DC;
+    --on-surface: #221A15;
+    --on-surface-variant: #53433B;
+    --outline: #85736B;
+    --outline-variant: #D7C2B7;
+    --scrim: rgba(34, 26, 21, .32);
+
+    --glass-tint: rgba(255, 255, 255, .58);
+    --glass-rim: rgba(255, 255, 255, .85);
+    --glass-shadow: 0 8px 15px rgba(90, 106, 130, .16);
+    --glass-text: #1A2029;
+    --glass-text-variant: #4A5568;
+    --glass-primary: #8F3A00;
+    --glass-secondary: #6B4B00;
+    --glass-tertiary: #334A56;
+    --hover-tint: rgba(120, 130, 150, .1);
+    --active-tint: rgba(120, 130, 150, .17);
+
+    --radius-s: 8px;
+    --radius-m: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
+    --radius-glass: 28px;
+    --radius-full: 999px;
+
+    --gutter: 20px;
+    --card-gap: 12px;
+    --section-margin: 20px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: 'Poppins', sans-serif;
+    background: #E9E4E0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 24px 0;
+  }
+
+  /* content-box: the screen is 390 x 844, and the row geometry below is
+     measured at that width. */
+  .phone {
+    box-sizing: content-box;
+    width: 390px;
+    height: 844px;
+    border-radius: 44px;
+    border: 11px solid #111;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 24px 48px rgba(34, 26, 21, .25);
+    flex-shrink: 0;
+  }
+
+  .phone-content { position: relative; width: 100%; height: 100%; overflow: hidden; }
+
+  /* The fixed warm-to-cool field every glass panel refracts. */
+  .field {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, #FBC9A8 0%, #F4F7FB 52%, #C6D9E8 100%);
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    height: 100%;
+    overflow-y: auto;
+    padding: 50px 0 29px;
+    scrollbar-width: none;
+  }
+  .app::-webkit-scrollbar { display: none; }
+
+  .container { padding: 0 20px; }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px; height: 1px;
+    margin: -1px; padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* ── Glass ─────────────────────────────────────────────────────────── */
+
+  .glass {
+    position: relative;
+    background: var(--glass-tint);
+    border: 1px solid var(--glass-rim);
+    border-radius: var(--radius-glass);
+    box-shadow: var(--glass-shadow);
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+  }
+  .glass::before, .glass::after {
+    content: '';
+    position: absolute;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .glass::before { inset: 0; border-radius: inherit; background: var(--glass-tint); opacity: .35; }
+  .glass::after {
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(160deg, rgba(255, 255, 255, .5), transparent 45%);
+    mix-blend-mode: screen;
+  }
+  /* The one solid card in the app keeps no rim, no tint, no sheen. */
+  .glass.hero-solid::before, .glass.hero-solid::after { display: none; }
+
+  .glass > * { position: relative; z-index: 1; }
+
+  /* ── Type ──────────────────────────────────────────────────────────── */
+
+  .display-s { font-size: 28px; line-height: 36px; letter-spacing: -.3px; font-weight: 700; }
+  .headline-s { font-size: 20px; line-height: 27px; letter-spacing: -.3px; font-weight: 600; }
+  .title-m { font-size: 16px; line-height: 23px; font-weight: 600; }
+  .body-m { font-size: 14px; line-height: 21px; font-weight: 400; }
+  .body-s { font-size: 12px; line-height: 18px; font-weight: 400; }
+  .label-l { font-size: 15px; line-height: 20px; font-weight: 600; }
+  .label-s { font-size: 11px; line-height: 16px; letter-spacing: .6px; font-weight: 600; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ── Chrome ────────────────────────────────────────────────────────── */
+
+  .chrome { display: flex; align-items: center; gap: 12px; margin: 8px 0 var(--section-margin); }
+  .back-pill {
+    width: 44px; height: 44px;
+    border: none; border-radius: var(--radius-full);
+    background: var(--primary-solid);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    box-shadow: var(--glass-shadow);
+  }
+  .back-pill:hover { background: #A63808; }
+  .title-pill {
+    flex: 1;
+    min-height: 56px;
+    border-radius: var(--radius-full);
+    background: var(--primary-solid);
+    color: #fff;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center;
+    padding: 6px 16px;
+    box-shadow: var(--glass-shadow);
+  }
+  .title-pill .sub { opacity: .85; }
+
+  /* ── Sections ──────────────────────────────────────────────────────── */
+
+  .section { margin-bottom: var(--section-margin); }
+  .section-label { color: var(--glass-text-variant); margin: 0; }
+  .section-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; margin-bottom: 10px;
+  }
+
+  /* ── Buttons: one primary, one destructive ─────────────────────────── */
+
+  .primary-btn, .danger-btn, .quiet-btn {
+    min-height: 48px;
+    border-radius: var(--radius-full);
+    font-family: inherit;
+    font-size: 15px; line-height: 20px; font-weight: 600;
+    white-space: nowrap;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    cursor: pointer;
+    flex: 1 1 190px;
+    padding: 0 20px;
+    transition: background-color .15s;
+  }
+  .primary-btn {
+    border: 1px solid var(--primary-solid);
+    background: var(--primary-solid);
+    color: var(--on-primary);
+  }
+  .primary-btn:hover { background: #A63808; }
+  .primary-btn:disabled { cursor: default; background: var(--surface-high); border-color: var(--outline-variant); color: var(--on-surface-variant); }
+  .primary-btn:disabled:hover { background: var(--surface-high); }
+
+  /* Outlined in the deep red ink, never in a saturated fill. It only ever
+     renders on glass or on amber, where --error lands at 3.87:1. */
+  .danger-btn {
+    border: 1px solid var(--error);
+    background: transparent;
+    color: var(--on-error-container);
+  }
+  .danger-btn:hover { background: var(--error-container); }
+  .danger-btn:disabled { cursor: default; border-color: var(--outline); color: var(--glass-text-variant); }
+  .danger-btn:disabled:hover { background: transparent; }
+
+  /* The neutral half of a pair: Cancel, Keep running. Never destructive. */
+  .quiet-btn {
+    border: 1px solid var(--outline);
+    background: transparent;
+    color: var(--on-surface);
+  }
+  .quiet-btn:hover { background: var(--active-tint); }
+
+  .primary-btn.icon-pair { padding: 0 10px; }
+  .sheet-actions { display: flex; gap: 8px; margin-top: 16px; }
+  .sheet-actions .primary-btn,
+  .sheet-actions .danger-btn,
+  .sheet-actions .quiet-btn { flex: 1 1 0; padding: 0 12px; }
+
+  .link-btn {
+    background: none; border: none; padding: 0;
+    font-family: inherit; font-size: 12px; line-height: 18px; font-weight: 600;
+    color: var(--glass-primary);
+    cursor: pointer;
+    min-height: 44px;
+    display: inline-flex; align-items: center; gap: 4px;
+    flex-shrink: 0;
+  }
+  .link-btn .cap { font-size: 11px; line-height: 16px; letter-spacing: .6px; }
+  .link-btn:hover { text-decoration: underline; }
+
+  /* ── The amber card — the app-wide invariant ───────────────────────── */
+
+  .hero { padding: 20px; margin-bottom: var(--section-margin); }
+  .hero-solid { background: var(--secondary); border: none; box-shadow: 0 8px 15px rgba(90, 106, 130, .2); }
+  .hero-error { background: var(--error-container); border: none; }
+
+  /* Safety net. --glass-on-variant measures 4.19:1 on #FFB300, so any future
+     text in here that forgets its override fails silently. The blanket comes
+     first and the named rules win on specificity. It must NOT reach the two
+     buttons: they carry their own palettes, so they are re-stated next. */
+  .hero-solid, .hero-solid p, .hero-solid span, .hero-solid b { color: var(--secondary-muted); }
+  .hero-solid .primary-btn { color: var(--on-primary); }
+  .hero-solid .danger-btn { color: var(--on-error-container); }
+
+  .hero-eyebrow { display: flex; align-items: center; gap: 8px; }
+  .hero-glass .hero-eyebrow, .hero-error .hero-eyebrow { color: var(--glass-text-variant); }
+  .hero-solid .hero-eyebrow { color: var(--secondary-detail); }
+
+  /* The chip label inverts to amber: the inherited dark ink measures 1.4:1
+     against the chip fill and is effectively invisible. */
+  .trip-chip {
+    background: var(--on-secondary);
+    color: var(--secondary);
+    font-size: 11px; line-height: 16px; letter-spacing: .6px; font-weight: 600;
+    height: 24px; padding: 0 10px;
+    border-radius: var(--radius-full);
+    display: inline-flex; align-items: center;
+    flex-shrink: 0;
+  }
+  .hero-solid .trip-chip { color: var(--secondary); }
+
+  .hero-route {
+    margin-top: 6px;
+    color: var(--on-secondary);
+    display: flex; flex-wrap: wrap; align-items: center;
+    column-gap: 8px; row-gap: 2px;
+  }
+  .hero-route .arrow { color: var(--secondary-faint); }
+  .hero-glass .hero-route, .hero-error .hero-route { color: var(--glass-text); }
+  .hero-glass .hero-route .arrow, .hero-error .hero-route .arrow { color: var(--glass-text-variant); }
+
+  .hero-when { margin-top: 2px; color: var(--secondary-muted); }
+  .hero-running { margin-top: 0; color: var(--secondary-muted); }
+  .hero-glass .hero-when, .hero-error .hero-when,
+  .hero-glass .hero-running, .hero-error .hero-running { color: var(--glass-text-variant); }
+
+  .hero-body { margin-top: 8px; color: var(--glass-text-variant); }
+  .hero-last {
+    margin-top: 10px; padding-top: 10px;
+    border-top: 1px solid var(--outline);
+    color: var(--glass-text-variant);
+  }
+  .hero-last b { color: var(--glass-text); font-weight: 700; }
+  .hero-error-text { color: var(--on-surface-variant); margin-top: 6px; }
+  .hero-error-head { color: var(--error); }
+
+  /* Lead figure: the money, first, on the card. */
+  .lead-figure { margin-top: 12px; color: var(--on-secondary); }
+  .lead-cap { margin-top: 2px; color: var(--secondary-detail); }
+  .hero-glass .lead-figure, .hero-error .lead-figure { color: var(--on-surface); }
+
+  .hero-figures {
+    display: flex; gap: 24px;
+    border-top: 1px solid rgba(61, 46, 0, .7);
+    margin-top: 14px; padding-top: 14px;
+  }
+  .hero-glass .hero-figures, .hero-error .hero-figures { border-top-color: var(--outline); }
+  .hero-figure { display: flex; flex-direction: column; min-width: 0; }
+  .hero-figure b { color: var(--on-secondary); }
+  .hero-glass .hero-figure b, .hero-error .hero-figure b { color: var(--on-surface); }
+  .hero-figure span {
+    color: var(--secondary-detail);
+    font-size: 11px; line-height: 16px; letter-spacing: .6px; font-weight: 600;
+  }
+  .hero-glass .hero-figure span, .hero-error .hero-figure span { color: var(--on-surface-variant); }
+  @media (max-width: 299px) { .hero-figures { flex-direction: column; gap: 12px; } }
+
+  .hero-actions { display: flex; gap: 8px; margin-top: 16px; }
+
+  /* Skeletons */
+  .sk { border-radius: var(--radius-m); background: rgba(120, 130, 150, .14); position: relative; overflow: hidden; }
+  .sk::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(120, 130, 150, .18), transparent);
+    animation: shimmer 1.4s infinite;
+  }
+  @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+  .sk-eyebrow { width: 130px; height: 12px; }
+  .sk-route { width: 70%; height: 26px; margin-top: 12px; }
+  .sk-when { width: 60%; height: 16px; margin-top: 8px; }
+  .sk-money { width: 120px; height: 32px; margin-top: 12px; }
+  .sk-figs { display: flex; gap: 24px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--outline); }
+  .sk-fig { flex: 1; height: 30px; }
+  .sk-btn { height: 48px; margin-top: 16px; border-radius: var(--radius-full); }
+  .sk-btn + .sk-btn { margin-top: 8px; }
+  .sk-row { height: 87px; border-radius: var(--radius-lg); }
+
+  /* ── Recent completed trips: measured geometry ─────────────────────── */
+
+  .rows { display: flex; flex-direction: column; gap: var(--card-gap); }
+
+  /* The reset comes FIRST and `.row-card` follows it. Both are the same
+     specificity on the same element, so a padding reset declared after
+     `.row-card { padding: 20px }` would silently flatten every recent-trip
+     card to zero padding. Nothing below may set padding on either class. */
+  .row-btn {
+    display: block; width: 100%;
+    font-family: inherit; text-align: left; color: inherit; cursor: pointer;
+    transition: background-color .15s;
+  }
+  .row-card {
+    padding: 20px;
+    border-radius: var(--radius-lg);
+    /* The rim is an inset ring, not a border: a 1px border on each side would
+       take the content box from 310px to 308px, and the measured split below
+       (198.88 route + 55.12 money) only holds at 310. It also keeps every
+       card's text on the same 20px column. */
+    border: none;
+    box-shadow: inset 0 0 0 1px var(--glass-rim), var(--glass-shadow);
+  }
+  .row-card:hover { background-color: var(--hover-tint); background-clip: padding-box; }
+  .row-card:active { background-color: var(--active-tint); background-clip: padding-box; }
+
+  .trip-head { display: flex; align-items: flex-start; gap: 8px; }
+  .trip-icon {
+    width: 40px; height: 40px;
+    margin-top: 2px;
+    border-radius: var(--radius-m);
+    background: var(--tertiary-container);
+    color: var(--on-tertiary-container);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .trip-main { flex: 1 1 auto; min-width: 0; }
+  .trip-route { display: block; color: var(--glass-text); }
+  .trip-sub { display: block; margin: 4px 0 0; color: var(--glass-text-variant); }
+  /* 310px content box − 40px icon − two 8px gaps = 254px for these two.
+     198.88 + 55.12 = 254. The money column may grow (min-content) for an
+     unusual amount; the route wraps rather than clipping or shrinking type. */
+  .trip-side { flex: 0 1 55.12px; min-width: min-content; margin: 2px 0 0 auto; text-align: right; }
+  .trip-peso { display: block; color: var(--glass-text); font-weight: 700; white-space: nowrap; }
+  .trip-fares { display: block; margin-top: 4px; color: var(--glass-text-variant); white-space: nowrap; }
+
+  .state-card { padding: 20px; }
+  .state-card .state-title { color: var(--on-surface); }
+  .state-card .state-body { color: var(--on-surface-variant); margin-top: 6px; }
+
+  /* ── Storage footer ────────────────────────────────────────────────── */
+
+  .storage-note { padding: 16px 20px; display: flex; gap: 12px; align-items: flex-start; }
+  .storage-note .icon { color: var(--glass-tertiary); flex-shrink: 0; margin-top: 2px; }
+  .storage-text { color: var(--glass-text-variant); }
+  .storage-text b { color: var(--glass-text); }
+  .footnote { text-align: center; padding: 16px 0 4px; color: var(--glass-text-variant); }
+
+  /* ── Overlays ──────────────────────────────────────────────────────── */
+
+  .overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 40;
+    display: flex;
+    align-items: flex-end;
+    visibility: hidden;
+  }
+  .overlay.open { visibility: visible; }
+  .scrim { position: absolute; inset: 0; background: var(--scrim); opacity: 0; transition: opacity .2s; }
+  .overlay.open .scrim { opacity: 1; }
+  .sheet {
+    position: relative;
+    width: 100%;
+    border-radius: var(--radius-glass) var(--radius-glass) 0 0;
+    border-bottom: none;
+    padding: 12px 20px 49px;
+    transform: translateY(100%);
+    transition: transform .25s ease;
+    max-height: 88%;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .sheet::-webkit-scrollbar { display: none; }
+  .overlay.open .sheet { transform: translateY(0); }
+  .sheet-grabber { width: 36px; height: 4px; border-radius: 999px; background: var(--outline-variant); margin: 0 auto 12px; }
+  .sheet-head { display: flex; align-items: flex-start; gap: 12px; }
+  .sheet-head-text { flex: 1; min-width: 0; }
+  .sheet-title { color: var(--glass-text); }
+  .sheet-sub { color: var(--glass-text-variant); margin-top: 2px; }
+  .sheet-close {
+    width: 44px; height: 44px;
+    margin: -6px -10px 0 0;
+    border: none; border-radius: var(--radius-full);
+    background: var(--surface-container);
+    color: var(--on-surface-variant);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .sheet-close:hover { background: var(--outline-variant); }
+  .sheet-body { margin-top: 14px; }
+
+  .detail-row {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--outline);
+  }
+  .detail-row:last-of-type { border-bottom: none; }
+  .detail-label { color: var(--glass-text-variant); }
+  .detail-value { color: var(--glass-text); text-align: right; }
+
+  .sheet-note {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: var(--radius-m);
+    background: var(--surface-container);
+    color: var(--on-surface-variant);
+  }
+  .sheet-note b { color: var(--on-surface); }
+  .confirm-warn { margin-top: 10px; color: var(--on-surface-variant); }
+
+  /* Route picker */
+  .field-label { display: block; color: var(--glass-text-variant); margin-bottom: 6px; }
+  .field-label + .pick-select { margin-bottom: 14px; }
+  .pick-select {
+    width: 100%;
+    min-height: 48px;
+    padding: 0 12px;
+    border: 1px solid var(--outline);
+    border-radius: var(--radius-m);
+    background: var(--surface);
+    color: var(--on-surface);
+    font-family: inherit;
+    font-size: 14px; line-height: 21px;
+    cursor: pointer;
+  }
+  .pick-select:hover { background: var(--surface-low); }
+  .pick-foot {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+    padding: 12px 14px;
+    border-radius: var(--radius-m);
+    background: var(--surface-low);
+    border: 1px solid var(--outline);
+  }
+  .pick-foot-label { color: var(--on-surface-variant); }
+  .pick-foot b { color: var(--on-surface); font-weight: 700; }
+
+  /* ── Prototype control (outside the phone) ─────────────────────────── */
+
+  .proto {
+    position: fixed;
+    left: 20px;
+    bottom: 20px;
+    z-index: 90;
+    background: #fff;
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-lg);
+    padding: 14px;
+    box-shadow: 0 8px 24px rgba(34, 26, 21, .12);
+  }
+  .proto-label { color: var(--on-surface-variant); margin-bottom: 8px; }
+  .proto-row { display: flex; flex-wrap: wrap; gap: 8px; max-width: 250px; }
+  .proto-btn {
+    min-height: 44px;
+    padding: 0 16px;
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-full);
+    background: #fff;
+    color: var(--on-surface);
+    font-family: inherit;
+    font-size: 13px; font-weight: 600;
+    cursor: pointer;
+  }
+  .proto-btn:hover { background: var(--surface-low); }
+  .proto-btn[aria-pressed="true"] { background: var(--primary-solid); color: #fff; border-color: var(--primary-solid); }
+  @media (max-width: 480px) { .proto { display: none; } }
+
+  /* ── Focus + motion ────────────────────────────────────────────────── */
+
+  button:focus-visible, select:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(194, 65, 12, .4);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sk::after { animation: none; }
+    .scrim, .sheet, .primary-btn, .danger-btn, .row-btn { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="phone-content">
+    <div class="field" aria-hidden="true"></div>
+
+    <main class="app" id="app" aria-label="Kondukt trip">
+      <div class="container">
+        <header class="chrome" data-od-id="region:chrome">
+          <button class="back-pill" data-action="back" aria-label="Back to Home" data-od-id="control:back">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+          <div class="title-pill" data-od-id="region:title">
+            <h1 class="headline-s" data-od-id="heading:trip">Trip</h1>
+            <span class="label-s sub">Route and fares</span>
+          </div>
+        </header>
+
+        <section id="trip-card" data-od-id="region:trip-card" aria-label="Current trip"></section>
+
+        <section class="section" data-od-id="region:recent" aria-labelledby="recent-label">
+          <div class="section-head">
+            <h2 class="label-s section-label" id="recent-label" data-od-id="heading:recent">RECENT COMPLETED TRIPS</h2>
+            <button class="link-btn" data-action="view-all" data-od-id="control:view-all">
+              <span class="cap">VIEW ALL</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+          </div>
+          <div id="recent-body"></div>
+        </section>
+
+        <footer class="glass storage-note" data-od-id="region:storage" aria-label="Local storage note">
+          <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+          <p class="body-s storage-text" id="storage-text"></p>
+        </footer>
+
+        <p class="body-s footnote">Kondukt — fares stay on this device.</p>
+        <p class="visually-hidden" role="status" id="live-status"></p>
+      </div>
+    </main>
+
+    <div class="overlay" id="overlay" hidden>
+      <div class="scrim" data-scrim></div>
+      <div class="glass sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title-el" id="sheet" data-od-id="region:sheet">
+        <div class="sheet-grabber" aria-hidden="true"></div>
+        <div class="sheet-head">
+          <div class="sheet-head-text">
+            <h2 class="headline-s sheet-title" id="sheet-title-el" data-od-id="heading:sheet"></h2>
+            <p class="body-s sheet-sub" id="sheet-sub"></p>
+          </div>
+          <button class="sheet-close" id="sheet-close" aria-label="Close sheet" data-od-id="control:sheet-close">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="sheet-body" id="sheet-body"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="proto" role="group" aria-label="Prototype states">
+  <p class="label-s proto-label">PROTOTYPE STATES</p>
+  <div class="proto-row">
+    <button class="proto-btn" data-state="running" aria-pressed="true">Running</button>
+    <button class="proto-btn" data-state="idle" aria-pressed="false">Idle</button>
+    <button class="proto-btn" data-state="loading" aria-pressed="false">Loading</button>
+    <button class="proto-btn" data-state="empty" aria-pressed="false">Empty</button>
+    <button class="proto-btn" data-state="error" aria-pressed="false">Error</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ═════════════════════════════ Seed data ═════════════════════════════ */
+
+const FARE = { REGULAR: 15, STUDENT: 13, SENIOR_CITIZEN: 12, PWD: 12 };
+const TYPES = Object.keys(FARE);
+const DAY = 86400000;
+const HOUR = 3600000;
+const MIN = 60000;
+
+const ACTIVE_ID = 900;              // the seeded running trip's row handle
+const LAST_COMPLETED_NUMBER = 436;   // today's newest closed trip; the active is 437
+const RECENT_LIMIT = 5;
+const ACTIVE_ELAPSED_MIN = 78;
+const PAST_DAYS = 44;                // 44 past days + today = the 45-day window
+
+const ROUTES = [
+  { origin: 'Cubao', destination: 'Divisoria', km: 7.2 },
+  { origin: 'Baclaran', destination: 'Monumento', km: 8.0 },
+  { origin: 'Divisoria', destination: 'Cubao', km: 7.2 },
+  { origin: 'Monumento', destination: 'Baclaran', km: 8.0 },
+  { origin: 'Quiapo', destination: 'Cubao', km: 5.4 },
+  { origin: 'Monumento', destination: 'Cubao', km: 4.1 },
+];
+
+const TERMINALS = ['Baclaran', 'Cubao', 'Divisoria', 'Monumento', 'Quiapo'];
+
+/* Only these pairs carry a distance. Everything else is Distance not
+   recorded — the app's own rule (addTripState.routeDistance returns null for
+   an unconfigured end), and the reason the picker's Apply button can be
+   honestly disabled. */
+const ROUTE_KM = new Map();
+function pairKey(a, b) { return [a, b].sort().join('|'); }
+ROUTES.forEach((r) => ROUTE_KM.set(pairKey(r.origin, r.destination), r.km));
+
+/**
+ * Distance a pair will produce, in km. Absolute — the route runs both ways.
+ * Null, never zero: null means "nothing to compute" (nothing chosen, the same
+ * terminal, or no distance on file) and prints Distance not recorded; 0 km
+ * would be a lie.
+ */
+function routeDistance(from, to) {
+  if (!from || !to || from === to) return null;
+  return ROUTE_KM.get(pairKey(from, to)) ?? null;
+}
+
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * One pass produces 45 days of trips and fares. Fare ids are trip.id * 10 + k,
+ * so a trip holds at most nine fares and every id is unique.
+ *
+ * The active trip is clamped to max(dayStart, now − 78min) and today's closed
+ * trips are laid backwards from just before it, never into the future (defect
+ * 4's cousin: a fixed 5 + i*4 o'clock stamp gives today's trips an endedAt in
+ * the future before ~09:30, so they outrank a trip you just ended) and never
+ * into yesterday (where they would stop counting as today's work).
+ */
+function buildData(activeToday) {
+  const rand = mulberry32(7);
+  const now = Date.now();
+  const dayStart = new Date(now); dayStart.setHours(0, 0, 0, 0);
+  const start = dayStart.getTime();
+  const trips = [];
+  const fares = [];
+
+  const addFares = (trip, count) => {
+    const span = (trip.endedAt ?? now) - trip.startedAt;
+    // Capped at ₱100 per seeded trip: the recent rows' money column is 55.12px
+    // and "₱104.00" already measures 54.63px at body-m/700, so a larger total
+    // would push the peso past the measured grid. The grid yields before the
+    // type does.
+    let total = 0;
+    for (let k = 0; k < count; k++) {
+      const type = TYPES[Math.floor(rand() * TYPES.length)];
+      const qty = rand() < 0.28 ? 2 : 1;
+      const value = FARE[type] * qty;
+      if (k > 0 && total + value > 100) break;
+      total += value;
+      fares.push({
+        id: trip.id * 10 + k + 1,
+        tripId: trip.id,
+        type,
+        qty,
+        at: trip.startedAt + span * ((k + 1) / (count + 1)),
+      });
+    }
+  };
+
+  // 44 past days, three to six runs each.
+  for (let d = PAST_DAYS; d >= 1; d--) {
+    const dayAt = start - d * DAY;
+    const runs = 3 + Math.floor(rand() * 4);
+    for (let r = 0; r < runs; r++) {
+      const route = ROUTES[Math.floor(rand() * ROUTES.length)];
+      const startedAt = dayAt + (5.5 + r * 2.7) * HOUR + Math.floor(rand() * 35) * MIN;
+      const endedAt = startedAt + (62 + Math.floor(rand() * 34)) * MIN;
+      if (endedAt >= dayAt + DAY) continue;
+      const trip = {
+        id: trips.length + 1, trip_number: '',
+        origin: route.origin, destination: route.destination, km: route.km,
+        startedAt, endedAt, status: 'COMPLETED',
+      };
+      trips.push(trip);
+      addFares(trip, 3 + Math.floor(rand() * 6));
+    }
+  }
+
+  // Today, newest first, laid backwards from a ceiling that sits before the
+  // running trip. Five o'clock stamps are never used.
+  const activeStart = Math.max(start, now - ACTIVE_ELAPSED_MIN * MIN);
+  const ceiling = activeToday
+    ? Math.min(now - 15 * MIN, activeStart - 5 * MIN)
+    : now - 15 * MIN;
+  const todayRoutes = [1, 0, 5, 4, 2];
+  let cursor = ceiling;
+  for (let i = 0; i < todayRoutes.length; i++) {
+    const route = ROUTES[todayRoutes[i]];
+    const dur = (70 + Math.floor(rand() * 26)) * MIN;
+    let endedAt = cursor;
+    let startedAt = endedAt - dur;
+    if (startedAt < start) {
+      // The day has no room for a full run: compress it, or stop.
+      startedAt = start;
+      endedAt = Math.min(endedAt, start + dur);
+      if (endedAt - startedAt < 20 * MIN) break;
+    }
+    const trip = {
+      id: trips.length + 1, trip_number: '',
+      origin: route.origin, destination: route.destination, km: route.km,
+      startedAt, endedAt, status: 'COMPLETED',
+    };
+    trips.push(trip);
+    addFares(trip, 3 + Math.floor(rand() * 5));
+    cursor = startedAt - 15 * MIN;
+  }
+
+  // Numbers last, ordered by time: today's newest closed trip is #436 and the
+  // running trip is #437. Insertion order is not chronological — today's runs
+  // are laid newest first — so sorting here is the only place that can be
+  // wrong about it.
+  const byTime = [...trips].sort((a, b) => (a.endedAt - b.endedAt) || (a.id - b.id));
+  byTime.forEach((t, i) => { t.trip_number = String(LAST_COMPLETED_NUMBER - byTime.length + 1 + i); });
+
+  if (activeToday) {
+    const route = ROUTES[1];
+    const trip = {
+      id: ACTIVE_ID, trip_number: String(LAST_COMPLETED_NUMBER + 1),
+      origin: route.origin, destination: route.destination, km: route.km,
+      startedAt: activeStart, endedAt: null, status: 'ACTIVE',
+    };
+    trips.push(trip);
+    // One fare per passenger type, two passengers each: 4 fares, 8 passengers,
+    // ₱104.00 — a running trip that has visibly been working.
+    [['REGULAR', 2], ['STUDENT', 2], ['SENIOR_CITIZEN', 2], ['PWD', 2]].forEach(([type, qty], k) => {
+      fares.push({ id: ACTIVE_ID * 10 + k + 1, tripId: ACTIVE_ID, type, qty, at: activeStart + (ACTIVE_ELAPSED_MIN * MIN * (k + 1)) / 5 });
+    });
+  }
+
+  return { trips, fares };
+}
+
+/* ═════════════════════════════ Store ══════════════════════════════════ */
+
+let data = buildData(true);
+let forceState = null; // 'loading' | 'empty' | 'error' | null → derive running/idle
+
+function dayStart(ms) { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); }
+function nextTripId() { return Math.max(0, ...data.trips.map((t) => t.id)) + 1; }
+function nextTripNumber() {
+  return String(Math.max(0, ...data.trips.map((t) => Number(t.trip_number))) + 1);
+}
+
+function faresFor(id) { return data.fares.filter((f) => f.tripId === id); }
+const tripTotal = (t) => faresFor(t.id).reduce((s, f) => s + FARE[f.type] * f.qty, 0);
+const tripPax = (t) => faresFor(t.id).reduce((s, f) => s + f.qty, 0);
+const tripFareCount = (t) => faresFor(t.id).length;
+
+/** The one read of the store every figure on screen comes from. */
+function compute() {
+  const now = Date.now();
+  const start = dayStart(now);
+  const active = data.trips.find((t) => t.status === 'ACTIVE') ?? null;
+  const completed = data.trips
+    .filter((t) => t.status === 'COMPLETED')
+    .sort((a, b) => (b.endedAt - a.endedAt) || (b.id - a.id));
+  const todayFares = data.fares.filter((f) => f.at >= start);
+  return {
+    now, start, active, empty: false,
+    recent: completed.slice(0, RECENT_LIMIT),
+    completedCount: completed.length,
+    lastCompleted: completed.find((t) => t.startedAt >= start) ?? completed[0] ?? null,
+    collectedOnTrip: active ? tripTotal(active) : null,
+    activeFareCount: active ? tripFareCount(active) : 0,
+    activePax: active ? tripPax(active) : 0,
+    todayTotal: todayFares.reduce((s, f) => s + FARE[f.type] * f.qty, 0),
+    todayFareCount: todayFares.length,
+    todayPax: todayFares.reduce((s, f) => s + f.qty, 0),
+    todayTripCount: data.trips.filter((t) => t.startedAt >= start).length,
+    fareCount: data.fares.length,
+    recordDays: new Set(data.fares.map((f) => dayStart(f.at))).size,
+  };
+}
+
+/** The empty state's view of the same store: a device with nothing on it. */
+function emptyView() {
+  return {
+    now: Date.now(), start: 0, active: null, empty: true,
+    recent: [], completedCount: 0, lastCompleted: null,
+    collectedOnTrip: null, activeFareCount: 0, activePax: 0,
+    todayTotal: 0, todayFareCount: 0, todayPax: 0, todayTripCount: 0,
+    fareCount: 0, recordDays: 0,
+  };
+}
+
+/* ═════════════════════════════ Formatters ═════════════════════════════ */
+
+const peso = (n) => '\u20B1' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const dash = '\u2014';
+const arrow = '\u2192';
+const middot = ' \u00B7 ';
+
+function fmtTime(ms) {
+  return new Date(ms).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+}
+function fmtDate(ms) {
+  return new Date(ms).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+/** formatElapsed, ported: HH:MM:SS, hours unbounded, clamped at zero. */
+function hhmmss(ms) {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const pad = (v) => String(v).padStart(2, '0');
+  return `${pad(Math.floor(total / 3600))}:${pad(Math.floor((total % 3600) / 60))}:${pad(total % 60)}`;
+}
+/** Never 0 km: a route nobody measured prints Distance not recorded. */
+function kmText(km) { return km ? `${km.toFixed(1)} km` : 'Distance not recorded'; }
+function kmOrMissing(km) { return km ? km.toFixed(1) : dash; }
+
+/* ═════════════════════════════ Icons ═════════════════════════════════ */
+
+const svg = (path, size = 20) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
+const ICONS = {
+  bus: svg('<path d="M4 17V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v11"/><path d="M2 17h20"/><circle cx="6.5" cy="19.5" r="1.5"/><circle cx="17.5" cy="19.5" r="1.5"/><path d="M4 11h16"/>'),
+  ticket: svg('<path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/>'),
+  chevR: svg('<path d="m9 18 6-6-6-6"/>', 18),
+};
+
+/* ═════════════════════════════ Trip card ═════════════════════════════ */
+
+const $ = (id) => document.getElementById(id);
+
+const routeHtml = (t) =>
+  `<span>${t.origin}</span><span class="arrow" aria-hidden="true">${arrow}</span><span>${t.destination}</span>`;
+
+function runningCard(c) {
+  const t = c.active;
+  const elapsed = hhmmss(c.now - t.startedAt);
+  return `<div class="glass hero hero-solid" data-od-id="card:trip-running">
+    <p class="hero-eyebrow">
+      <span class="label-s">TRIP IN PROGRESS</span>
+      <span class="trip-chip num" aria-hidden="true">TRIP #${t.trip_number}</span>
+    </p>
+    <p class="visually-hidden">Trip number ${t.trip_number}, ${t.origin} to ${t.destination}, in progress.</p>
+    <h2 class="headline-s hero-route" data-od-id="heading:route">${routeHtml(t)}</h2>
+    <p class="body-m hero-when num">Started ${fmtTime(t.startedAt)}${middot}${fmtDate(t.startedAt)}</p>
+    <p class="body-s hero-running num">Running for <span id="hero-elapsed">${elapsed}</span></p>
+    <p class="display-s lead-figure num" id="hero-total">${c.collectedOnTrip ? peso(c.collectedOnTrip) : dash}</p>
+    <p class="label-s lead-cap">COLLECTED ON THIS TRIP</p>
+    <div class="hero-figures num">
+      <div class="hero-figure"><b id="fig-fares">${c.activeFareCount}</b><span>FARES</span></div>
+      <div class="hero-figure"><b id="fig-pax">${c.activePax}</b><span>PASSENGERS</span></div>
+      <div class="hero-figure"><b id="fig-elapsed">${elapsed}</b><span>ELAPSED</span></div>
+    </div>
+    <div class="hero-actions">
+      <button class="primary-btn icon-pair" data-action="record" data-od-id="control:record-fare">
+        ${ICONS.ticket}Record a fare
+      </button>
+      <button class="danger-btn" data-action="end" data-od-id="control:end-trip">End trip</button>
+    </div>
+  </div>`;
+}
+
+function idleCard(c) {
+  const last = c.lastCompleted;
+  const lastLine = last
+    ? `<p class="body-s hero-last num">Last trip ended <b>${fmtTime(last.endedAt)}</b>${middot}<b>${peso(tripTotal(last))}</b></p>`
+    : '';
+  return `<div class="glass hero hero-glass" data-od-id="card:trip-idle">
+    <p class="label-s hero-eyebrow">NO ACTIVE TRIP</p>
+    <h2 class="headline-s hero-route" data-od-id="heading:route">Ready for the next run</h2>
+    <p class="body-m hero-body">Fares can only be recorded while a trip runs. Start one and every peso on this screen fills in as the day goes.</p>
+    ${lastLine}
+    <div class="hero-actions">
+      <button class="primary-btn" data-action="start" data-od-id="control:start-trip">Start trip</button>
+      <button class="danger-btn" disabled data-od-id="control:end-trip-disabled">End trip</button>
+    </div>
+  </div>`;
+}
+
+function loadingCard() {
+  return `<div class="glass hero hero-glass" role="status" aria-busy="true" data-od-id="card:trip-loading">
+    <div class="sk sk-eyebrow"></div>
+    <div class="sk sk-route"></div>
+    <div class="sk sk-when"></div>
+    <div class="sk sk-money"></div>
+    <div class="sk-figs"><div class="sk sk-fig"></div><div class="sk sk-fig"></div><div class="sk sk-fig"></div></div>
+    <div class="sk sk-btn"></div>
+    <div class="sk sk-btn"></div>
+  </div>`;
+}
+
+function errorCard() {
+  return `<div class="glass hero hero-error" role="alert" data-od-id="card:trip-error">
+    <p class="label-s hero-eyebrow"><span class="hero-error-head">RECORDS UNAVAILABLE</span></p>
+    <h2 class="headline-s hero-route" data-od-id="heading:route">Could not read the trip records</h2>
+    <p class="body-m hero-error-text">Nothing was lost. The trips and fares are still on this device, and reading them again is safe.</p>
+    <div class="hero-actions">
+      <button class="primary-btn" data-action="retry" data-od-id="control:retry">Read records again</button>
+    </div>
+  </div>`;
+}
+
+function emptyCard() {
+  return `<div class="glass hero hero-glass" data-od-id="card:trip-empty">
+    <p class="label-s hero-eyebrow">NO TRIPS RECORDED</p>
+    <h2 class="headline-s hero-route" data-od-id="heading:route">Start the first trip</h2>
+    <p class="body-m hero-body">Fares can only be recorded while a trip runs. Start one and the figures on this screen fill in as the day goes.</p>
+    <div class="hero-actions">
+      <button class="primary-btn" data-action="start" data-od-id="control:start-trip">Start trip</button>
+    </div>
+  </div>`;
+}
+
+function renderTripCard(c) {
+  const slot = $('trip-card');
+  if (forceState === 'loading') { slot.innerHTML = loadingCard(); return; }
+  if (forceState === 'error') { slot.innerHTML = errorCard(); return; }
+  slot.innerHTML = c.empty ? emptyCard() : (c.active ? runningCard(c) : idleCard(c));
+}
+
+/* ═══════════════════════ Recent completed trips ═══════════════════════ */
+
+function tripRow(t) {
+  const n = tripFareCount(t);
+  const label = `Trip ${t.trip_number}, ${t.origin} to ${t.destination}, completed ${fmtDate(t.startedAt)}. ` +
+    `${kmText(t.km)}, ${plural(n, 'fare')}, ${plural(tripPax(t), 'passenger')}, collected ${peso(tripTotal(t))}. ` +
+    'Opens trip details.';
+  return `<button class="glass row-card row-btn" data-action="open-trip" data-id="${t.id}" aria-label="${label}" data-od-id="row:trip-${t.id}">
+    <span class="trip-head">
+      <span class="trip-icon" aria-hidden="true">${ICONS.bus}</span>
+      <span class="trip-main">
+        <span class="title-m trip-route">${t.origin} ${arrow} ${t.destination}</span>
+        <span class="body-s trip-sub num">#${t.trip_number}${middot}${fmtDate(t.startedAt)}${middot}${kmOrMissing(t.km)} km</span>
+      </span>
+      <span class="trip-side num">
+        <span class="body-m trip-peso">${tripTotal(t) ? peso(tripTotal(t)) : dash}</span>
+        <span class="body-s trip-fares">${plural(n, 'fare')}</span>
+      </span>
+    </span>
+  </button>`;
+}
+
+function renderRecent(c) {
+  const body = $('recent-body');
+  if (forceState === 'loading') {
+    body.innerHTML = `<div class="rows" aria-hidden="true" data-od-id="region:recent-loading">
+      <div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div>
+    </div>`;
+    $('live-status').textContent = 'Loading trips.';
+    return;
+  }
+  $('live-status').textContent = '';
+  if (forceState === 'error') {
+    body.innerHTML = `<div class="glass state-card" data-od-id="card:recent-error">
+      <p class="title-m state-title">Recent trips are unavailable</p>
+      <p class="body-s state-body">The board did not read. Reading the records again will fill this list back in.</p>
+    </div>`;
+    return;
+  }
+  if (c.empty || c.recent.length === 0) {
+    body.innerHTML = `<div class="glass state-card" data-od-id="card:recent-empty">
+      <p class="title-m state-title">No completed trips yet</p>
+      <p class="body-s state-body">A trip lands here the moment it is closed, with its number, its distance and what it took.</p>
+    </div>`;
+    return;
+  }
+  body.innerHTML = `<div class="rows" data-od-id="region:recent-rows">${c.recent.map(tripRow).join('')}</div>`;
+}
+
+function renderStorage(c) {
+  $('storage-text').innerHTML = c.empty
+    ? 'Nothing is saved on this device yet. Everything you record will stay here \u2014 <b>no network is used</b>.'
+    : `<b>${plural(c.completedCount + (c.active ? 1 : 0), 'trip')} and ${plural(c.fareCount, 'fare')}</b> across <b>${plural(Math.max(c.recordDays, 1), 'day')}</b>, all saved on this device. <b>No network is used.</b>`;
+}
+
+/* ═════════════════════════════ Overlays ══════════════════════════════ */
+
+const overlay = $('overlay');
+const sheetBody = $('sheet-body');
+const sheetTitle = $('sheet-title-el');
+const sheetSub = $('sheet-sub');
+const sheetClose = $('sheet-close');
+let lastFocus = null;
+
+function openSheet(title, sub, html) {
+  lastFocus = document.activeElement;
+  sheetTitle.textContent = title;
+  sheetSub.textContent = sub;
+  sheetBody.innerHTML = html;
+  overlay.hidden = false;
+  // The close button takes focus only once the sheet is visible — a hidden
+  // element cannot take focus.
+  requestAnimationFrame(() => {
+    overlay.classList.add('open');
+    sheetClose.focus();
+  });
+}
+
+function closeSheet() {
+  overlay.classList.remove('open');
+  window.setTimeout(() => { overlay.hidden = true; }, 200);
+  if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
+  lastFocus = null;
+}
+
+sheetClose.addEventListener('click', closeSheet);
+overlay.addEventListener('click', (e) => {
+  // Only the backdrop itself may close. closest() also matches every control
+  // inside the sheet, so the sheet's own buttons would dismiss it instead of
+  // acting. (This bit home.html; do not re-import it.)
+  if (e.target.hasAttribute('data-scrim')) closeSheet();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !overlay.hidden) closeSheet();
+});
+
+const detailRows = (rows) =>
+  rows.map(([label, value]) =>
+    `<div class="detail-row"><span class="body-m detail-label">${label}</span><span class="body-m detail-value num">${value}</span></div>`
+  ).join('');
+
+const goesNote = (text) =>
+  `<div class="sheet-note" data-od-id="sheet:handoff-note"><p class="body-s"><b>WHERE THIS GOES</b><br>${text}</p></div>`;
+
+/* ── Trip sheet: the running trip's overview, its end confirmation, and the
+      read-only detail behind a recent row. One row set, one recipe. ──── */
+
+function tripSheetRows(t, c) {
+  const running = t.endedAt ? t.endedAt - t.startedAt : (c.now - t.startedAt);
+  return detailRows([
+    ['Route', `${t.origin} ${arrow} ${t.destination}`],
+    ['Trip number', `#${t.trip_number}`],
+    ['Distance', kmText(t.km)],
+    ['Started', `${fmtTime(t.startedAt)}${middot}${fmtDate(t.startedAt)}`],
+    ['Running for', t.endedAt ? hhmmss(running) : `<span id="sheet-run">${hhmmss(running)}</span>`],
+    ['Fares recorded', String(tripFareCount(t))],
+    ['Passengers', String(tripPax(t))],
+    ['Collected on this trip', tripTotal(t) ? peso(tripTotal(t)) : dash],
+    ['Collected today', c.todayTotal ? peso(c.todayTotal) : dash],
+    ['Ended', t.endedAt ? `${fmtTime(t.endedAt)}${middot}${fmtDate(t.endedAt)}` : dash],
+  ]);
+}
+
+function openTripSheet(id, step) {
+  const c = compute();
+  const t = data.trips.find((x) => x.id === id);
+  if (!t) return;
+  const live = t.status === 'ACTIVE';
+  if (step === 'confirm') {
+    openSheet(
+      `End trip #${t.trip_number}?`,
+      'This cannot be undone.',
+      `<div data-od-id="sheet:end-confirm">
+        ${detailRows([
+          ['Closing time', fmtTime(Date.now())],
+          ['Fares at stake', plural(tripFareCount(t), 'fare')],
+          ['Collected on this trip', peso(tripTotal(t))],
+        ])}
+        <p class="body-s confirm-warn">The recorded fares stay in today\u2019s total and in History ${middot} only new fares are blocked once the trip ends.</p>
+        <div class="sheet-actions">
+          <button class="quiet-btn" data-action="end-cancel" data-od-id="control:keep-running">Keep running</button>
+          <button class="danger-btn" data-action="end-confirmed" data-od-id="control:end-trip-confirm">End trip</button>
+        </div>
+      </div>`
+    );
+    return;
+  }
+  if (live) {
+    openSheet(
+      `Trip #${t.trip_number}`,
+      `${t.origin} ${arrow} ${t.destination}${middot}in progress`,
+      `<div data-od-id="sheet:trip-running">
+        ${tripSheetRows(t, c)}
+        <div class="sheet-actions">
+          <button class="danger-btn" data-action="end-confirm" data-od-id="control:end-trip-sheet">End this trip</button>
+        </div>
+      </div>`
+    );
+    return;
+  }
+  openSheet(
+    `Trip #${t.trip_number}`,
+    `${t.origin} ${arrow} ${t.destination}${middot}read-only`,
+    `<div data-od-id="sheet:trip-completed">${tripSheetRows(t, c)}</div>`
+  );
+}
+
+/* ── Handoff sheets: every remaining control names where its tap goes. ── */
+
+function openHandoff(key) {
+  const c = compute();
+  let title = '', sub = '', rows = [], note = '';
+  if (key === 'back') {
+    title = 'Home'; sub = 'Quick actions and today';
+    rows = [
+      ['Running', c.active ? `#${c.active.trip_number}` : dash],
+      ['Trips today', String(c.todayTripCount)],
+      ['Collected today', c.todayTotal ? peso(c.todayTotal) : dash],
+    ];
+    note = 'Opens the <b>Home screen</b> (home.html) \u2014 the quick actions, the live trip pill and the last completed trip.';
+  } else if (key === 'record') {
+    title = 'Record a fare'; sub = c.active ? `Trip #${c.active.trip_number}` : 'No trip running';
+    rows = c.active ? [
+      ['Route', `${c.active.origin} ${arrow} ${c.active.destination}`],
+      ['Fares on this trip', String(c.activeFareCount)],
+      ['Passengers', String(c.activePax)],
+      ['Collected on this trip', peso(c.collectedOnTrip)],
+    ] : [['Reason', 'Start a trip first']];
+    note = 'Opens the <b>Record fare</b> screen in the app \u2014 passenger type and quantity for this trip. Kondukt posts the fare to the running trip and counts it in Collected today.';
+  } else {
+    title = 'History'; sub = 'Trip and ticket history';
+    rows = [
+      ['Trips on file', String(c.completedCount + (c.active ? 1 : 0))],
+      ['Trips today', String(c.todayTripCount)],
+      ['Collected today', c.todayTotal ? peso(c.todayTotal) : dash],
+      ['Last trip', c.lastCompleted ? `#${c.lastCompleted.trip_number}${middot}${fmtTime(c.lastCompleted.endedAt)}` : dash],
+    ];
+    note = 'Opens the <b>History screen</b> (index.html) \u2014 the full trip, ticket and earnings ledger.';
+  }
+  openSheet(title, sub, detailRows(rows) + goesNote(note));
+}
+
+/* ── Route picker: the honest Add trip preview. ─────────────────────── */
+
+const pick = { from: 'Baclaran', to: null };
+
+function openRoutePicker() {
+  const c = compute();
+  pick.from = c.lastCompleted ? c.lastCompleted.origin : 'Baclaran';
+  pick.to = null;
+  openSheet('Start a trip', 'Add trip preview', routePickerHtml());
+}
+
+function pickOptions(value, peer, placeholder) {
+  const options = TERMINALS.filter((t) => t !== peer);
+  return `<option value="">${placeholder}</option>` +
+    options.map((t) => `<option${t === value ? ' selected' : ''}>${t}</option>`).join('');
+}
+
+/** The distance foot and the note, from the two chosen terminals. */
+function pickNote(p) {
+  if (!p.from || !p.to) return 'Choose both terminals to see the route distance.';
+  if (p.from === p.to) return 'Pick two different terminals.';
+  if (routeDistance(p.from, p.to) === null) return 'No distance on file for this pair, so the trip cannot start yet.';
+  return 'Fares can only be recorded while a trip runs. The trip starts now.';
+}
+
+function routePickerHtml() {
+  const km = routeDistance(pick.from, pick.to);
+  const known = km !== null;
+  return `<div data-od-id="sheet:route-picker">
+    <label class="label-s field-label" for="pick-from">FROM</label>
+    <select class="pick-select" id="pick-from" data-pick="from" data-od-id="control:pick-from">${pickOptions(pick.from, pick.to, 'Choose an origin')}</select>
+    <label class="label-s field-label" for="pick-to">TO</label>
+    <select class="pick-select" id="pick-to" data-pick="to" data-od-id="control:pick-to">${pickOptions(pick.to, pick.from, 'Choose a destination')}</select>
+    <div class="pick-foot">
+      <span class="body-s pick-foot-label">Route distance</span>
+      <b class="body-m num" id="pick-distance">${known ? `${km.toFixed(1)} km` : 'Distance not recorded'}</b>
+    </div>
+    <p class="body-s confirm-warn" id="pick-note">${pickNote(pick)}</p>
+    <div class="sheet-actions">
+      <button class="quiet-btn" data-action="pick-cancel" data-od-id="control:pick-cancel">Cancel</button>
+      <button class="primary-btn" data-action="pick-apply" data-od-id="control:pick-apply" ${known ? '' : 'disabled'}>Start trip</button>
+    </div>
+  </div>`;
+}
+
+/**
+ * Repaints the distance, the note and the Apply button after a select changes.
+ * Only the *peer* select's options are rebuilt: replacing the options of the
+ * select the user is operating drops its focus mid-interaction.
+ */
+function syncPicker(changed) {
+  const km = routeDistance(pick.from, pick.to);
+  const foot = $('pick-distance');
+  if (foot) foot.textContent = km === null ? 'Distance not recorded' : `${km.toFixed(1)} km`;
+  const note = $('pick-note');
+  if (note) note.textContent = pickNote(pick);
+  const apply = sheetBody.querySelector('[data-action="pick-apply"]');
+  if (apply) apply.disabled = km === null;
+
+  if (changed === 'from') {
+    if (pick.to === pick.from) pick.to = null;
+    const to = $('pick-to');
+    if (to) to.innerHTML = pickOptions(pick.to, pick.from, 'Choose a destination');
+  } else if (changed === 'to') {
+    if (pick.from === pick.to) pick.from = null;
+    const from = $('pick-from');
+    if (from) from.innerHTML = pickOptions(pick.from, pick.to, 'Choose an origin');
+  }
+}
+
+/* ═══════════════════════ Actions on the store ════════════════════════ */
+
+function startTrip() {
+  const km = routeDistance(pick.from, pick.to);
+  if (km === null) return;
+  data.trips.push({
+    id: nextTripId(),
+    trip_number: nextTripNumber(),
+    origin: pick.from,
+    destination: pick.to,
+    km,
+    startedAt: Date.now(),
+    endedAt: null,
+    status: 'ACTIVE',
+  });
+  forceState = null;              // the store decides the state again
+  closeSheet();
+  render();
+  // The Start trip button died with the re-render; its successor takes focus
+  // so a keyboard user is not dropped at the top of the document.
+  $('trip-card').querySelector('[data-action="record"]')?.focus();
+  $('live-status').textContent = `Trip #${data.trips[data.trips.length - 1].trip_number} started.`;
+}
+
+/** Ends the trip by stamping the existing record. Its fares are untouched:
+    the money has to survive the close. */
+function endTrip() {
+  const active = data.trips.find((t) => t.status === 'ACTIVE');
+  if (!active) return;
+  active.status = 'COMPLETED';
+  active.endedAt = Date.now();
+  forceState = null;
+  closeSheet();
+  render();
+  // The End trip button died with the re-render; the next action takes focus.
+  $('trip-card').querySelector('[data-action="start"]')?.focus();
+  $('live-status').textContent = `Trip #${active.trip_number} ended. ${peso(tripTotal(active))} stays in today\u2019s total.`;
+}
+
+function readRecords() {
+  forceState = 'loading';
+  render();
+  $('live-status').textContent = 'Reading records.';
+  window.setTimeout(() => {
+    if (forceState === 'loading') { forceState = null; render(); $('live-status').textContent = 'Records read.'; }
+  }, 900);
+}
+
+/* ═══════════════════════ Event delegation ════════════════════════════ */
+
+$('app').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  // Programmatic clicks do not move focus; a sheet opened from such a click
+  // would have nowhere to return focus to.
+  if (document.activeElement === document.body) btn.focus();
+  const action = btn.dataset.action;
+  if (action === 'back') openHandoff('back');
+  else if (action === 'record') openHandoff('record');
+  else if (action === 'view-all') openHandoff('history');
+  else if (action === 'end') openTripSheet(activeId(), 'overview');
+  else if (action === 'open-trip') openTripSheet(Number(btn.dataset.id), 'overview');
+  else if (action === 'start') openRoutePicker();
+  else if (action === 'retry') readRecords();
+});
+
+function activeId() {
+  const active = data.trips.find((t) => t.status === 'ACTIVE');
+  return active ? active.id : -1;
+}
+
+sheetBody.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  if (document.activeElement === document.body) btn.focus();
+  const action = btn.dataset.action;
+  if (action === 'end-confirm') openTripSheet(activeId(), 'confirm');
+  else if (action === 'end-cancel') openTripSheet(activeId(), 'overview');
+  else if (action === 'end-confirmed') endTrip();
+  else if (action === 'pick-cancel') closeSheet();
+  else if (action === 'pick-apply') startTrip();
+});
+
+sheetBody.addEventListener('change', (e) => {
+  const sel = e.target.closest('select[data-pick]');
+  if (!sel) return;
+  if (sel.dataset.pick === 'from') pick.from = sel.value || null;
+  else pick.to = sel.value || null;
+  syncPicker(sel.dataset.pick);
+});
+
+/* ═══════════════════════ Prototype control ═══════════════════════════ */
+
+const protoButtons = Array.from(document.querySelectorAll('.proto-btn'));
+protoButtons.forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const state = btn.dataset.state;
+    if (state === 'running') { data = buildData(true); forceState = null; }
+    else if (state === 'idle') { data = buildData(false); forceState = null; }
+    else forceState = state;
+    closeSheet();
+    render();
+  });
+});
+
+function syncProto(c) {
+  const effective = forceState ?? (c.empty ? 'empty' : (c.active ? 'running' : 'idle'));
+  protoButtons.forEach((btn) => {
+    btn.setAttribute('aria-pressed', String(btn.dataset.state === effective));
+  });
+}
+
+/* ═══════════════════════ Render + elapsed tick ═══════════════════════ */
+
+const app = $('app');
+
+function render() {
+  // A re-render destroys the focused control. Remember which one by its
+  // data-od-id so the keyboard does not lose its place after a write.
+  const activeEl = document.activeElement;
+  const insideApp = activeEl && app.contains(activeEl);
+  const od = insideApp ? activeEl.getAttribute('data-od-id') : null;
+
+  const c = forceState === 'empty' ? emptyView() : compute();
+  renderTripCard(c);
+  renderRecent(c);
+  renderStorage(c);
+  syncProto(c);
+
+  if (od) {
+    const next = document.querySelector(`[data-od-id="${od}"]`);
+    if (next) next.focus();
+  }
+}
+
+/** Patches the elapsed strings in place; the store is not re-read. */
+function tick() {
+  const c = compute();
+  if (!c.active || forceState) return;
+  const elapsed = hhmmss(Date.now() - c.active.startedAt);
+  const hero = $('hero-elapsed');
+  if (hero) hero.textContent = elapsed;
+  const fig = $('fig-elapsed');
+  if (fig) fig.textContent = elapsed;
+  const run = $('sheet-run');
+  if (run) run.textContent = elapsed;
+}
+window.setInterval(tick, 1000);
+
+render();
+</script>
+</body>
+</html>

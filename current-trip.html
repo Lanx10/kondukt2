@@ -1,0 +1,1394 @@
+<!doctype html>
+<!--
+  Kondukt · Current Trip screen — Open Design prototype.
+  Spliced from add-trip.html, which is spliced from index.html: the shell, the
+  tokens and the glass layer are byte-identical to the other eight screens, so
+  all nine read as one product. The app lives in the APP CONTENT slot.
+
+  The screen src/screens/CurrentTripScreen.tsx already ships (613 lines). What
+  this prototype does about it, and why, is the header note in the design writeup;
+  the short version is that ten of the things it shows are wrong in ways a
+  screenshot would not catch:
+
+    1. ITS "DISTANCE" IS NOT A DISTANCE. computeTripTotals multiplies the trip's
+       route distance by the passenger count (currentTripState.ts:68) and the
+       screen prints the product under the label DISTANCE
+       (CurrentTripScreen.tsx:272-279) — 217.4 km x 46 passengers = 9,999.4 km,
+       rendered "9999.400 km" by distanceKm's fixed three decimals
+       (tripTicketsFormat.ts:88-90). A bus has no per-passenger distance. The
+       field is dropped; the trip's own distance appears once, in the chrome.
+    2. IT DUPLICATES A FOLD THAT ALREADY EXISTS. addTicketFare.ts:384 foldLedger
+       already sums total_fare, counts passengers, counts rows, and caps a
+       newest-first list — and its head has no multiplied distance in it.
+       computeTripTotals re-derives the same three numbers and then adds the one
+       field the tested fold does not have, which is the field that is fiction.
+    3. THE TRIP'S OWN DISTANCE IS PRINTED ON EVERY TICKET ROW
+       (CurrentTripScreen.tsx:375). It is a trip-level value under a per-row
+       label, repeated fifteen times on a screen that lists fifteen boardings.
+    4. THE ROAD IS NOT ON THE SCREEN AT ALL, although usesSctex prices every
+       single boarding on the run (tripTicketsStore.ts:798-799). Worse, the trip
+       row has no road column, so the app cannot show one either — the run's
+       rate is unrecoverable. So the ROAD row here carries a NOT STORED flag
+       rather than a value it cannot back up, and that flag is the port's cue.
+    5. THE HORIZONTAL INSET IS APPLIED TWICE. The column sets
+       paddingHorizontal: space(4) (:609) and every child sits in a gutter with
+       marginHorizontal: space(5) (:443) — 16px + 20px = 36px of indent on a 390px
+       screen, not the 20px the other eight screens use. Vertically it is worse:
+       the column's gap: space(4) (:611) and the gutter's marginTop: space(3)
+       (:443) put 28px between cards where the rhythm is 20.
+    6. THE ERROR STATE IS A DEAD END. A failed read renders a heading and a
+       sentence and nothing else (:144-157); the only way out is the back
+       chevron. It gets a retry, because subscribeToTripWithTickets is already
+       subscribed and a re-read is one call.
+    7. THE ONLY DESTRUCTIVE ACTION IS THE MOST EXPENSIVE TO REACH. End trip is
+       the ListFooterComponent (:298-311), so on a 15-row ledger it is below the
+       fold and the conductor has to scroll past every boarding to close the run.
+       It is in a bar that does not scroll.
+    8. NO TICKET CARRIES A CLOCK. The store orders by created_at DESC, id DESC
+       and formatRowStamp already exists (tripTicketsFormat.ts:63-66) unused here,
+       so the newest row is the top row and nothing says when any of it happened.
+    9. THE CONFIRM STATES NO NUMBERS. "This closes the active trip." (:410) is
+       an irreversible action described by its category. The sheet names the
+       trip, the tickets, the passengers and the pesos, and where they go.
+    10. A DEAD BRANCH AND A MISNAMED STRING. "Distance not recorded" (:275-277)
+        is guarded on distance_km_milli > 0, but startTrip refuses
+        distance <= 0 (tripTicketsStore.ts:840-841), so no trip that reaches this
+        screen can trip it — and the string is about recording while the test is
+        about zero. The branch is deleted rather than ported.
+    11. The end-trip confirm is a centred Modal (:404), the only dialog in the
+        nine screens that is not a sheet. It is a bottom sheet here, for the same
+        reason every other overlay in this app family is.
+
+  Section order is reading order: is it running, what has it made, what happened
+  on it, and the one control that closes it.
+
+  Prototype states: Ready · No active trip · Loading · Error · Ending.
+  The seeded trip is Trip #7 on SCTEX from Iba to Caloocan, 217.4 km, started
+  6:41 AM — the same run add-ticket.html and trip.html carry, so the three
+  screens cannot disagree about it.
+-->
+<html lang="en">
+<head><script type="application/json" data-od-external-dependencies>["https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap"]</script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kondukt · Current trip</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+
+    @layer od-layout {
+      .od-stack   { display: flex; flex-direction: column; gap: var(--od-gap, 8px); }
+      .od-row     { display: flex; align-items: center; gap: var(--od-gap, 8px); }
+      .od-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--od-gap, 8px); }
+      .od-fill    { flex: 1 1 0; min-width: 0; }
+      .od-grid    { display: grid; gap: var(--od-gap, 12px); grid-template-columns: repeat(var(--od-cols, 3), minmax(0, 1fr)); }
+      :where(.od-stack,.od-row,.od-cluster,.od-grid,.od-stat) > :where(*) { min-width: 0; }
+      .od-stat { display: grid; gap: var(--od-gap, 2px); }
+      .od-truncate { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+      .od-clamp-2 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
+    }
+
+    :root {
+      /* ── kondukt M3 warm palette (src/theme.ts) ───────────────────────── */
+      --primary:#E65100; --on-primary:#FFFFFF; --primary-container:#FFE6D2; --on-primary-container:#4E2200;
+      --primary-solid:#C2410C; --primary-solid-hover:#A93A09;
+      --secondary:#FFB300; --on-secondary:#3D2E00; --secondary-container:#FFEFC7; --on-secondary-container:#4A3600;
+      --secondary-fg:#8A6100;
+      /* Foregrounds for the solid-amber card, measured against #FFB300 — not
+         guessed from their position in the ramp: 5.75:1 / 4.94:1 / 3.98:1
+         (detail / muted / faint); --on-secondary itself is 7.36:1. detail and
+         muted pass AA for body text, faint does not — faint is for a decorative
+         mark, never for a figure or a row. Tokens keep the two amber cards
+         (Home hero, Dashboard status) provably identical. */
+      --on-secondary-detail:#4F3D2B; --on-secondary-muted:#5B4720; --on-secondary-faint:#6B5518;
+      --tertiary:#546E7A; --on-tertiary:#FFFFFF; --tertiary-container:#DDE6EA; --on-tertiary-container:#162B33;
+      --error:#BA1A1A; --on-error:#FFFFFF; --error-container:#FFDAD6; --on-error-container:#410002;
+      --background:#FDF7F3; --surface:#FDF7F3; --surface-lowest:#FFFFFF; --surface-low:#F7EFE9;
+      --surface-container:#F2E9E2; --surface-high:#ECE3DC;
+      --on-surface:#221A15; --on-surface-variant:#53433B; --outline:#85736B; --outline-variant:#D7C2B7;
+      --scrim:rgba(34,26,21,.32);
+
+      /* glass layer */
+      --glass-tint:rgba(255,255,255,.58);
+      --glass-rim:rgba(255,255,255,.85);
+      --glass-on:#1A2029; --glass-on-variant:#4A5568;
+      --glass-accent-primary:#8F3A00; --glass-accent-secondary:#6B4B00; --glass-accent-tertiary:#334A56;
+      --glass-shadow:rgba(90,106,130,.16);
+
+      --radius-sm:8px; --radius-md:12px; --radius-lg:16px; --radius-xl:24px; --radius-glass:28px; --radius-full:999px;
+      --font: 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+      /* shell vars (from the neutral OD handset) */
+      --phone-screen-width:390px; --phone-screen-height:844px; --phone-bezel:10px;
+      --phone-outer-radius:52px; --phone-screen-radius:42px;
+      --phone-safe-top:50px; --phone-safe-bottom:29px;
+      --phone-system-fg:#17181a; --phone-screen-bg:#f8f8f9; --phone-stage-bg:#eaebee;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      min-height: 100dvh; display: grid; place-items: center; padding: 32px;
+      background: radial-gradient(circle at 50% 15%, rgba(255,255,255,.94), transparent 35%), var(--phone-stage-bg);
+      color: #191a1d; font-family: var(--font);
+    }
+
+    /* ── handset shell ─────────────────────────────────────────────────── */
+    .phone-frame {
+      position: relative;
+      width: calc(var(--phone-screen-width) + var(--phone-bezel) * 2);
+      height: calc(var(--phone-screen-height) + var(--phone-bezel) * 2);
+      padding: var(--phone-bezel); border-radius: var(--phone-outer-radius);
+      background: linear-gradient(145deg, rgba(255,255,255,.2), transparent 17%), linear-gradient(160deg, #3f4146 0%, #202227 48%, #0b0c0f 100%);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.13), inset 0 0 0 2px rgba(0,0,0,.85), 0 32px 68px -20px rgba(10,12,16,.52), 0 10px 24px -10px rgba(10,12,16,.32);
+      isolation: isolate;
+    }
+    .phone-frame::before, .phone-frame::after {
+      content: ""; position: absolute; z-index: -1; top: 96px; bottom: 96px; width: 2px;
+      background: linear-gradient(to bottom, transparent, rgba(255,255,255,.13) 16%, transparent 30%, transparent 72%, rgba(255,255,255,.07) 88%, transparent);
+    }
+    .phone-frame::before { left: 0; } .phone-frame::after { right: 0; }
+    .hardware-button { position: absolute; width: 4px; border-radius: 3px; background: linear-gradient(90deg,#08090b,#2a2d33 60%,#08090b); box-shadow: inset 0 1px rgba(255,255,255,.08); }
+    .hardware-button.volume { left: -3px; top: 222px; height: 86px; }
+    .hardware-button.power { right: -3px; top: 270px; height: 82px; }
+
+    .phone-screen {
+      position: relative; width: var(--phone-screen-width); height: var(--phone-screen-height);
+      overflow: hidden; border-radius: var(--phone-screen-radius); background: var(--phone-screen-bg);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.05);
+    }
+    .phone-content { position: absolute; inset: 0; overflow: hidden; padding: 0; background: transparent; }
+
+    .status-bar { position: absolute; z-index: 40; inset: 0 0 auto; height: var(--phone-safe-top); display: grid; grid-template-columns: minmax(0,1fr) 56px minmax(0,1fr); align-items: start; padding: 14px 20px 0; color: var(--phone-system-fg); opacity: .8; pointer-events: none; }
+    .status-time { justify-self: start; display: flex; align-items: center; height: 15px; font-size: 14px; font-weight: 560; line-height: 1; letter-spacing: .01em; font-family: system-ui, sans-serif; }
+    .status-cutout-zone { width: 56px; }
+    .status-icons { justify-self: end; display: inline-flex; align-items: center; height: 15px; gap: 6px; }
+    .status-icons svg { display: block; flex: none; fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
+    .status-icons .connectivity { width: 15px; height: 12px; } .status-icons .wifi { width: 15px; height: 12px; } .status-icons .battery { width: 19px; height: 11px; }
+    .camera-dot { position: absolute; z-index: 45; top: 13px; left: 50%; width: 10px; height: 10px; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(circle at 38% 35%, #344154 0 12%, #0a0c10 34%, #000 76%); box-shadow: 0 0 0 1px rgba(255,255,255,.06); pointer-events: none; }
+    .gesture-indicator { position: absolute; z-index: 45; left: 50%; bottom: 8px; width: 96px; height: 4px; transform: translateX(-50%); border-radius: 99px; background: var(--phone-system-fg); opacity: .86; pointer-events: none; }
+
+    /* ── app root ──────────────────────────────────────────────────────── */
+    #app {
+      position: relative; height: 100%; display: flex; flex-direction: column;
+      color: var(--glass-on);
+      background:
+        radial-gradient(125% 82% at 6% -4%, #FBC9A8 0%, rgba(246,227,212,.78) 32%, rgba(244,247,251,0) 63%),
+        radial-gradient(130% 88% at 104% 104%, #C6D9E8 0%, rgba(228,233,242,.72) 34%, rgba(244,247,251,0) 66%),
+        #F4F7FB;
+    }
+    .app-scroll {
+      flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch; scrollbar-width: none;
+      padding-bottom: var(--phone-safe-bottom);
+    }
+    .app-scroll::-webkit-scrollbar { display: none; }
+
+    .readable { width: 100%; max-width: 720px; margin-inline: auto; padding-inline: 20px; }
+    .pad-x { padding-inline: 20px; }
+
+    /* ── typography roles ──────────────────────────────────────────────── */
+    .display-s { font-weight: 700; font-size: 28px; line-height: 36px; letter-spacing: -.3px; }
+    .headline-s { font-weight: 600; font-size: 20px; line-height: 27px; letter-spacing: -.3px; }
+    .title-m { font-weight: 600; font-size: 16px; line-height: 23px; }
+    .body-m { font-weight: 400; font-size: 14px; line-height: 21px; }
+    .body-s { font-weight: 400; font-size: 12px; line-height: 18px; }
+    .label-l { font-weight: 600; font-size: 15px; line-height: 20px; }
+    .label-s { font-weight: 600; font-size: 11px; line-height: 16px; letter-spacing: .6px; }
+    .tabular { font-variant-numeric: tabular-nums; }
+    .muted { color: var(--glass-on-variant); }
+    .strong { color: var(--glass-on); }
+    p { margin: 0; }
+
+    /* ── glass surface ─────────────────────────────────────────────────── */
+    .glass {
+      position: relative; border-radius: var(--radius-glass);
+      background: var(--glass-tint);
+      box-shadow: 0 8px 15px var(--glass-shadow), inset 0 1px 0 rgba(255,255,255,.55);
+      -webkit-backdrop-filter: blur(18px) saturate(180%);
+      backdrop-filter: blur(18px) saturate(180%);
+    }
+    .glass > * { position: relative; z-index: 1; }
+    .glass::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: rgba(120,130,150,.5); opacity: .035; pointer-events: none; }
+    .glass::after  { content: ""; position: absolute; inset: 0; border-radius: inherit; border: 1px solid var(--glass-rim); pointer-events: none; z-index: 2; }
+
+    /* ── chrome (SectionChrome) ────────────────────────────────────────── */
+    .chrome { display: flex; align-items: center; gap: 12px; flex: none; padding: calc(var(--phone-safe-top) + 12px) 20px 12px; }
+    .back {
+      width: 44px; height: 44px; border-radius: var(--radius-full); border: 0; background: var(--primary-solid);
+      display: grid; place-items: center; cursor: pointer; flex: none;
+      box-shadow: 0 8px 15px var(--glass-shadow);
+    }
+    .title-card {
+      flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 5px 16px; border-radius: var(--radius-full);
+      background: var(--primary-solid); display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+      box-shadow: 0 8px 15px var(--glass-shadow);
+    }
+    .chrome-title { color: var(--on-primary); margin: 0; }
+    .chrome-sub { color: var(--on-primary); margin: 1px 0 0; }
+
+    /* ── section header (SectionHeader) ────────────────────────────────── */
+    .sec-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 20px; margin-bottom: 12px; }
+    .sec-title { color: var(--glass-on-variant); margin: 0; }
+    .text-action { border: 0; background: none; padding: 0 4px; min-height: 48px; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; color: var(--glass-accent-primary); font-family: inherit; flex: none; }
+    .text-action .label-s { color: inherit; }
+    /* Hover must not lighten the label — the only change is a rule under it,
+       so the 6.9:1 default is also the hover contrast. */
+    .text-action:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+    /* ── status card: the four-way state machine ───────────────────────── */
+    .status-card { padding: 20px; }
+    .status-card .st-eyebrow { color: var(--glass-on-variant); }
+    .status-card .st-title { color: var(--glass-on); margin: 8px 0 0; }
+    .status-card .st-detail { color: var(--glass-on-variant); margin: 4px 0 0; }
+    .status-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 12px; }
+    /* Amber is reserved for the one thing a conductor registers without
+       reading: a trip that is running right now. Dark-on-amber measures
+       7.4:1 for the title and 5.8:1 for the detail line, where the pale
+       containers would sit at ~1.5:1. */
+    .amber-btn {
+      min-height: 48px; padding: 0 20px; border: 0; border-radius: var(--radius-full);
+      background: var(--secondary); color: var(--on-secondary); cursor: pointer; font-family: inherit;
+      display: inline-flex; align-items: center; gap: 8px;
+    }
+    .glass.status-solid { background: var(--secondary); }
+    .glass.status-solid::before, .glass.status-solid::after { display: none; }
+    .status-solid .st-eyebrow, .status-solid .st-title { color: var(--on-secondary); }
+    .status-solid .st-detail { color: var(--on-secondary-detail); }
+    .status-solid .st-pill { background: var(--on-secondary); }
+    .status-solid .st-pill-text { color: var(--secondary); }
+    .status-solid .st-dot { background: var(--secondary); }
+    .st-head { display: flex; align-items: center; gap: 12px; }
+    .st-icon { width: 48px; height: 48px; border-radius: var(--radius-md); display: grid; place-items: center; flex: none; }
+    .status-solid .st-icon { background: var(--on-secondary); }
+    .st-head-text { flex: 1 1 auto; min-width: 0; }
+    /* The pill is a container, so the label is its on-color. Pairing it with
+       --on-secondary-container on a --on-secondary-container fill made the
+       text the same brown as its own background: 1.0:1, invisible. */
+    .st-pill { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 3px 10px; border-radius: var(--radius-full); background: var(--secondary-container); }
+    .st-pill-text { color: var(--on-secondary-container); }
+    .status-solid .st-pill-text { color: var(--secondary); }
+    .st-dot { width: 6px; height: 6px; border-radius: 3px; background: var(--on-secondary-container); flex: none; }
+    .st-route { margin: 8px 0 0; color: var(--glass-on); }
+    .st-meta { margin: 12px 0 0; color: var(--glass-on-variant); font-variant-numeric: tabular-nums; }
+    .data-chip { display: inline-flex; align-items: center; margin-top: 10px; padding: 3px 10px; border-radius: var(--radius-full); background: var(--tertiary-container); color: var(--on-tertiary-container); }
+
+    /* ── period control (shared with History) ──────────────────────────── */
+    .range-card { padding: 14px 14px 16px; }
+    .range-top { display: flex; align-items: center; gap: 10px; }
+    .segment { flex: 1 1 auto; min-width: 0; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border-radius: var(--radius-full); background: rgba(255,255,255,.55); border: 1px solid var(--outline-variant); }
+    .seg-btn { min-height: 44px; border: 0; border-radius: var(--radius-full); background: transparent; color: var(--glass-on-variant); cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; justify-content: center; }
+    .seg-btn[aria-checked="true"] { background: var(--primary-solid); color: var(--on-primary); }
+    .seg-btn[aria-checked="true"] .label-l { font-weight: 700; }
+    .cal-btn { width: 48px; min-height: 48px; border-radius: var(--radius-full); border: 1px solid var(--outline-variant); background: rgba(255,255,255,.55); color: var(--glass-accent-primary); cursor: pointer; flex: none; display: grid; place-items: center; }
+    .cal-btn.on { background: var(--primary-container); border: 2px solid var(--primary); color: var(--on-primary-container); }
+    .range-nav { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+    .nav-btn { width: 48px; height: 48px; border-radius: var(--radius-full); border: 1px solid var(--outline-variant); background: rgba(255,255,255,.55); color: var(--glass-on); cursor: pointer; flex: none; display: grid; place-items: center; }
+    .nav-btn:disabled { opacity: .4; cursor: default; }
+    .range-now { flex: 1 1 auto; min-width: 0; text-align: center; }
+    .range-now-main { display: block; color: var(--glass-on); }
+    .range-now-sub { display: block; color: var(--glass-on-variant); margin-top: 2px; }
+    .range-caption { margin: 10px 0 0; display: flex; align-items: flex-start; gap: 8px; color: var(--glass-on-variant); }
+    .range-caption .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--primary); flex: none; margin-top: 7px; }
+
+    /* ── summary disclosure ────────────────────────────────────────────── */
+    .summary { padding: 18px 20px; }
+    .summary-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+    .summary-eyebrow { color: var(--glass-on-variant); }
+    .detail-btn { border: 0; background: none; cursor: pointer; min-height: 44px; padding: 0 2px; display: inline-flex; align-items: center; gap: 4px; color: var(--glass-accent-primary); font-family: inherit; flex: none; }
+    .detail-btn svg { transition: transform .2s ease; }
+    .summary.open .detail-btn svg { transform: rotate(180deg); }
+    .hero { margin-top: 12px; }
+    .hero-label { color: var(--glass-on-variant); }
+    .hero-value { margin: 4px 0 0; color: var(--glass-on); }
+    .hero-meta { margin: 8px 0 0; color: var(--glass-on-variant); display: flex; flex-wrap: wrap; gap: 4px 14px; }
+    .hero-meta b { color: var(--glass-on); font-weight: 600; }
+    .summary-details { display: none; margin-top: 20px; }
+    .summary.open .summary-details { display: block; }
+    .summary-details .rule { height: 1px; background: var(--outline-variant); opacity: .7; margin: 18px 0; }
+    .stat-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+    .stat-grid.stacked { grid-template-columns: minmax(0,1fr); }
+    .stat-tile { padding: 16px; }
+    .stat-icon { width: 40px; height: 40px; border-radius: var(--radius-md); display: grid; place-items: center; }
+    .stat-label { margin: 12px 0 0; color: var(--glass-on-variant); }
+    .stat-value { margin: 4px 0 0; color: var(--glass-on); }
+    .breakdown { margin-top: 14px; display: grid; gap: 12px; }
+    .bd-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 12px; align-items: baseline; }
+    .bd-name { color: var(--glass-on); }
+    .bd-count { color: var(--glass-on); font-weight: 600; }
+    .bd-track { grid-column: 1 / -1; height: 8px; border-radius: var(--radius-full); background: var(--surface-container); overflow: hidden; }
+    .bd-fill { height: 100%; border-radius: inherit; background: var(--primary-solid); }
+
+    /* ── rows ──────────────────────────────────────────────────────────── */
+    .list { display: grid; gap: 12px; }
+    .row-card { padding: 20px; }
+    /* font-size: inherit is load-bearing here, and the four sibling screens are
+       all missing it. A button inherits the UA's 13.333px control size, so a
+       ledger row that is a <button> painted its bare .cat at 13.33px while the
+       very same row as a locked <div> painted it at 16px — one ledger, two
+       sizes, switching with the recording gate. */
+    .row-btn { border: 0; margin: 0; width: 100%; text-align: left; font-family: inherit; font-size: inherit; color: inherit; cursor: pointer; border-radius: var(--radius-glass); display: block; }
+    .row-btn:active { transform: scale(.995); }
+    /* flex-start, not center: the route column is 199px and the longest pair
+       ("Baclaran \u2192 Monumento") is 197px in Poppins 600/16, so a wider build
+       of Poppins still adds a line. Centring would then float the 40px icon and
+       the money block in the middle of a 106px card. Top-aligned, the icon and
+       the peso sit on the route's cap line whether the row is one line or two.
+       Gap is 8, not 12: measured, the 12px gap left the route 6px short of its
+       longest pair. ponytail: 2px of slack - shorten station names (or drop the
+       spaces around the arrow) if the font is ever swapped. */
+    .trip-head { display: flex; align-items: flex-start; gap: 8px; }
+    .trip-icon { width: 40px; height: 40px; border-radius: var(--radius-md); background: var(--tertiary-container); display: grid; place-items: center; flex: none; }
+    .trip-body { flex: 1 1 auto; min-width: 0; }
+    .trip-route { display: block; color: var(--glass-on); }
+    .trip-sub { display: block; margin: 4px 0 0; color: var(--glass-on-variant); }
+    .status { padding: 3px 10px; border-radius: var(--radius-full); flex: none; }
+    .status.active { background: var(--secondary-container); color: var(--on-secondary-container); }
+    .status.done { background: var(--tertiary-container); color: var(--on-tertiary-container); }
+    /* Structural dividers use --outline, not --outline-variant: the variant
+       sits at 1.7:1 on this field and the 6-row list loses its structure. */
+    .meta-line { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--outline); display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--glass-on-variant); }
+    .fare { display: inline-flex; align-items: baseline; gap: 6px; color: var(--glass-on); white-space: nowrap; }
+    .meta-line .fare { margin-left: auto; }
+    .fare b { font-weight: 700; }
+    .ticket-row { display: flex; align-items: flex-start; gap: 12px; }
+    .ticket-id { min-width: 62px; flex: none; }
+    .ticket-id .when { display: block; color: var(--glass-on-variant); }
+    .ticket-mid { flex: 1 1 auto; min-width: 0; }
+    .ticket-route { color: var(--glass-on); }
+    .ticket-meta { margin: 4px 0 0; color: var(--glass-on-variant); display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+    .cat { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: var(--radius-full); }
+    .cat.regular { background: var(--primary-container); color: var(--on-primary-container); }
+    .cat.student, .cat.senior, .cat.pwd { background: var(--tertiary-container); color: var(--on-tertiary-container); }
+    .ticket-fare { text-align: right; color: var(--glass-on); flex: none; }
+    .ticket-fare .each { display: block; color: var(--glass-on-variant); }
+    .ticket-fare b { font-weight: 700; }
+    .rows-stacked .ticket-row { flex-wrap: wrap; }
+    .rows-stacked .ticket-fare { text-align: left; width: 100%; }
+    .rows-stacked .ticket-fare .each { display: inline; margin-left: 6px; }
+    .rows-stacked .meta-line { flex-direction: column; align-items: flex-start; }
+    .rows-stacked .meta-line .fare { margin-left: 0; }
+
+    /* ── inline empty + storage ────────────────────────────────────────── */
+    .inline-empty { padding: 16px 18px; border: 1px solid var(--outline-variant); border-radius: var(--radius-xl); background: rgba(255,255,255,.5); }
+    .inline-empty p { color: var(--glass-on-variant); }
+    .storage { margin-top: 20px; padding: 12px 20px; display: flex; align-items: center; gap: 8px; }
+    .storage p { color: var(--glass-on-variant); }
+
+    /* ── states ────────────────────────────────────────────────────────── */
+    /* Solid, not the pale container this replaced. An error is the second thing
+       a conductor registers without reading — first the run, then the thing
+       that failed — and #FFDAD6 says "notice" rather than "this failed". The
+       same reasoning that makes the running card a solid amber panel makes the
+       failed state a solid red one: the fill is the register. White on
+       var(--error) measures 6.5:1 for the heading and the body. */
+    .state { padding: 20px; border-radius: var(--radius-xl); border: 1px solid var(--outline-variant); background: rgba(255,255,255,.55); }
+    .state.error { border-color: var(--error); background: var(--error); box-shadow: 0 8px 15px var(--glass-shadow); }
+    .state h3 { margin: 0; color: var(--glass-on); }
+    .state p { margin: 8px 0 0; color: var(--glass-on-variant); }
+    .state.error h3 { color: var(--on-error); }
+    .state.error p { color: var(--on-error); }
+    .primary-btn { margin-top: 14px; min-height: 48px; padding: 0 20px; border-radius: var(--radius-lg); border: 0; background: var(--primary-solid); color: var(--on-primary); cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 8px; }
+    .primary-btn:hover { background: var(--primary-solid-hover); }
+    .skeleton { padding: 16px; }
+    .sk { border-radius: 8px; background: linear-gradient(90deg, rgba(0,0,0,.05) 25%, rgba(0,0,0,.09) 37%, rgba(0,0,0,.05) 63%); background-size: 400% 100%; animation: shim 1.4s ease infinite; }
+    @keyframes shim { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+    @media (prefers-reduced-motion: reduce) { .sk { animation: none; } .detail-btn svg { transition: none; } }
+
+    /* ── overlays (calendar modal / detail sheet) ──────────────────────── */
+    .overlay-root { position: absolute; inset: 0; z-index: 30; pointer-events: none; }
+    /* grid-template-rows: minmax(0, 1fr) is load-bearing, not tidiness. With an
+       auto row the grid area is indefinite in the block axis, so the sheet's
+       max-height: 100% resolved against nothing and computed to none: the trip
+       picker measured 924px and the all-groups sheet 1223px inside an 844px
+       phone, hanging 80px and 379px past the bottom edge with their last rows
+       unreachable — .sheet-body never scrolled because it was never given a
+       height to scroll inside. A definite 1fr row fixes the percentage, and the
+       two rules below fix the flex side of the same bug. */
+    .scrim { position: absolute; inset: 0; background: var(--scrim); display: grid; grid-template-rows: minmax(0, 1fr); pointer-events: auto; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
+    .scrim.center { place-items: center; padding: 16px; }
+    /* The 17-row stop list is tall enough to hit max-height: 100%, so its sheet
+       fills the phone top to bottom and .sheet-head landed at y=0 — the sheet
+       title painted underneath the fake clock and the notch. The scrim's
+       background still covers the padding (background-clip defaults to
+       border-box), only the sheet is pushed below the status bar. */
+    .scrim.bottom { align-items: end; padding-top: var(--phone-safe-top); }
+    .sheet { width: 100%; max-width: 360px; margin: 0 auto; background: var(--surface-lowest); border-radius: var(--radius-xl); pointer-events: auto; max-height: 100%; display: flex; flex-direction: column; }
+    .sheet.bottom-sheet { border-radius: var(--radius-xl) var(--radius-xl) 0 0; max-width: 720px; animation: slideUp .22s ease; }
+    @keyframes slideUp { from { transform: translateY(14px); opacity: .6; } to { transform: none; opacity: 1; } }
+    /* flex: none so the title can never be squeezed, and min-height: 0 on the
+       body so it can — a flex item defaults to min-height: auto, which pins it
+       to its content height and makes the sheet overflow instead of scrolling. */
+    .sheet-head { display: flex; align-items: center; gap: 12px; padding: 16px 20px 8px; flex: none; }
+    .sheet-titles { flex: 1 1 auto; min-width: 0; }
+    .sheet-head h2 { margin: 0; color: var(--on-surface); }
+    .sheet-titles p { margin: 2px 0 0; }
+    .sheet-body { padding: 0 20px var(--phone-safe-bottom); overflow-y: auto; min-height: 0; }
+    .icon-btn { width: 44px; height: 44px; border-radius: var(--radius-full); border: 1px solid var(--outline-variant); background: transparent; color: var(--on-surface-variant); display: grid; place-items: center; cursor: pointer; flex: none; }
+    .icon-btn:hover { background: var(--surface-container); }
+    .cal-head { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+    .cal-month { color: var(--on-surface); }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-top: 8px; }
+    .cal-dow { text-align: center; color: var(--on-surface-variant); padding: 6px 0; }
+    .cal-cell { position: relative; height: 44px; border: 0; background: none; cursor: pointer; border-radius: var(--radius-md); color: var(--on-surface); font-family: inherit; }
+    .cal-cell.out { color: var(--outline); }
+    .cal-cell.inrange { background: var(--primary-container); border-radius: 0; }
+    .cal-cell.edge { background: var(--primary-solid); color: var(--on-primary); border-radius: var(--radius-md); font-weight: 600; }
+    .cal-cell.today::after { content: ""; position: absolute; left: 50%; bottom: 5px; width: 4px; height: 4px; transform: translateX(-50%); border-radius: 50%; background: var(--primary); }
+    .cal-cell.edge.today::after { background: var(--on-primary); }
+    .cal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px; }
+    .cal-actions .ghost { min-height: 48px; padding: 0 12px; border: 0; background: none; color: var(--on-surface-variant); cursor: pointer; font-family: inherit; }
+    .cal-actions .apply { min-height: 48px; padding: 0 20px; border-radius: var(--radius-lg); border: 0; background: var(--primary-solid); color: var(--on-primary); cursor: pointer; font-family: inherit; }
+    .cal-error { margin: 10px 0 0; color: var(--error); }
+    .range-preview { margin: 12px 0 0; color: var(--on-surface-variant); }
+    .detail-row { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--outline); }
+    .detail-row:last-child { border-bottom: 0; }
+    .detail-row .k { color: var(--on-surface-variant); flex: none; }
+    .detail-row .v { color: var(--on-surface); font-weight: 600; text-align: right; }
+    /* The card insets its own rows so every key in the sheet starts at the
+       same 20px column as the title, instead of drifting in by 14px. */
+    .detail-card { border: 1px solid var(--outline-variant); border-radius: var(--radius-lg); margin-top: 12px; }
+    .detail-card .detail-row { padding-inline: 12px; }
+
+    /* ── add trip: two terminals, one road, and what that road will bill ── */
+    /* Author display rules beat the UA [hidden] rule on cascade origin, so a
+       hidden attribute on any of the flex/grid elements this screen toggles
+       would not hide it. One guard covers all of them. */
+    [hidden] { display: none !important; }
+    /* The chrome carries the trip number and the road, and the road string
+       changes length with the choice. Never let it wrap to a second line inside
+       the pill and push the title card taller than its neighbours. */
+    .chrome-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .card { margin-top: 20px; padding: 20px; border: 1px solid var(--outline-variant); border-radius: var(--radius-xl); background: rgba(255,255,255,.55); }
+    /* A .sec-head is a sibling margin, but the card already has 20px of padding,
+       so margin collapse cannot reach it: left alone it lands its title 40px
+       down. Every card on this screen has a header, so the rule is
+       unconditional here. */
+    .card > .sec-head:first-child { margin-top: 0; }
+    /* font-size: inherit is load-bearing on a <button> for the reason it is on
+       .row-btn: a button inherits the UA's 13.333px control size, and neither
+       .f-label nor .f-value sets a size, so the label and the value inside one
+       field would paint two steps apart from the sizes they declare. */
+    .field { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 60px; padding: 8px 14px; border: 1px solid var(--outline); border-radius: var(--radius-lg); background: var(--surface); color: var(--on-surface); font-family: inherit; font-size: inherit; text-align: left; cursor: pointer; }
+    .field:hover { background: var(--surface-container); }
+    .f-icon { width: 36px; height: 36px; border-radius: var(--radius-sm); display: grid; place-items: center; flex: none; background: var(--tertiary-container); color: var(--on-tertiary-container); }
+    .f-body { flex: 1 1 auto; min-width: 0; }
+    .f-label { display: block; color: var(--on-surface-variant); }
+    .f-value { display: block; color: var(--on-surface); font-weight: 600; }
+    /* --outline is a 1px border token, specified for the 3:1 non-text floor. On
+       16px text it measured 4.24:1 against the field's own surface, under AA, on
+       the one line that tells a first-time driver what this control wants. The
+       placeholder still reads as a placeholder on weight alone (500 vs 600). */
+    .f-value.empty { color: var(--on-surface-variant); font-weight: 500; }
+    .f-chev { flex: none; color: var(--on-surface-variant); display: inline-flex; }
+    /* No .field + .field rule here, and there must not be one: the leg sits
+       between the two fields and owns the space. A sibling margin would put 8px
+       of daylight above the destination and 8px below the origin, so the swap
+       control would be the only thing in the card that is off-axis. */
+
+    /* The leg between the two ends carries the swap, not a legend. A trip runs
+       one way and the direction is the thing being corrected, so the control
+       sits ON the axis joining the two ends, where it reads as the reverse of
+       the leg rather than as a third input. Note what it does NOT change: the
+       quoted distance is Math.abs(km difference), so it reads the same in
+       both directions. Only the direction of travel differs, and only the
+       direction is stored. */
+    /* 12 top AND bottom, not 12 0 0: with the bottom at 0 the swap circle's
+       edge landed on the destination's border, and two 1px borders meeting
+       read as one broken rule with the control welded to the field. */
+    /* 1fr auto 1fr, not flex with the distance as a fourth sibling: the quoted
+       distance is a CAPTION on the leg, not a rung of it. As a flex sibling it
+       took 49px off the right-hand line and pushed the swap circle 27px left of
+       the card's axis, so the control that reverses the trip was off the line
+       joining the two ends it reverses. The two 1fr columns are equal by
+       construction, so the circle is on the axis to the subpixel and the lines
+       stay mirror images. */
+    .leg { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; column-gap: 8px; row-gap: 8px; margin: 12px 0; color: var(--on-surface-variant); }
+    .leg .leg-line { height: 1px; background: var(--outline); }
+    .leg .leg-dist { grid-column: 1 / -1; text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    /* padding: 0 for the same reason .row-btn carries it: a 44x44 border-box
+       button survives the UA's 1px/6px padding in size, but the 1px top and
+       bottom push the glyph off centre in a grid-placed control. */
+    .swap-btn { width: 44px; height: 44px; flex: none; padding: 0; border-radius: var(--radius-full); border: 1px solid var(--outline); background: var(--surface); color: var(--on-surface); font-family: inherit; display: grid; place-items: center; cursor: pointer; }
+    .swap-btn:hover { background: var(--surface-container); }
+    /* .45 put the glyph at 2.82:1, under the 3:1 this screen holds everything
+       else to. .55 lands at 3.77:1 and still reads unmistakably disabled. */
+    .swap-btn:disabled { opacity: .55; cursor: default; }
+    .swap-btn:disabled:hover { background: var(--surface); }
+    .leg-hint { margin: 8px 0 0; color: var(--error); }
+
+    /* Two roads, so a two-way switch and not a chip row: a chip implies
+       filtering a set, and this is one choice between two exclusive options
+       where the second bills materially more per kilometre. */
+    .seg-route { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
+    .seg-route button { min-height: 44px; padding: 8px 10px; border: 1px solid var(--outline); border-radius: var(--radius-lg); background: var(--surface); color: var(--on-surface); font-family: inherit; font-size: inherit; text-align: left; cursor: pointer; }
+    .seg-route button:hover { background: var(--surface-container); }
+    .seg-route button[aria-pressed="true"] { border: 2px solid var(--primary-solid); background: var(--primary-container); color: var(--on-primary-container); padding: 7px 9px; }
+    .seg-route .sr-name { display: block; font-weight: 600; }
+    .seg-route .sr-note { display: block; margin-top: 2px; color: var(--on-surface-variant); }
+    .seg-route button[aria-pressed="true"] .sr-note { color: var(--on-primary-container); }
+    /* The consequence of picking the toll road, stated rather than implied. The
+       adjustment is real configuration (sctex_km_adjustment_milli) and it adds
+       distance the driver is not driving but is billed for, on every boarding on
+       the trip, and it also swaps the rate. */
+    .road-note { margin: 12px 0 0; padding: 12px; border-radius: var(--radius-md); background: var(--secondary-container); color: var(--on-secondary-container); }
+
+    /* A trip has no fare, so this card has no total. It is the four inputs every
+       boarding on the trip will be priced from, and the rows reuse .detail-row —
+       the same key/value recipe the sheets use — so a figure here and a figure in
+       a ticket sheet are the same object. The wrapper exists for one reason:
+       :last-child cannot see past the footnote that follows the last row, so
+       without it the final row keeps a rule that means nothing. */
+    .est-rows > .detail-row:last-child { border-bottom: 0; }
+
+    /* ── shared with add-ticket.html and passenger.html ────────────────── */
+    /* Copied rather than renamed, so a picker row and a handoff are the same
+       56px object on all eight screens. */
+    .pick-row { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 12px; border: 1px solid var(--outline); border-radius: var(--radius-lg); background: var(--surface); color: var(--on-surface); font-family: inherit; font-size: inherit; text-align: left; cursor: pointer; margin-top: 8px; width: 100%; }
+    .pick-row:hover { background: var(--surface-container); }
+    /* 2px border on the current terminal and 1px less padding, so choosing a row
+       does not resize the list under the finger. */
+    .pick-row[aria-current="true"] { border: 2px solid var(--primary-solid); background: var(--primary-container); color: var(--on-primary-container); padding: 7px 11px; }
+    .pick-row .pk-body { flex: 1 1 auto; min-width: 0; }
+    .pick-row .pk-name { display: block; }
+    .pick-row .pk-sub { display: block; margin-top: 2px; color: var(--on-surface-variant); }
+    .pick-row[aria-current="true"] .pk-sub { color: var(--on-primary-container); opacity: .85; }
+    .pick-more { margin: 12px 0 0; padding: 12px 16px; border: 1px dashed var(--outline); border-radius: var(--radius-lg); color: var(--on-surface-variant); }
+    .handoff { margin: 16px 0 0; padding: 12px 20px; border: 1px dashed var(--outline); border-radius: var(--radius-lg); background: rgba(255,255,255,.42); }
+    .handoff p { color: var(--on-surface-variant); }
+    .handoff .nb-title { color: var(--on-surface); margin: 0 0 4px; }
+    :focus-visible { outline: 2px solid var(--primary-solid); outline-offset: 2px; border-radius: 6px; }
+
+    /* ── the one committing action ────────────────────────────────────── */
+    /* Solid, and the only solid primary in the viewport. It is also the only
+       thing on this screen that leaves it, so it gets the only amber... which
+       it does not: amber on these screens means a trip is already RUNNING, and
+       this is the screen that makes one. The commit stays --primary-solid. */
+    /* The 20px section margin belongs to the SECTION here, and .primary-btn's own
+       14px is zeroed inside it. Left alone, the button was the only thing on the
+       screen with a margin, so the estimate card and the CTA sat 14px apart while
+       every other pair of sections sat 20 — a 6px break in the rhythm at the
+       place the eye lands last. Adjacent margins collapse, so the two cannot be
+       added to reach 20; one of them has to go. This is the local version, and
+       the other seven screens keep the shell's 14px. The blocked branch states a
+       reason above the button, so it hands the gap back to .block-reason. */
+    [data-od-id="at-commit"] { margin-top: 20px; }
+    [data-od-id="at-commit"] > .primary-btn { margin-top: 0; }
+    [data-od-id="at-commit"] > .block-reason { margin-bottom: 12px; }
+
+    /* The shared shell styles .primary-btn and never once styles it disabled, so
+       on this screen a dead CTA painted as a live solid-orange button with a
+       pointer cursor — in four validation states, on the no-fare-rules state, and
+       behind the scrim after the press. Two solid primaries in one viewport is
+       the thing the one-CTA rule exists to prevent, and a conductor aiming at a
+       button that cannot fire is a tap that does nothing and looks like a bug.
+       opacity would be the wrong repair here: it blends the fill toward the page
+       and takes the white label under AA with it. Dropping the fill is the M3
+       treatment and it also settles the count, because a grey button is not a
+       primary. Local to this screen; the other seven prototypes still need it. */
+    .primary-btn:disabled { background: var(--surface-container); color: var(--on-surface-variant); cursor: default; }
+    .primary-btn:disabled:hover { background: var(--surface-container); }
+    /* "Clear" is 41px wide and "Rules" is 41px, and a 41px tap target is a
+       miss rather than a press. min-width only, and centred so the word does not
+       sit off-axis in the wider box. */
+    .card .text-action { min-width: 44px; justify-content: center; }
+
+    /* The loading branch is a card of grey bars, and a screen of grey bars read
+       out loud as nothing at all. One visually-hidden line gives it a name. */
+    .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+    .primary-btn.wide { width: 100%; justify-content: center; }
+    .block-reason { margin-top: 20px; color: var(--on-surface-variant); }
+    .commit-hint { margin: 12px 0 0; color: var(--on-surface-variant); }
+
+
+
+    /* prototype state control (outside the phone) */
+    .proto-states { position: fixed; left: 18px; bottom: 18px; z-index: 50; display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 16px; background: rgba(255,255,255,.9); border: 1px solid #dcdde1; box-shadow: 0 10px 24px rgba(20,22,28,.12); font-family: var(--font); }
+    .proto-states span { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #6b6e75; font-weight: 600; }
+    .proto-states .seg { display: flex; flex-wrap: wrap; gap: 6px; max-width: 232px; }
+    .proto-states button { font: inherit; font-size: 12px; padding: 7px 10px; border-radius: 999px; border: 1px solid #d4d5d9; background: #fff; color: #33363c; cursor: pointer; }
+    .proto-states button:hover { background: #F1F2F4; }
+    .proto-states button[aria-pressed="true"]:hover { background: #A93A09; border-color: #A93A09; }
+    .proto-states button[aria-pressed="true"] { background: #C2410C; border-color: #C2410C; color: #fff; }
+
+    @media (max-width: 480px) {
+      body { padding: 0; display: block; }
+      .phone-frame { width: 100%; height: 100dvh; padding: 0; border-radius: 0; background: none; box-shadow: none; }
+      .phone-frame::before, .phone-frame::after, .hardware-button { display: none; }
+      .phone-screen { width: 100%; height: 100%; border-radius: 0; }
+      .proto-states { display: none; }
+    }
+    @media (max-height: 927px) { .phone-frame { zoom: .9; } }
+    @media (max-height: 840px) { .phone-frame { zoom: .82; } }
+    @media (max-height: 771px) { .phone-frame { zoom: .74; } }
+    @media (max-height: 702px) { .phone-frame { zoom: .66; } }
+  
+
+    /* ── current trip: one running run, and the control that closes it ─── */
+    /* The RUNNING card is a SOLID amber panel — the same fill, and the same
+       foregrounds, as the Home hero and the Dashboard status card, so the three
+       screens that report a run agree at a glance. Amber is the app's one
+       signal for a trip running right now, so the fill itself is the register:
+       no rail to decode, no pale container to read past. Dark-on-amber measures
+       7.4:1 for a figure and 5.8:1 for a detail row, where the pale containers
+       would sit near 1.5:1. The border is darkened amber rather than the old
+       cream edge: on a saturated fill the edge is the only thing separating the
+       card from the page gradient behind it. */
+    .run-card { position: relative; overflow: hidden; margin-top: 20px; padding: 20px; border: 1px solid rgba(61,46,0,.26); border-radius: var(--radius-xl); background: var(--secondary); box-shadow: 0 8px 15px var(--glass-shadow); }
+    .run-card > * { position: relative; z-index: 1; }
+    /* The inversion Home and Dashboard already use on their solid amber card:
+       the RUNNING chip turns dark so it still reads as a chip against the fill
+       instead of dissolving into it. */
+    .run-card .st-pill { background: var(--on-secondary); }
+    .run-card .st-pill-text { color: var(--secondary); }
+    .run-card .st-dot { background: var(--secondary); }
+    .run-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    /* The road flag is the honest answer to a value the app cannot supply. It is
+       a flag and not a value because there is no column to read: this pill is the
+       first thing a port deletes, and it should be impossible to mistake for one
+       that stays. */
+    .flag { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: var(--radius-full); background: #F3DCAA; color: var(--on-secondary-container); }
+    .flag b { font-weight: 700; }
+    .run-figs { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 16px; align-items: end; margin-top: 16px; }
+    .run-fig-l { grid-column: 1; color: var(--on-secondary-detail); }
+    .run-fig { display: block; margin-top: 2px; color: var(--on-secondary); font-variant-numeric: tabular-nums; }
+    .run-fig-l2 { grid-column: 2; text-align: right; }
+    /* One track, three fills. History already owns this shape as .bd-track with a
+       single .bd-fill, and a three-colour chart would be a new visual language in
+       the ninth screen. Three fills in one track is the same object, and it is
+       the only place on this screen where three things are compared at once. */
+    .mixbar { display: flex; height: 8px; margin-top: 16px; border-radius: var(--radius-full); background: rgba(74,54,0,.16); overflow: hidden; }
+    .mixbar i { display: block; height: 100%; }
+    .mixbar i.regular { background: #9A3D00; }
+    .mixbar i.student { background: #44636F; }
+    .mixbar i.disc { background: #6B4B00; }
+    .mix-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 12px; color: var(--on-secondary-detail); }
+    .mix-legend b { color: var(--on-secondary); font-weight: 700; }
+    .run-rows { margin-top: 16px; }
+    .run-rows > .detail-row:last-child { border-bottom: 0; }
+    .run-rows .detail-row { border-bottom-color: rgba(61,46,0,.26); }
+    .run-card .detail-row .k { color: var(--on-secondary-detail); }
+    .run-card .detail-row .v { color: var(--on-secondary); }
+    .run-note { margin: 12px 0 0; color: var(--on-secondary-detail); }
+
+    /* ── the ledger ───────────────────────────────────────────────────── */
+    /* A row is a <div>, not a <button>: it opens nothing, edits nothing and
+       deletes nothing (CurrentTripScreen.tsx:356-384 says so in its own
+       docblock), so a button would advertise an affordance that is not there.
+       That also keeps .row-btn's load-bearing resets out of the picture.
+       The store's order is created_at DESC, id DESC and is set in SQL; nothing
+       here re-sorts. */
+    /* Two lines of scalars on one baseline, then the journey, then the who.
+       The three-column flex this replaced spent its middle column on 68px and
+       wrapped "Subic Bay Freeport → Norzagaray" onto ten lines, because the
+       fare sub-line held the column open at 150px and the clock held 62px more.
+       Grid inverts the priority: the only prose in a boarding gets the whole
+       width, and the two figures a conductor adds up land on a strict pitch. */
+    .tk { display: grid; grid-template-columns: 1fr auto; align-items: baseline; column-gap: 12px; row-gap: 4px; padding: 12px 16px; border: 1px solid var(--outline-variant); border-radius: var(--radius-xl); background: rgba(255,255,255,.55); }
+    /* Baseline, not flex-start plus a nudge: a 12px clock on a 16px fare that
+       shares the fare's baseline reads as the sub-figure it is. Centring it
+       against a 23px line instead would need a half-pixel nudge per size. */
+    .tk-time { grid-area: 1 / 1; color: var(--glass-on-variant); font-variant-numeric: tabular-nums; }
+    .tk-fare { grid-area: 1 / 2; text-align: right; color: var(--glass-on); font-variant-numeric: tabular-nums; }
+    .tk-route { grid-area: 2 / 1 / 2 / -1; color: var(--glass-on); overflow-wrap: anywhere; }
+    .tk-meta { grid-area: 3 / 1 / 3 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; color: var(--glass-on-variant); }
+
+    /* ── the action bar: the one control that closes the run ───────────── */
+    /* A sibling of .app-scroll, not a footer inside it, so it never scrolls away.
+       A 15-row ledger puts a ListFooterComponent's button below the fold, and
+       this is the one irreversible action on the screen. It is the only solid
+       control in the viewport and it is --error rather than --primary-solid,
+       because ending a trip cannot be undone and starting one can. */
+    .action-bar { flex: none; padding: 12px 20px calc(var(--phone-safe-bottom) + 8px); }
+    .end-btn { width: 100%; min-height: 48px; padding: 0; border: 0; border-radius: var(--radius-lg); background: var(--error); color: #fff; font-family: inherit; font-size: inherit; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+    .end-btn:hover { background: #8F1515; }
+    /* The shared shell never styles a disabled button, and opacity would drag the
+       white label under AA on a fill that is already the darkest thing here. The
+       fill drops instead, which is the M3 treatment and the only repair that
+       keeps the label readable. */
+    .end-btn:disabled { background: #E7C7C4; color: #6E2B28; cursor: default; }
+    .end-btn:disabled:hover { background: #E7C7C4; }
+    .end-count { margin: 8px 0 0; text-align: center; color: var(--glass-on-variant); }
+
+    .caution { margin: 16px 0 0; padding: 12px 16px; border-radius: var(--radius-lg); background: rgba(255,255,255,.5); border: 1px solid var(--outline-variant); color: var(--glass-on-variant); }
+
+    /* The sheet's two actions. .cal-actions already styles the calendar's pair
+       with the same recipe, but it is scoped to that class and named for that
+       sheet, so this screen names its own rather than borrowing by accident. The
+       confirm is --error filled and the cancel is nothing: the one irreversible
+       write on the screen is the one that gets the fill. */
+    .sheet-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px; }
+    .sheet-actions .ghost { min-height: 48px; padding: 0 12px; border: 0; background: none; color: var(--on-surface-variant); font-family: inherit; font-size: inherit; cursor: pointer; }
+    .sheet-actions .ghost:hover { color: var(--on-surface); }
+    .sheet-actions .destructive { min-height: 48px; padding: 0 20px; border: 0; border-radius: var(--radius-lg); background: var(--error); color: #fff; font-family: inherit; font-size: inherit; font-weight: 600; cursor: pointer; }
+    .sheet-actions .destructive:hover { background: #8F1515; }
+
+    /* ── every white card on this screen is glass ──────────────────────── */
+    /* Same fill, rim and blur as .glass, so the card, the ledger rows, the two
+       whole-screen states and the two notes read as one surface floating on the
+       page gradient instead of paper laid on it. The border stays: it is the
+       structural edge, and .glass's ::after rim would double it.
+       Excluded on purpose — .sheet and .detail-card (a sheet slides UP over
+       the screen, so it must sit on top of it, not inside it), .field /
+       .pick-row / .segment (a control is not a card), .proto-states (a designer
+       panel, not product surface). .state.error keeps its own solid fill: it is
+       declared later and at higher specificity, so it wins by cascade, not by
+       hope. */
+    .card, .state, .tk, .inline-empty, .caution, .handoff {
+      background: var(--glass-tint);
+      box-shadow: 0 8px 15px var(--glass-shadow), inset 0 1px 0 rgba(255,255,255,.55);
+      -webkit-backdrop-filter: blur(18px) saturate(180%);
+      backdrop-filter: blur(18px) saturate(180%);
+    }
+</style>
+</head>
+<body>
+  <div class="phone-frame" data-phone-shell data-platform="neutral">
+    <span class="hardware-button volume" aria-hidden="true"></span>
+    <span class="hardware-button power" aria-hidden="true"></span>
+
+    <section class="phone-screen" data-od-id="phone-screen" data-phone-screen>
+      <main class="phone-content" data-phone-content>
+        <!-- APP CONTENT START -->
+        <div id="app">
+          <!-- 0. Section chrome. The subtitle carries the trip number and the two
+               ends of the run — the trip's own distance and road appear exactly
+               once, in the RUNNING card, and the reason they are not here is that
+               a 334px pill is the wrong place for a figure a conductor may need to
+               read while the bus is stopped. -->
+          <header class="chrome readable" data-od-id="ct-chrome">
+            <button type="button" class="back" data-act="back" data-od-id="ct-back" aria-label="Back to Trip">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+            </button>
+            <div class="title-card">
+              <h1 class="chrome-title title-m">Current trip</h1>
+              <p class="chrome-sub body-s" id="chromeSub">Reading the running trip</p>
+            </div>
+          </header>
+
+          <div class="app-scroll" id="scroll">
+            <div class="readable">
+              <!-- The whole-screen states live here and, when one of them is
+                   showing, this is the only section on the screen. -->
+              <section data-od-id="ct-state" id="stateSection" hidden>
+                <div id="stateSlot"></div>
+              </section>
+
+              <!-- 1. Is it running, and what has it made. The two figures are
+                   side by side rather than stacked: on a provincial run the peso
+                   figure is nearly flat — the minimum fare binds on 13 of the 15
+                   boardings below — so the passenger count is the number that
+                   changes as the conductor works, and the money is the one that
+                   is checked at the end. -->
+              <section data-od-id="ct-run" id="runSection" hidden>
+                <div class="run-card" data-od-id="ct-run-card">
+                  <div class="run-top">
+                    <span class="st-pill"><span class="st-dot" aria-hidden="true"></span><span class="st-pill-text label-s">RUNNING</span></span>
+                    <span class="flag label-s" data-od-id="ct-road-flag"><b>ROAD NOT STORED</b></span>
+                  </div>
+
+                  <div class="run-figs">
+                    <span class="run-fig-l label-s">PASSENGERS</span>
+                    <span class="run-fig-l2 label-s">COLLECTED</span>
+                    <span class="run-fig display-s" id="figPax">0</span>
+                    <span class="run-fig run-fig-l2 display-s" id="figCash">₱0.00</span>
+                  </div>
+
+                  <div class="mixbar" id="mixBar" role="img" aria-label="Passenger mix" data-od-id="ct-mix"></div>
+                  <p class="mix-legend body-s" id="mixLegend"></p>
+
+                  <div class="run-rows">
+                    <div class="detail-row"><span class="k body-m">Route</span><span class="v body-m" id="runRoute">&mdash;</span></div>
+                    <div class="detail-row"><span class="k body-m">Route distance</span><span class="v body-m tabular" id="runDist">&mdash;</span></div>
+                    <div class="detail-row"><span class="k body-m">Rate per km</span><span class="v body-m tabular" id="runRate">&mdash;</span></div>
+                    <div class="detail-row"><span class="k body-m">Boarding fare floor</span><span class="v body-m tabular" id="runFloor">&mdash;</span></div>
+                    <div class="detail-row"><span class="k body-m">Started</span><span class="v body-m tabular" id="runStarted">&mdash;</span></div>
+                  </div>
+                  <p class="run-note body-s" id="runNote"></p>
+                </div>
+              </section>
+
+              <!-- 2. Every boarding on the run, newest first, each with its own
+                   clock. No distance column: the trip's distance is a trip-level
+                   fact and printing it on fifteen rows is how it stops being
+                   legible as one. -->
+              <section data-od-id="ct-ledger" id="ledgerSection" hidden>
+                <div class="sec-head">
+                  <h2 class="sec-title label-s">BOARDINGS</h2>
+                  <span class="body-s muted" id="ledgerCount"></span>
+                </div>
+                <div class="list" id="ledger"></div>
+                <p class="body-s muted" id="ledgerMore" hidden></p>
+              </section>
+
+              <div class="glass storage" data-od-id="ct-storage">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--glass-on-variant)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="7.5" ry="3.2"/><path d="M4.5 6v12c0 1.8 3.4 3.2 7.5 3.2s7.5-1.4 7.5-3.2V6"/><path d="M4.5 12c0 1.8 3.4 3.2 7.5 3.2s7.5-1.4 7.5-3.2"/></svg>
+                <p class="body-s" id="storageNote"></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. The one control that closes the run, outside the scroll. -->
+          <div class="action-bar" data-od-id="ct-actions" id="actionBar" hidden>
+            <button type="button" class="end-btn label-l" data-act="end" data-od-id="ct-end" id="endBtn">
+              <span id="endLabel">End trip</span>
+            </button>
+            <p class="end-count body-s" id="endCount"></p>
+          </div>
+
+          <div class="overlay-root" id="overlayRoot"></div>
+        </div>
+
+        <!-- APP CONTENT END -->
+      </main>
+
+      <div class="status-bar" aria-hidden="true">
+        <span class="status-time">9:41</span>
+        <span class="status-cutout-zone"></span>
+        <span class="status-icons">
+          <svg class="connectivity" viewBox="0 0 15 12"><path d="M1.5 10.5v-2m4 2v-4.5m4 4.5v-7m4 7v-9"/></svg>
+          <svg class="wifi" viewBox="0 0 16 12"><path d="M1.5 4.7a9.2 9.2 0 0 1 13 0M4.2 7.3a5.4 5.4 0 0 1 7.6 0M6.9 10a1.55 1.55 0 0 1 2.2 0"/></svg>
+          <svg class="battery" viewBox="0 0 20 11"><rect x=".75" y="1.25" width="16.5" height="8.5" rx="2"/><path d="M18.5 4v3M3.2 3.4h10.4v4.2H3.2z" fill="currentColor" stroke="none"/></svg>
+        </span>
+      </div>
+      <div class="camera-dot" aria-hidden="true"></div>
+      <div class="gesture-indicator" aria-hidden="true"></div>
+    </section>
+  </div>
+
+
+  <div class="proto-states" role="group" aria-label="Prototype state preview">
+    <span>Prototype states</span>
+    <div class="seg" id="protoSeg">
+      <button type="button" data-state="ready" aria-pressed="true">Ready</button>
+      <button type="button" data-state="empty" aria-pressed="false">No active trip</button>
+      <button type="button" data-state="loading" aria-pressed="false">Loading</button>
+      <button type="button" data-state="error" aria-pressed="false">Error</button>
+      <button type="button" data-state="ending" aria-pressed="false">Ending</button>
+    </div>
+  </div>
+  <script>
+
+  (function () {
+  'use strict';
+
+  /* ── icons (src/icons.tsx) ─────────────────────────────────────────── */
+  const ICONS = {
+    chevron: '<path d="M9 5l7 7-7 7"/>',
+    close: '<path d="M6 6l12 12M18 6L6 18"/>',
+    check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    /* Retry re-reads the trips table, so it gets a rotate arrow and not the check
+       mark: a tick on Retry claims the read already succeeded, which is the one
+       thing this state is saying it did not do. */
+    retry: '<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1.01 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>',
+    bus: '<path d="M4 6.5h16v9.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6.5Z"/><path d="M4 11.5h16M8 18v1.5M16 18v1.5"/><circle cx="8" cy="14" r=".9" fill="currentColor" stroke="none"/><circle cx="16" cy="14" r=".9" fill="currentColor" stroke="none"/>',
+    stop: '<path d="M4 17.5V8.2a2 2 0 0 1 1.4-1.9l6-1.9a2 2 0 0 1 2.6 1.9v11.2"/><path d="M4 17.5h16"/>'
+  };
+  const icon = (name, size, color, sw) =>
+    '<svg viewBox="0 0 24 24" width="' + size + '" height="' + size + '" fill="none" stroke="' + color +
+    '" stroke-width="' + (sw || 1.9) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || '') + '</svg>';
+
+  const $ = id => document.getElementById(id);
+  const plural = (n, one, many) => n + '\u00A0' + (n === 1 ? one : many);
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  /* Times are printed the way the app prints them (tripTicketsFormat.ts:63-66),
+     and the space between the time and the meridiem is a no-break one: a stamp
+     that can break between "6:41" and "PM" reads as a different time. */
+  const clock = d => {
+    const h = d.getHours() % 12 || 12;
+    const m = String(d.getMinutes()).padStart(2, '0');
+    return h + ':' + m + '\u00A0' + (d.getHours() < 12 ? 'AM' : 'PM');
+  };
+  /* The two figures the app prints, in the app's own units: money in centavos,
+     distance in thousandths of a km. Integer arithmetic end to end, so a
+     prototype number and a stored one cannot drift by a rounding step that only
+     exists here. */
+  const fmtKm = milli => {
+    const whole = Math.floor(milli / 1000);
+    const frac = String(milli % 1000).padStart(3, '0').replace(/0+$/, '');
+    return (frac ? whole + '.' + frac : whole) + ' km';
+  };
+  /* Centavos -> pesos, GROUPED, because the app groups. centavos() runs the
+     platform currency formatter over en-PH (tripTicketsFormat.ts:44-50) and
+     Node's en-PH PHP formatter emits a plain ASCII comma, so a prototype that
+     omits it prints "\u20B12377.76" where the device prints "\u20B12,377.76" — and
+     because a harness that sums the same string cannot see the difference either,
+     the drift is silent in both places at once. The separator is a comma and not
+     a thin space, because that is what the formatter produces; inventing a
+     prettier one here is how a prototype and a device stop matching. */
+  const pesos = centavos => {
+    const whole = Math.floor(centavos / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return '\u20B1' + whole + '.' + String(centavos % 100).padStart(2, '0');
+  };
+  const rateText = centavos => {
+    const whole = Math.floor(centavos / 100);
+    const frac = String(centavos % 100).padStart(2, '0').replace(/0+$/, '');
+    return '\u20B1' + (frac ? whole + '.' + frac : whole);
+  };
+
+  /* ── the fare rules ────────────────────────────────────────────────── */
+  /* The app STORES all of this and CALCULATES none of it — fareStore.ts creates
+     the table and seeds no rows, and FareSettingsScreen's EMPTY_VALUES leaves
+     every field blank on a fresh install. So these six are a configuration, not a
+     constant, which is why the rate and the floor are shown as read values rather
+     than as facts about buses. From src/lib/fareFormat.test.ts:76-87, in the
+     units toStoredFareValues writes them in (:104-109). */
+  const FARE = {
+    minimumFareCentavos: 5000,
+    minimumDistanceMilli: 4500,
+    ratePerKmCentavos: 175,
+    sctexRatePerKmCentavos: 225,
+    specialRatePerKmCentavos: 100,
+    sctexKmAdjustmentMilli: 500
+  };
+
+  /* ── terminals ─────────────────────────────────────────────────────── */
+  /* Seventeen, with km_marker in thousandths — the same list add-trip.html and
+     add-ticket.html carry, so the three screens agree about the corridor. */
+  const STOPS = [
+    { name: 'San Antonio', muni: 'Zambales', km: 62400 },
+    { name: 'Iba', muni: 'Zambales', km: 96800 },
+    { name: 'Balanga', muni: 'Bataan', km: 121400 },
+    { name: 'Dinalupihan', muni: 'Bataan', km: 150800 },
+    { name: 'San Rafael', muni: 'Zambales', km: 176200 },
+    { name: 'Porac', muni: 'Pampanga', km: 205600 },
+    { name: 'Candaba', muni: 'Pampanga', km: 216300 },
+    { name: 'Santa Cruz', muni: 'Olongapo', km: 228000 },
+    { name: 'Olongapo', muni: 'Olongapo', km: 232400 },
+    { name: 'Subic', muni: 'Subic', km: 249600 },
+    { name: 'Subic Bay Freeport', muni: 'Subic', km: 258900 },
+    { name: 'Norzagaray', muni: 'Bulacan', km: 259700 },
+    { name: 'San Fernando', muni: 'Pampanga', km: 262400 },
+    { name: 'Marques', muni: 'Bulacan', km: 271800 },
+    { name: 'Meycauayan', muni: 'Bulacan', km: 286500 },
+    { name: 'Cubao', muni: 'Quezon City', km: 301200 },
+    { name: 'Caloocan', muni: 'Kalakhang Maynila', km: 314200 }
+  ];
+  const kmByName = {};
+  STOPS.forEach(function (s) { kmByName[s.name] = s.km; });
+
+  /* ── the running trip ──────────────────────────────────────────────── */
+  /* Trip #7 is the run the seeded device is already on, and the same figure
+     add-ticket.html and trip.html carry. */
+  const DAY = new Date(2026, 8, 26);
+  const at = (h, m) => new Date(DAY.getFullYear(), DAY.getMonth(), DAY.getDate(), h, m, 0, 0);
+
+  const TRIP = {
+    id: 7,
+    number: 7,
+    from: 'Iba',
+    to: 'Caloocan',
+    distMilli: Math.abs(kmByName['Caloocan'] - kmByName['Iba']),
+    startedAt: at(6, 41),
+    /* NOT on the row. There is no road column on a trip (schema.ts:36-50) and
+       startTrip is handed usesSctex and discards it (tripTicketsStore.ts:779-785,
+       :853-863), so nothing after a restart can say what this run was priced
+       off. The run is on SCTEX, and that is why the boardings below carry the
+       toll-road rate — which is precisely the fact the app cannot recover. */
+    road: 'SCTEX',
+    roadStored: false
+  };
+
+  /* ── the ledger ────────────────────────────────────────────────────── */
+  /* Fifteen boardings, newest first, each carrying the fare the store would have
+     written. `total` is the stored integer, NOT a fare multiplied here: the
+     screen sums total_fare and never re-prices a boarding
+     (currentTripState.ts:50-57), so these literals are the only fares in the
+     prototype and they were produced once by the app's own order
+     (addTicketFare.ts:180-187) rather than by a hand-written table.
+
+     `atFloor` marks the boardings where a floor decided the fare, and 13 of 15
+     carry it: 11 on the ₱50 fare floor and 2 on the 4.5 km distance floor. That
+     is not a defect in the seed: at ₱1.75 and ₱2.25 a kilometre, a provincial leg
+     of 5 to 30 km lands between ₱8.75 and ₱67.50, so the floors govern most of a
+     real run. Every row says which floor took it, because a conductor reading
+     fifteen rows of ₱50.00 will otherwise conclude the app is broken. */
+  const TICKETS = [
+    { from: 'Cubao', to: 'Caloocan', type: 'REGULAR', qty: 1, at: at(18, 12), total: 5000, atFloor: 'fare' },
+    { from: 'Meycauayan', to: 'Cubao', type: 'SENIOR_CITIZEN', qty: 2, at: at(17, 54), total: 10000, atFloor: 'fare' },
+    { from: 'Meycauayan', to: 'Cubao', type: 'REGULAR', qty: 3, at: at(17, 54), total: 15000, atFloor: 'fare' },
+    { from: 'Marques', to: 'Meycauayan', type: 'STUDENT', qty: 4, at: at(17, 31), total: 20000, atFloor: 'fare' },
+    { from: 'San Fernando', to: 'Marques', type: 'PWD', qty: 1, at: at(17, 8), total: 5000, atFloor: 'fare' },
+    { from: 'Subic Bay Freeport', to: 'Norzagaray', type: 'REGULAR', qty: 2, at: at(16, 47), total: 10000, atFloor: 'distance' },
+    { from: 'Subic', to: 'Subic Bay Freeport', type: 'REGULAR', qty: 5, at: at(16, 20), total: 25000, atFloor: 'fare' },
+    { from: 'Olongapo', to: 'Subic', type: 'STUDENT', qty: 2, at: at(15, 58), total: 10000, atFloor: 'fare' },
+    { from: 'Olongapo', to: 'Subic', type: 'REGULAR', qty: 6, at: at(15, 58), total: 30000, atFloor: 'fare' },
+    { from: 'Santa Cruz', to: 'Olongapo', type: 'REGULAR', qty: 1, at: at(15, 31), total: 5000, atFloor: 'distance' },
+    { from: 'Candaba', to: 'Santa Cruz', type: 'PWD', qty: 2, at: at(15, 4), total: 10000, atFloor: 'fare' },
+    { from: 'Porac', to: 'Candaba', type: 'REGULAR', qty: 8, at: at(14, 42), total: 40000, atFloor: 'fare' },
+    { from: 'San Rafael', to: 'Porac', type: 'REGULAR', qty: 3, at: at(14, 19), total: 20184, atFloor: null },
+    { from: 'Iba', to: 'Balanga', type: 'SENIOR_CITIZEN', qty: 2, at: at(13, 50), total: 10000, atFloor: 'fare' },
+    { from: 'Iba', to: 'Balanga', type: 'REGULAR', qty: 4, at: at(13, 50), total: 22592, atFloor: null }
+  ].map(function (t, i) {
+    return {
+      id: 15 - i,
+      from: t.from,
+      to: t.to,
+      type: t.type,
+      qty: t.qty,
+      at: t.at,
+      total: t.total,
+      atFloor: t.atFloor,
+      /* The store has no per-ticket distance column (currentTripState.ts:26-29),
+         and that is a real gap rather than a design choice: the two location
+         snapshots are on the row and the terminal table has the KM markers, so
+         the leg IS derivable by a join the app never makes. Deriving it here is
+         what lets the floor be explained instead of merely displayed. */
+      legMilli: Math.abs(kmByName[t.to] - kmByName[t.from])
+    };
+  });
+
+  /* The label the app prints for a passenger type, verbatim from
+     readablePassengerType (currentTripState.ts:90-101) — PWD stays PWD because
+     title-casing an acronym invents a word a screen reader spells out. */
+  const READABLE = { PWD: 'PWD', SENIOR_CITIZEN: 'Senior citizen', REGULAR: 'Regular', STUDENT: 'Student' };
+  const CAT = { REGULAR: 'regular', STUDENT: 'student', SENIOR_CITIZEN: 'senior', PWD: 'pwd' };
+
+  /* ── the one fold ──────────────────────────────────────────────────── */
+  /* This is addTicketFare.ts:384 foldLedger, un-capped: sum total_fare (never
+     fare x quantity), count passengers as a QUANTITY, count rows. A qty-3 ticket
+     is three passengers in every total, and Senior and PWD share one bucket
+     because they are discounted categories reported together — splitting them
+     would disagree with the mix bar directly above them. */
+  function fold() {
+    let passengers = 0, collection = 0, regular = 0, student = 0, disc = 0;
+    TICKETS.forEach(function (t) {
+      passengers += t.qty;
+      collection += t.total;
+      if (t.type === 'REGULAR') regular += t.qty;
+      else if (t.type === 'STUDENT') student += t.qty;
+      else disc += t.qty;
+    });
+    return { passengers: passengers, collection: collection, regular: regular, student: student, disc: disc, count: TICKETS.length };
+  }
+
+  /* ── state ─────────────────────────────────────────────────────────── */
+  const state = { preview: 'ready', sheet: null, ending: false, lastFocus: null };
+
+  function compute() {
+    const view = state.preview;
+    const live = view === 'ready' || view === 'ending';
+    return { view: view, live: live, trip: TRIP, tickets: TICKETS, totals: fold(), fare: FARE };
+  }
+
+  /* ── chrome ────────────────────────────────────────────────────────── */
+  function renderChrome(c) {
+    const sub = $('chromeSub');
+    if (c.view === 'loading') { sub.textContent = 'Reading the running trip\u2026'; return; }
+    if (c.view === 'error') { sub.textContent = 'Records unavailable'; return; }
+    if (c.view === 'empty') { sub.textContent = 'No trip is running'; return; }
+    sub.textContent = 'Trip #' + c.trip.number + ' \u00B7 ' + c.trip.from + ' \u2192 ' + c.trip.to;
+  }
+
+  /* ── the RUNNING card ──────────────────────────────────────────────── */
+  function renderRun(c) {
+    const t = c.totals;
+    $('figPax').textContent = String(t.passengers);
+    $('figCash').textContent = pesos(t.collection);
+
+    /* One track, three fills, in the order the buckets are reported. Widths are
+       shares of the passenger count, never of the row count: a qty-8 boarding
+       that is 1 of 15 rows is 17% of the people. */
+    const seg = function (cls, n) {
+      return n > 0 ? '<i class="' + cls + '" style="width:' + (n / t.passengers * 100).toFixed(2) + '%"></i>' : '';
+    };
+    $('mixBar').innerHTML = seg('regular', t.regular) + seg('student', t.student) + seg('disc', t.disc);
+    $('mixBar').setAttribute('aria-label',
+      'Passenger mix. ' + t.regular + ' regular, ' + t.student + ' student, ' + t.disc + ' senior or PWD.');
+    $('mixLegend').innerHTML =
+      '<span><b>' + t.regular + '</b> Regular</span>' +
+      '<span><b>' + t.student + '</b> Student</span>' +
+      '<span><b>' + t.disc + '</b> Senior/PWD</span>';
+
+    $('runRoute').textContent = c.trip.from + ' \u2192 ' + c.trip.to;
+    $('runDist').textContent = fmtKm(c.trip.distMilli);
+    $('runRate').textContent = rateText(c.fare.sctexRatePerKmCentavos) + ' / km';
+    $('runFloor').textContent = pesos(c.fare.minimumFareCentavos);
+    $('runStarted').textContent = clock(c.trip.startedAt);
+    $('runNote').textContent =
+      'The trip row keeps no road, so the rate above cannot be checked against it after a restart. ' +
+      'The road is what moves every peso on this run.';
+  }
+
+  /* ── the ledger ────────────────────────────────────────────────────── */
+  function renderLedger(c) {
+    $('ledgerCount').textContent = plural(c.totals.count, 'boarding', 'boardings');
+    $('ledger').innerHTML = c.tickets.map(function (t) {
+      const each = pesos(Math.floor(t.total / t.qty));
+      /* The floor prints as a word, never as a peso. A floored row's unit price
+         IS the fare, printed 1 line above it in a bigger face, so "at ₱50.00 ·
+         minimum fare" said the same number twice on 13 of 15 rows. The one
+         figure that does vary with quantity is kept, on the 2 rows where the
+         rate beat the floor and the total is not a round multiple of it. */
+      const note = t.atFloor === 'fare'
+        ? 'minimum fare'
+        : t.atFloor === 'distance'
+          ? 'minimum distance'
+          : each + ' each';
+      return '<div class="tk" data-od-id="ct-tk-' + t.id + '">' +
+        '<span class="tk-time body-s">' + clock(t.at) + '</span>' +
+        '<span class="tk-fare title-m">' + pesos(t.total) + '</span>' +
+        '<span class="tk-route title-m">' + esc(t.from) + ' \u2192 ' + esc(t.to) + '</span>' +
+        '<span class="tk-meta"><span class="cat ' + CAT[t.type] + '"><span class="label-s">' + READABLE[t.type] + '</span></span>' +
+        '<span class="body-s">QTY\u00A0' + t.qty + '</span>' +
+        '<span class="body-s">' + note + '</span></span>' +
+        '</div>';
+    }).join('');
+    $('ledgerMore').hidden = true;
+  }
+
+  /* ── the action bar ────────────────────────────────────────────────── */
+  function renderActions(c) {
+    const bar = $('actionBar');
+    bar.hidden = !c.live;
+    if (!c.live) return;
+    const t = c.totals;
+    $('endCount').textContent = 'Closes the run and sends it to History';
+    const btn = $('endBtn');
+    if (state.ending || c.view === 'ending') {
+      btn.disabled = true;
+      $('endLabel').textContent = 'Ending\u2026';
+    } else {
+      btn.disabled = false;
+      $('endLabel').textContent = 'End trip';
+    }
+  }
+
+  function renderNote(c) {
+    const p = $('storageNote');
+    if (c.view === 'empty') {
+      p.textContent = 'Nothing is running, so there is nothing to read. The store positively reported no active trip \u2014 this is not a loading state waiting to resolve.';
+      return;
+    }
+    if (c.view === 'loading') {
+      p.textContent = 'Reading the active trip and its tickets.';
+      return;
+    }
+    if (c.view === 'error') {
+      p.textContent = 'The trips table could not be read. Nothing was written and the run is untouched.';
+      return;
+    }
+    /* Two floors, not one. applyFare floors on ₱50.00 and then again on 4.5 km,
+       and 2 of the 13 floored rows were stopped by the distance, so counting
+       every atFloor as "the ₱50 minimum" misattributed them. The per-row word in
+       the ledger says which, and this sentence has to agree with it. */
+    const byFare = c.tickets.filter(function (t) { return t.atFloor === 'fare'; }).length;
+    const byDistance = c.tickets.filter(function (t) { return t.atFloor === 'distance'; }).length;
+    const priced = c.totals.count - byFare - byDistance;
+    p.textContent = 'Every figure here is a sum of stored rows: ' + plural(c.totals.count, 'boarding', 'boardings') +
+      ', ' + plural(c.totals.passengers, 'passenger', 'passengers') + ', ' + pesos(c.totals.collection) +
+      ' collected. ' + priced + ' of ' + c.totals.count +
+      ' are priced above both floors by distance, ' + byFare + ' land on the ' + pesos(c.fare.minimumFareCentavos) +
+      ' minimum fare and ' + byDistance + ' on the 4.5 km minimum distance, which at these rates is most of a provincial run.';
+  }
+
+  /* ── whole-screen states ───────────────────────────────────────────── */
+  function stateHTML(c) {
+    if (c.view === 'loading') {
+      return '<div class="card" data-od-id="ct-loading">' +
+        '<div class="skeleton" aria-hidden="true">' +
+        '<div class="sk" style="height:13px;width:30%"></div>' +
+        '<div class="sk" style="height:34px;width:56%;margin-top:12px"></div>' +
+        '<div class="sk" style="height:8px;margin-top:20px"></div>' +
+        '<div class="sk" style="height:60px;margin-top:24px"></div>' +
+        '<div class="sk" style="height:60px;margin-top:12px"></div>' +
+        '</div></div>' +
+        '<p class="sr-only" role="status">Reading the running trip.</p>';
+    }
+    if (c.view === 'error') {
+      return '<div class="state error" data-od-id="ct-error" role="alert">' +
+        '<h3 class="title-m">The current trip could not be read</h3>' +
+        '<p class="body-s">The records on this device could not be read, so the totals and the ledger are unknown. Nothing was written and the run is still open.</p>' +
+        '<p class="body-s">The app has no network path for this screen. Retry, and if it keeps failing the device is the thing to check.</p>' +
+        '<button type="button" class="pick-row" data-act="retry" data-od-id="ct-retry" style="justify-content:center">' +
+        icon('retry', 18, 'currentColor') + '<span class="pk-name body-m">Retry</span></button>' +
+        '</div>';
+    }
+    /* empty: no active trip. The screen positively reported it, so this is not a
+       flash of an empty state on launch. */
+    return '<div class="state" data-od-id="ct-empty">' +
+      '<div class="st-icon" style="width:48px;height:48px;background:var(--tertiary-container);color:var(--on-tertiary-container)">' +
+      icon('bus', 28, 'currentColor', 1.7) + '</div>' +
+      '<h3 class="title-m" style="margin-top:16px">No active trip</h3>' +
+      '<p class="body-s">Start a trip before recording passenger tickets. A boarding is always added to a run, so with nothing running there is nothing to add one to.</p>' +
+      '<div class="handoff" data-od-id="ct-empty-handoff">' +
+      '<p class="nb-title label-s">WHERE A TRIP STARTS</p>' +
+      '<p class="body-s">Trips are started on the Trip screen, which is also where the Dashboard sends you. There is no way to start one from here.</p>' +
+      '</div>' +
+      '<a class="primary-btn wide" style="margin-top:16px;justify-content:center" href="trip.html" data-od-id="ct-empty-start">Start trip</a>' +
+      '</div>';
+  }
+
+  function renderStates(c) {
+    const whole = !c.live;
+    $('stateSection').hidden = !whole;
+    $('stateSlot').innerHTML = whole ? stateHTML(c) : '';
+    $('runSection').hidden = !c.live;
+    $('ledgerSection').hidden = !c.live;
+  }
+
+  /* ── overlays ──────────────────────────────────────────────────────── */
+  function closeOverlay() {
+    const root = $('overlayRoot');
+    if (!root.firstChild) return;
+    /* Focus goes back where it came from, and only if that control still exists —
+       a re-render between open and close will have replaced it. */
+    if (state.lastFocus && state.lastFocus.isConnected) state.lastFocus.focus();
+    root.innerHTML = '';
+    state.sheet = null;
+  }
+
+  function openSheet(html) {
+    state.lastFocus = document.activeElement;
+    $('overlayRoot').innerHTML = '<div class="scrim bottom" data-scrim="1">' + html + '</div>';
+    state.sheet = html;
+    const af = $('overlayRoot').querySelector('[data-autofocus]');
+    if (af) af.focus();
+  }
+
+  function detailRow(k, v) {
+    return '<div class="detail-row"><span class="k body-m">' + k + '</span><span class="v body-m tabular">' + v + '</span></div>';
+  }
+
+  function sheet(title, sub, body) {
+    return '<div class="sheet bottom-sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">' +
+      '<div class="sheet-head">' +
+      '<div class="sheet-titles">' +
+      '<h2 class="headline-s" id="sheetTitle">' + title + '</h2>' +
+      (sub ? '<p class="body-s muted">' + sub + '</p>' : '') +
+      '</div>' +
+      '<button type="button" class="icon-btn" data-act="close" data-od-id="ct-sheet-close" data-autofocus aria-label="Close">' +
+      icon('close', 20, 'currentColor') + '</button>' +
+      '</div>' +
+      '<div class="sheet-body">' + body + '</div>' +
+      '</div>';
+  }
+
+  function handoff(title, body) {
+    return '<div class="handoff" data-od-id="ct-handoff">' +
+      '<p class="nb-title label-s">' + title + '</p>' +
+      '<p class="body-s">' + body + '</p></div>';
+  }
+
+  /* ── the end-trip confirm ──────────────────────────────────────────── */
+  /* The one irreversible write on the screen, so it names what it destroys.
+     "This closes the active trip" is true and useless: a conductor who has just
+     carried 46 people needs to know the run number, the head count and the cash
+     before the last tap, and needs to know where the record goes. */
+  function endSheetHTML(c) {
+    const t = c.totals;
+    const rows = [
+      detailRow('Trip', '#' + c.trip.number),
+      detailRow('Route', c.trip.from + ' \u2192 ' + c.trip.to),
+      detailRow('Started', clock(c.trip.startedAt)),
+      detailRow('Boardings', String(t.count)),
+      detailRow('Passengers', String(t.passengers)),
+      detailRow('Collected', pesos(t.collection))
+    ].join('');
+    return sheet('End trip #' + c.trip.number + '?',
+      c.trip.from + ' \u2192 ' + c.trip.to,
+      '<div class="detail-card">' + rows + '</div>' +
+      '<p class="body-s commit-hint">The run is stamped ended at ' + clock(new Date()) + ' and moves to History. The ' +
+      plural(t.count, 'boarding', 'boardings') + ' and the ' + pesos(t.collection) +
+      ' stay with it, and nothing on this screen can reopen it \u2014 ending a trip is not undoable from here.</p>' +
+      '<div class="sheet-actions">' +
+      '<button type="button" class="ghost label-l" data-act="close" data-od-id="ct-end-cancel">Keep running</button>' +
+      '<button type="button" class="destructive label-l" data-act="confirm-end" data-od-id="ct-end-confirm">End trip</button>' +
+      '</div>' +
+      handoff('WHAT THE APP DOES NEXT', 'endActiveTrip writes the end clock and the status in one transaction. The observation then reports no active trip, so this screen swaps to the empty state on its own \u2014 no navigation and no refresh.'));
+  }
+
+  function backSheetHTML(c) {
+    return sheet('Leave this screen?',
+      c.live ? 'Trip #' + c.trip.number + ' keeps running' : 'Nothing is running',
+      handoff('BACK GOES TO TRIP', 'The run does not stop when this screen closes. A boarding is recorded on Trip tickets, and ending the run happens here or on the Trip screen \u2014 nowhere else.') +
+      '<p class="body-s commit-hint">' + (c.live
+        ? 'Leaving costs nothing. The trip stays open and every boarding is still counted.'
+        : 'With no run open there is nothing to lose.') + '</p>');
+  }
+
+  function renderOverlay() {
+    $('overlayRoot').innerHTML = state.sheet || '';
+  }
+
+  /* ── prototype states, outside the phone ───────────────────────────── */
+  function syncProto() {
+    Array.prototype.forEach.call($('protoSeg').querySelectorAll('button'), function (b) {
+      b.setAttribute('aria-pressed', b.dataset.state === state.preview ? 'true' : 'false');
+    });
+  }
+
+  function setPreview(v) {
+    state.preview = v;
+    state.sheet = null;
+    state.ending = v === 'ending';
+    syncProto();
+    render();
+  }
+
+  /* ── one render ────────────────────────────────────────────────────── */
+  function render() {
+    const c = compute();
+    renderChrome(c);
+    renderStates(c);
+    if (c.live) { renderRun(c); renderLedger(c); }
+    renderActions(c);
+    renderNote(c);
+    /* Last, so a sheet survives the render that opened it: state.sheet holds the
+       markup and renderOverlay re-emits it, which means the sheet's controls are
+       rebuilt rather than left stale. */
+    renderOverlay();
+  }
+
+  /* ── wiring ────────────────────────────────────────────────────────── */
+  document.addEventListener('click', function (e) {
+    const t = e.target;
+
+    /* Scrim close by attribute test and never by closest(): the sheet markup
+       contains its own data-* attributes, and a close that walks up from a node
+       inside the sheet would close the sheet on any tap that missed a control. */
+    if (t.hasAttribute && t.hasAttribute('data-scrim')) { closeOverlay(); return; }
+
+    const proto = t.closest && t.closest('#protoSeg button');
+    if (proto) { setPreview(proto.dataset.state); return; }
+
+    const act = t.closest && t.closest('[data-act]');
+    if (!act) return;
+    const c = compute();
+
+    switch (act.dataset.act) {
+      case 'back':
+        openSheet(backSheetHTML(c));
+        break;
+      case 'close':
+        closeOverlay();
+        break;
+      case 'retry':
+        setPreview('ready');
+        break;
+      case 'end':
+        openSheet(endSheetHTML(c));
+        break;
+      case 'confirm-end':
+        state.sheet = null;
+        state.ending = true;
+        render();
+        break;
+    }
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeOverlay();
+  });
+
+  syncProto();
+  render();
+  })();
+
+  </script>
+</body>
+</html>
