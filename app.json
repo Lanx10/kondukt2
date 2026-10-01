@@ -41,10 +41,8 @@
         "android.permission.VIBRATE"
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#F4E9E5",
+        "foregroundImage": "./assets/favicon.png"
       },
       "predictiveBackGestureEnabled": false
     },
