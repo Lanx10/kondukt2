@@ -28,7 +28,6 @@ export function HomeHeader({ tagline, tripLabel }: { tagline: string; tripLabel?
     <View style={styles.root}>
       {/* The favicon itself, bare — no badge card behind it. */}
       <Image
-        // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro asset require
         source={require('../../assets/favicon.png')}
         style={styles.mark}
         accessible

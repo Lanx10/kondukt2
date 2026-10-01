@@ -15,8 +15,6 @@ import * as _libUpdateGuard from '../lib/updateGuard';
 import type { TicketRowRecord, TerminalRowRecord, TripRowRecord } from '../data/schema';
 import * as _reactJsxRuntime from 'react/jsx-runtime';
 
- "use strict";
-
                                /** The app's shared storage-failure copy — no bespoke wording here. */let STORAGE_FAILURE = 'The records on this device could not be read.';
  let SIDE = {
    BOARD: 'board',
@@ -509,7 +507,10 @@ type Observation = {
      // boarding's list before the conductor sees it.
      , {
        kind: sheet === SIDE.BOARD ? SIDE.BOARD : sheet === SIDE.DROP ? SIDE.DROP : null,
-       terminals: terminals,
+       // Barangays only: terminals are the route's ends, not boardings. The
+       // commit refusal still reads the whole list for its missing /
+       // deactivated sentences.
+       terminals: terminals.filter(stop => stop.kind === 'BARANGAY'),
        other: sheet === SIDE.BOARD ? drop : board,
        onClose: () => setSheet(null),
        onSelect: (terminal: any) => {

@@ -1,6 +1,6 @@
 import { formatScaled, SCALE_PESO } from './fareFormat';
 import { km, php } from './format';
-import type { PassengerType, TicketRowRecord, TripRowRecord } from '../data/schema';
+import type { PassengerType, TerminalKind, TicketRowRecord, TripRowRecord } from '../data/schema';
 
 /** Re-exported: the screen names passenger types from here. */
 export type { PassengerType };
@@ -144,10 +144,13 @@ export type PriceInput = {
 /**
  * The one function the fare card runs.
  *
- * The order is the rule and is not negotiable: the **distance floor applies
- * first**, and the **fare floor applies after** rounding. Nothing is added to
- * the distance between the two, so get either floor wrong and the minimum
- * stops binding on exactly the short hops where it exists to bind.
+ * Two cases, and the boundary is the minimum distance:
+ *
+ * - At or under the minimum distance the fare is the flat **minimum fare** —
+ *   no rate is multiplied at all.
+ * - Past it the fare is **the distance times the rate**, the whole distance.
+ *   Never the minimum fare plus the extra kilometres: that reading charges a
+ *   long rider for the first kilometre twice.
  *
  * Half-up rounding is integer: `floor((rate × billable + 500) / 1000)`. No
  * floats, so 86.2 km × ₱2.25 is ₱193.95 on every device rather than ₱193.94 on
@@ -183,11 +186,14 @@ export function priceTicket(input: PriceInput): FareBreakdown | null {
       ? 'Express way rate per km'
       : 'Ordinary rate per km';
 
-  const distanceFloorApplied = input.distanceMilli < rules.minimumDistanceMilli;
+  // One test decides both floors now: inside the minimum distance the fare is
+  // the minimum fare; past it the rate alone decides, with nothing added and
+  // nothing lifted.
+  const distanceFloorApplied = input.distanceMilli <= rules.minimumDistanceMilli;
   const billableMilli = distanceFloorApplied ? rules.minimumDistanceMilli : input.distanceMilli;
   const rawCentavos = Math.floor((rateCentavos * billableMilli + 500) / 1000);
-  const fareFloorApplied = rawCentavos < rules.minimumFareCentavos;
-  const perPassengerCentavos = fareFloorApplied ? rules.minimumFareCentavos : rawCentavos;
+  const perPassengerCentavos = distanceFloorApplied ? rules.minimumFareCentavos : rawCentavos;
+  const fareFloorApplied = distanceFloorApplied;
   const quantity = clampQuantity(input.quantity);
 
   return {
@@ -212,24 +218,18 @@ export function clampQuantity(quantity: number): number {
 /**
  * Which minimum bound this fare, said in the words the ticket sheet reuses.
  *
- * Both can bind, and on a provincial route the fare floor is the normal case —
- * a design that only ever renders the linear one has not tested the hop that
- * matters. A peso read back months later has to be explicable by the rules, not
- * by whatever the rates say today.
+ * The two bounds are one test now — inside the minimum distance the fare is
+ * the minimum fare — so this prints a single sentence naming both numbers. A
+ * peso read back months later has to be explicable by the rules, not by
+ * whatever the rates say today.
  */
 export function minimumNotes(breakdown: FareBreakdown, rules: FareRules): string[] {
   const notes: string[] = [];
   if (breakdown.distanceFloorApplied) {
     notes.push(
-      `The barangays are ${formatKm(breakdown.distanceMilli)} apart, so ` +
-        `${formatKm(breakdown.billableMilli)} is billed against the ` +
-        `${formatKm(rules.minimumDistanceMilli)} minimum distance.`,
-    );
-  }
-  if (breakdown.fareFloorApplied) {
-    notes.push(
-      `That works out under the ${formatPeso(rules.minimumFareCentavos)} minimum fare, so ` +
-        `${formatPeso(breakdown.perPassengerCentavos)} per passenger is charged.`,
+      `The barangays are ${formatKm(breakdown.distanceMilli)} apart, within the ` +
+        `${formatKm(rules.minimumDistanceMilli)} minimum distance, so the ` +
+        `${formatPeso(rules.minimumFareCentavos)} minimum fare is charged.`,
     );
   }
   return notes;
@@ -272,7 +272,7 @@ export function ticketFareNote(input: {
   if (notes.length === 0) {
     return (
       `${formatKm(input.distanceMilli)} at ${formatRate(breakdown?.rateCentavos ?? 0)} is ` +
-      `${formatPeso(input.farePerPassengerCentavos)} per passenger. Neither minimum applied.`
+      `${formatPeso(input.farePerPassengerCentavos)} per passenger. No minimum applied.`
     );
   }
   return notes.join(' ');
@@ -286,6 +286,8 @@ export type TerminalRow = {
   name: string;
   km_marker: number;
   is_active: number;
+  /** The registry it was filed under; absent on rows read before v6. */
+  kind?: TerminalKind;
 };
 
 /**

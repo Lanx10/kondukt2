@@ -36,8 +36,6 @@ import * as _icons from '../icons';
 import * as _theme from '../theme';
 import * as _reactJsxRuntime from 'react/jsx-runtime';
 
- "use strict";
-
 
 
  /** Shown in place of a figure that has no meaning yet. */

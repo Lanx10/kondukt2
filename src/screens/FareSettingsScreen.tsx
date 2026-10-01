@@ -81,7 +81,7 @@ export type FareSettingsScreenProps = {
 
 /** The example run the preview prices — the reference's own corridor. */
 const SAMPLE_TRIP = { caption: 'Iba → Caloocan · 217.4 km · Express way', distanceMilli: 217_400 };
-/** The short hop: under both floors at once, so it is where they bind. */
+/** The short hop: inside the minimum distance, so the minimum fare binds. */
 const SAMPLE_HOP = { label: 'Cubao → Meycauayan', distanceMilli: 3_200 };
 
 /** The six numbers `priceTicket` reads (the calculator's own inputs). */
@@ -469,18 +469,17 @@ export function FareSettingsScreen({ onBack }: FareSettingsScreenProps) {
         : 'Deluxe is off, so its four fares are not part of this count either way.';
     }
     // The note exists because the two minimums are the only numbers on this
-    // screen that bind rather than scale. It prints the order in the words a
-    // conductor would use, then the arithmetic the lowest fare overrode.
+    // screen that bind rather than scale. It states the rule in the words a
+    // conductor would use: flat minimum fare inside the minimum distance,
+    // distance times the rate past it.
     const how =
-      `Every fare is worked out the same way: charge for at least ` +
-      `${formatKm(rules.minimumDistanceMilli)}, then make sure the total is at least ` +
-      `${formatPeso(rules.minimumFareCentavos)}.`;
-    if (hop && hop.distanceFloorApplied && hop.fareFloorApplied) {
+      `Every fare is worked out the same way: up to ` +
+      `${formatKm(rules.minimumDistanceMilli)} the fare is the flat ` +
+      `${formatPeso(rules.minimumFareCentavos)}, past that it is the distance times the rate.`;
+    if (hop && hop.distanceFloorApplied) {
       return (
-        `${how} ${SAMPLE_HOP.label} is only ${formatKm(SAMPLE_HOP.distanceMilli)}, ` +
-        `so it is billed as ${formatKm(rules.minimumDistanceMilli)}. That comes to ` +
-        `${formatPeso(hop.rawCentavos)}, and the ${formatPeso(rules.minimumFareCentavos)} ` +
-        `lowest fare brings it to ${formatPeso(hop.perPassengerCentavos)}.`
+        `${how} ${SAMPLE_HOP.label} is only ${formatKm(SAMPLE_HOP.distanceMilli)}, within ` +
+        `that minimum distance, so ${formatPeso(hop.perPassengerCentavos)} is charged.`
       );
     }
     return how;
@@ -602,8 +601,8 @@ export function FareSettingsScreen({ onBack }: FareSettingsScreenProps) {
                     </View>
                   )}
                   {/* The short hop is the second distance the price card
-                      prints: 3.2 km is below both floors at once, so it is the
-                      only row on the screen that shows them binding. */}
+                      prints: 3.2 km sits inside the minimum distance, so it is
+                      the only row on the screen that shows the floor binding. */}
                   {hop ? (
                     <View style={styles.previewGap}>
                       <Row

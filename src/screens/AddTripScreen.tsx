@@ -117,7 +117,9 @@ export function AddTripScreen({
           if (cancelled) return;
           setLoad({
             kind: 'ready',
-            terminals,
+            // The route sheet offers terminals only — barangays are boardings
+            // on a ticket, never an end of a route.
+            terminals: terminals.filter((terminal) => terminal.kind === 'TERMINAL'),
             municipalities,
             // If a trip began while this screen was open, the option to start
             // disappears without a refresh — the store repaints.

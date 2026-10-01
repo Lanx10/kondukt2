@@ -98,8 +98,17 @@ check(
   true,
 );
 check(
-  'no ticket is priced below the minimum fare',
-  seed.tickets.every((ticket) => ticket.final_fare_per_passenger >= rules.minimumFareCentavos),
+  // Inside the minimum distance the fare is the flat minimum fare. Past it
+  // the fare is distance × rate with no floor, so with these seeded rates a
+  // mid-length leg can price under the minimum fare — that is the rule, not a
+  // missing lift.
+  'a ticket inside the minimum distance charges exactly the minimum fare',
+  seed.tickets
+    .filter((ticket) => {
+      const trip = seed.trips.find((candidate) => candidate.id === ticket.trip_id)!;
+      return trip.distance_km_milli <= rules.minimumDistanceMilli;
+    })
+    .every((ticket) => ticket.final_fare_per_passenger === rules.minimumFareCentavos),
   true,
 );
 // The two the calculator's arithmetic actually decides, by name.

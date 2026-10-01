@@ -26,9 +26,6 @@ import { distanceKm } from '../lib/tripTicketsFormat';
 import { ROW_STACK_WIDTH } from '../lib/layout';
 import { useUpdateGuard } from '../lib/updateGuard';
 
-/** Caps for the reader, sentence case on screen: the reference's own pairing. */
-const RECENT_LABEL = 'RECENT COMPLETED TRIPS';
-
 export type TripScreenProps = {
   onBack: () => void;
   /** Opens Trip Tickets for a trip — the ledger, not a history screen. */
