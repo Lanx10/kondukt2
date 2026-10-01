@@ -61,8 +61,8 @@ cannot express them. All fields are optional except that *some* valid version so
 
 | Concept | Source of truth | Current value |
 |---|---|---|
-| App version (user-facing, compared to release tags) | `expo.version` in `app.json` (`package.json` version matches) | `1.0.0b` |
-| Android `versionCode` | `expo.android.versionCode` in `app.json` (`eas.json` has `appVersionSource: local`) | `3` |
+| App version (user-facing, compared to release tags) | `expo.version` in `app.json` (`package.json` version matches) | `1.0.0a` |
+| Android `versionCode` | `expo.android.versionCode` in `app.json` (`eas.json` has `appVersionSource: local`) | `2` |
 | Expo `runtimeVersion` | `expo.runtimeVersion.policy: "appVersion"` → resolves to the app version | `1.0.0` |
 | EAS Update channel | `eas.json` build profiles | `production` / `preview` / `development` |
 | Updater configuration | `src/lib/apkUpdateConfig.ts` (`UPDATE_CONFIG`) | owner `Lanx10`, repo `kondukt2`, tag prefix `v`, 6 h auto-check, mandatory allowed |
@@ -149,13 +149,14 @@ Still available for JS-only changes (no native/`versionCode` delta):
    **Update Now** restarts into the new code. Local data is untouched.
 
 EAS Update is **never** a substitute for the APK channel: native changes require a new
-APK release on GitHub. `app.json` keeps `updates.checkAutomatically: "NEVER"` — the
-app's own throttled check owns the cadence for both channels.
+APK release on GitHub. `app.json` keeps `updates.checkAutomatically: "ON_LOAD"` —
+expo-updates checks at every launch, and the app's throttled Settings check remains
+the on-demand path for both channels.
 
 ### Configuration status (OTA)
 
 - `expo-updates ~57.0.24`, `expo-constants ~57.0.20` installed.
-- `expo.runtimeVersion.policy: "appVersion"`, `expo.updates.checkAutomatically: "NEVER"`.
+- `expo.runtimeVersion.policy: "appVersion"`, `expo.updates.checkAutomatically: "ON_LOAD"`.
 - One-time on your EAS account: `npx eas login`, `npx eas init` (writes
   `extra.eas.projectId`), `npx eas update:configure` (writes `expo.updates.url`).
   Without them OTA is simply disabled and its card says so calmly — nothing crashes.

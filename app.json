@@ -2,12 +2,12 @@
   "expo": {
     "name": "Kondukt",
     "slug": "kondukt",
-    "version": "1.0.0b",
+    "version": "1.0.0a",
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "updates": {
-      "checkAutomatically": "NEVER",
+      "checkAutomatically": "ON_LOAD",
       "url": "https://u.expo.dev/0703c149-6dbc-4c9b-a126-2767d67a57c8",
       "requestHeaders": { "expo-channel-name": "production" }
     },
@@ -24,7 +24,7 @@
     },
     "android": {
       "package": "com.freebuff.kondukt",
-      "versionCode": 3,
+      "versionCode": 2,
       "icon": "./assets/favicon.png",
       "permissions": [
         "android.permission.REQUEST_INSTALL_PACKAGES",

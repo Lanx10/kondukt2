@@ -1,6 +1,6 @@
 {
   "name": "kondukt",
-  "version": "1.0.0b",
+  "version": "1.0.0a",
   "main": "index.ts",
   "dependencies": {
     "@expo-google-fonts/poppins": "^0.4.1",
