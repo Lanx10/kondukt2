@@ -61,8 +61,8 @@ cannot express them. All fields are optional except that *some* valid version so
 
 | Concept | Source of truth | Current value |
 |---|---|---|
-| App version (user-facing, compared to release tags) | `expo.version` in `app.json` (`package.json` version matches) | `1.0.2` |
-| Android `versionCode` | `expo.android.versionCode` in `app.json` (`eas.json` has `appVersionSource: local`) | `4` |
+| App version (user-facing, compared to release tags) | `expo.version` in `app.json` (`package.json` version matches) | `1.0.3` |
+| Android `versionCode` | `expo.android.versionCode` in `app.json` (`eas.json` has `appVersionSource: local`) | `5` |
 | Expo `runtimeVersion` | `expo.runtimeVersion` — a **stable custom string**, deliberately *not* the app version | `1.0.2` |
 | EAS Update channel | `eas.json` build profiles | `production` / `preview` / `development` |
 | Updater configuration | `src/lib/apkUpdateConfig.ts` (`UPDATE_CONFIG`) | owner `Lanx10`, repo `kondukt2`, tag prefix `v`, 6 h auto-check, mandatory allowed |
