@@ -2,7 +2,7 @@
   "expo": {
     "name": "Kondukt",
     "slug": "kondukt",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "runtimeVersion": "1.0.2",
     "updates": {
       "checkAutomatically": "ON_LOAD",
@@ -24,7 +24,7 @@
     },
     "android": {
       "package": "com.freebuff.kondukt",
-      "versionCode": 4,
+      "versionCode": 5,
       "icon": "./assets/favicon.png",
       "permissions": [
         "android.permission.REQUEST_INSTALL_PACKAGES",
