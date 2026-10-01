@@ -6,8 +6,5 @@ const { getDefaultConfig } = require('expo/metro-config');
 const config = getDefaultConfig(__dirname);
 
 config.resolver.assetExts.push('wasm');
-// The app icon is a multi-size .ico; without it in the asset list the home
-// header's `require('../../assets/favicon.ico')` fails to resolve.
-config.resolver.assetExts.push('ico');
 
 module.exports = config;

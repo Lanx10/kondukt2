@@ -7,10 +7,12 @@
       "policy": "appVersion"
     },
     "updates": {
-      "checkAutomatically": "NEVER"
+      "checkAutomatically": "NEVER",
+      "url": "https://u.expo.dev/0703c149-6dbc-4c9b-a126-2767d67a57c8",
+      "requestHeaders": { "expo-channel-name": "production" }
     },
     "orientation": "portrait",
-    "icon": "./assets/favicon.ico",
+    "icon": "./assets/favicon.png",
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -23,11 +25,16 @@
     "android": {
       "package": "com.freebuff.kondukt",
       "versionCode": 2,
-      "icon": "./assets/icon.png",
+      "icon": "./assets/favicon.png",
       "permissions": [
+        "android.permission.REQUEST_INSTALL_PACKAGES",
         "android.permission.REQUEST_INSTALL_PACKAGES"
       ],
       "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.VIBRATE",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.SYSTEM_ALERT_WINDOW",
@@ -62,6 +69,15 @@
           "style": "dark"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "expo-status-bar": {
+        "style": "dark"
+      },
+      "eas": {
+        "projectId": "0703c149-6dbc-4c9b-a126-2767d67a57c8"
+      }
+    },
+    "owner": "lanx10"
   }
 }
