@@ -8,6 +8,7 @@ import * as _componentsGlassBackdrop from '../components/GlassBackdrop';
 import * as _componentsGlassCard from '../components/GlassCard';
 import * as _componentsStorageNote from '../components/StorageNote';
 import * as _componentsQuickActionsGrid from '../components/QuickActionsGrid';
+import * as _componentsUpdateSheets from '../components/UpdateSheets';
 import * as _DashboardScreen from './DashboardScreen';
 import * as _TripTicketsScreen from './TripTicketsScreen';
 import * as _TripScreen from './TripScreen';
@@ -32,6 +33,8 @@ import * as _libUseNow from '../lib/useNow';
 import * as _libTripScreenFormat from '../lib/tripScreenFormat';
 import * as _libTripTicketsFormat from '../lib/tripTicketsFormat';
 import * as _libHistoryState from '../lib/historyState';
+import * as _libUpdateProvider from '../lib/UpdateProvider';
+import * as _libApkUpdateProvider from '../lib/ApkUpdateProvider';
 import * as _icons from '../icons';
 import * as _theme from '../theme';
 import * as _reactJsxRuntime from 'react/jsx-runtime';
@@ -143,6 +146,13 @@ type SectionKey = keyof typeof SECTIONS | OpenRoute;
    // History, cleared when History closes so it can never replay.
    let [tripEndedMessage, setTripEndedMessage] = _react.useState<string | null>(null);
    let startTrip = (0, _react.useCallback)(() => setOpen('trip'), []);
+   // The two update state machines, owned by the providers in
+   // App.tsx. Home carries their sheets so a release found by a
+   // check surfaces the moment the driver is looking at the app
+   // — not only after a trip into Settings. The providers consult
+   // the update guard, so a sheet never opens over a transaction.
+   let updates = (0, _libUpdateProvider.useUpdates)();
+   let apk = (0, _libApkUpdateProvider.useApkUpdates)();
 
    /**
     * The Android hardware back press, routed to the screen's parent.
@@ -855,7 +865,20 @@ type SectionKey = keyof typeof SECTIONS | OpenRoute;
            ticketCount: snapshot.totals.ticketCount,
            dayCount: snapshot.totals.dayCount,
            style: styles.storageSlot
-         })]
+         }),
+         // The update sheets — the same components Settings
+         // renders, so both surfaces say the same thing. They are
+         // Modals, so they float above this view; the providers
+         // own when they open.
+         apk.dialogOpen && apk.release !== null ? /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_componentsUpdateSheets.ApkAvailableSheet, {
+           apk: apk
+         }) : null,
+         apk.permissionOpen ? /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_componentsUpdateSheets.ApkPermissionSheet, {
+           apk: apk
+         }) : null,
+         updates.dialogOpen ? /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_componentsUpdateSheets.UpdateSheet, {
+           updates: updates
+         }) : null]
        })
      })]
    });

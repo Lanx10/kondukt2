@@ -87,6 +87,8 @@ export type ApkUpdateContextValue = {
   dialogOpen: boolean;
   /** True while the "Installation permission required" sheet shows. */
   permissionOpen: boolean;
+  /** The newest release version any check has seen, or null. */
+  latestVersion: string | null;
   /** Manual check from Settings. Resolves when the check settles. */
   checkNow: () => Promise<void>;
   /** The available sheet's "Update Now": download, verify, launch installer. */
@@ -124,6 +126,10 @@ export function ApkUpdateProvider({ children }: { children: ReactNode }) {
   const [progress, setProgress] = useState<ApkProgress | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [permissionOpen, setPermissionOpen] = useState(false);
+  // The newest release any check has seen — tracked even when this
+  // install already matches it, so the version sheet can name the
+  // latest release whether or not it is new.
+  const [latestVersion, setLatestVersion] = useState<string | null>(null);
   const [lastCheckAt, setLastCheckAt] = useState<number | null>(null);
 
   // The verified file waiting for the installer; not state (never rendered).
@@ -169,6 +175,9 @@ export function ApkUpdateProvider({ children }: { children: ReactNode }) {
       goPhase('uptodate');
       return false;
     }
+    // The newest release seen, tracked across every valid verdict —
+    // the version sheet names it even when nothing newer exists.
+    setLatestVersion(found.version);
     if (verdict === 'uptodate') {
       setRelease(null);
       setMandatory(false);
@@ -395,6 +404,7 @@ export function ApkUpdateProvider({ children }: { children: ReactNode }) {
       busy,
       dialogOpen,
       permissionOpen,
+      latestVersion,
       checkNow,
       updateNow,
       installNow,
@@ -415,6 +425,7 @@ export function ApkUpdateProvider({ children }: { children: ReactNode }) {
       busy,
       dialogOpen,
       permissionOpen,
+      latestVersion,
       checkNow,
       updateNow,
       installNow,
