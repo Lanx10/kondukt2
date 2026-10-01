@@ -899,7 +899,7 @@ export function HistoryScreen({ onBack, onOpenTrip, operationMessage }: HistoryS
           }
           contentContainerStyle={[
             styles.listContent,
-            { paddingBottom: insets.bottom + space(6) },
+            { paddingBottom: insets.bottom + space(9) },
           ]}
           showsVerticalScrollIndicator={false}
         />

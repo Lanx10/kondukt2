@@ -109,7 +109,7 @@ export function SettingsScreen({
         <ScrollView
           contentContainerStyle={[
             styles.column,
-            { paddingBottom: insets.bottom + space(6) },
+            { paddingBottom: insets.bottom + space(9) },
           ]}
           showsVerticalScrollIndicator={false}
         >

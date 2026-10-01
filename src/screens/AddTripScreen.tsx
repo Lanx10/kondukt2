@@ -297,7 +297,7 @@ export function AddTripScreen({
     >
       <ScrollView
         style={styles.screen}
-        contentContainerStyle={[styles.column, { paddingBottom: insets.bottom + space(6) }]}
+        contentContainerStyle={[styles.column, { paddingBottom: insets.bottom + space(9) }]}
         showsVerticalScrollIndicator={false}
       >
         {view === 'loading' ? (

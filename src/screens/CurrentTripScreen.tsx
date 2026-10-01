@@ -538,7 +538,7 @@ const legOf = (origin: string, destination: string): number | null => {
           {
             paddingBottom: ready
               ? space(4)
-              : insets.bottom + space(6),
+              : insets.bottom + space(9),
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -547,7 +547,7 @@ const legOf = (origin: string, destination: string): number | null => {
       {/* 3. The one control that closes the run, outside the scroll — the
           reference keeps it reachable while the ledger runs long. */}
       {ready ? (
-        <View style={[styles.actionBar, { paddingBottom: insets.bottom + space(2) }]}>
+        <View style={[styles.actionBar, { paddingBottom: insets.bottom + space(9) }]}>
           <Pressable
             onPress={openEndSheet}
             disabled={ending}

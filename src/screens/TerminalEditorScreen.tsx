@@ -273,7 +273,7 @@ export function TerminalEditorScreen({ terminalId, onBack }: TerminalEditorScree
 
     return (
       <ScrollView
-        contentContainerStyle={[styles.column, { paddingBottom: insets.bottom + space(6) }]}
+        contentContainerStyle={[styles.column, { paddingBottom: insets.bottom + space(9) }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >

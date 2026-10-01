@@ -657,7 +657,7 @@ export function BarangayConfigScreen({
           }
           contentContainerStyle={[
             styles.column,
-            { paddingBottom: insets.bottom + space(6) },
+            { paddingBottom: insets.bottom + space(9) },
           ]}
         />
       </KeyboardAvoidingView>

@@ -241,7 +241,7 @@ export function MunicipalityEditor({ onBack, id = null }: MunicipalityEditorProp
           pointerEvents="box-none"
         >
           <ScrollView
-            contentContainerStyle={[styles.column, { paddingBottom: insets.bottom + space(6) }]}
+            contentContainerStyle={[styles.column, { paddingBottom: insets.bottom + space(9) }]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >

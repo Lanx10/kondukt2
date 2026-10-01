@@ -760,7 +760,7 @@ export function FareSettingsScreen({ onBack }: FareSettingsScreenProps) {
               {/* 7. A sibling of the scroll, so it never scrolls away: the
                   one committing action, and the reason it is live or dead. */}
               <View
-                style={[styles.actionBar, { paddingBottom: Math.max(insets.bottom, space(2)) }]}
+                style={[styles.actionBar, { paddingBottom: insets.bottom + space(9) }]}
               >
                 <Pressable
                   onPress={saveEnabled ? onSave : undefined}

@@ -801,7 +801,7 @@ type SectionKey = keyof typeof SECTIONS | OpenRoute;
          })]
        }), /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.ScrollView, {
          contentContainerStyle: {
-           paddingBottom: insets.bottom + (0, _theme.space)(5)
+           paddingBottom: insets.bottom + (0, _theme.space)(9)
          },
          children: /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.View, {
            style: styles.readableWidth,
@@ -833,7 +833,7 @@ type SectionKey = keyof typeof SECTIONS | OpenRoute;
      }],
      children: [/*#__PURE__*/(0, _reactJsxRuntime.jsx)(_componentsGlassBackdrop.GlassBackdrop, {}), /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.ScrollView, {
        contentContainerStyle: [styles.content, {
-         paddingBottom: insets.bottom + (0, _theme.space)(4)
+         paddingBottom: insets.bottom + (0, _theme.space)(9)
        }],
        showsVerticalScrollIndicator: false,
        children: /*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_reactNative.View, {

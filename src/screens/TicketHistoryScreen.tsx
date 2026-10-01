@@ -147,8 +147,8 @@ export function TicketHistoryScreen({
     >
       <ScrollView
         // The reference's scroll stops at the safe edge — nothing between
-        // the footer and the home indicator.
-        contentContainerStyle={[styles.column, { paddingBottom: insets.bottom }]}
+        // the footer and the byline pinned over the frame.
+        contentContainerStyle={[styles.column, { paddingBottom: insets.bottom + space(9) }]}
         showsVerticalScrollIndicator={false}
       >
         {/* The reference's list section: eyebrow, lede and whatever the

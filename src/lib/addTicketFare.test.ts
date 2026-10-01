@@ -5,9 +5,11 @@ import { priceTicket, type FareRules } from './addTicketFare';
  *
  * Run with: npx tsx src/lib/addTicketFare.test.ts
  *
- * Two cases, one boundary: at or under the minimum distance the fare is the
- * flat minimum fare (no rate multiplied); past it the fare is the distance
- * times the rate, with the minimum fare never added and never lifted onto it.
+ * Two cases, one boundary, one rounding: at or under the minimum distance
+ * the fare is the flat minimum fare (no rate multiplied); past it the fare is
+ * the distance times the rate, with the minimum fare never added and never
+ * lifted onto it; and either way the fare is a whole peso, `.5`–`.9` up,
+ * `.4`–`.0` down.
  */
 
 let failures = 0;
@@ -44,8 +46,11 @@ const price = (distanceMilli: number) =>
 check('under the minimum distance is the minimum fare', price(1_000), 5_000);
 check('at the minimum distance is the minimum fare', price(4_500), 5_000);
 
-// Past the boundary: the whole distance times the rate, nothing added.
-check('past the minimum distance is distance × rate', price(4_600), 460);
+// Past the boundary: the whole distance times the rate, nothing added, then
+// rounded to the whole peso — the fraction decides, `.5` up and `.4` down.
+check('₱4.60 rounds up to ₱5.00', price(4_600), 500);
+check('₱7.90 rounds up to ₱8.00', price(7_900), 800);
+check('₱7.40 rounds down to ₱7.00', price(7_400), 700);
 check('the minimum fare is never lifted onto a longer leg', price(10_000), 1_000);
 
 process.exitCode = failures === 0 ? 0 : 1;

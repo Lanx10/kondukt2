@@ -185,7 +185,7 @@ export function TripScreen({ onBack, onOpenTickets, onAddTrip, onViewAllTrips }:
             <LocalStorageCard />
           </View>
         }
-        contentContainerStyle={{ paddingBottom: insets.bottom + space(6) }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + space(9) }}
         showsVerticalScrollIndicator={false}
       />
     </SectionChrome>

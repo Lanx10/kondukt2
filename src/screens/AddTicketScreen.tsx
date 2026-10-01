@@ -242,7 +242,7 @@ type Observation = {
      children: [/*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_reactNative.ScrollView, {
        style: styles.screen,
        contentContainerStyle: [styles.column, {
-         paddingBottom: insets.bottom + (0, _theme.space)(6)
+         paddingBottom: insets.bottom + (0, _theme.space)(9)
        }],
        showsVerticalScrollIndicator: false,
        children: [view.kind === 'loading' ? /*#__PURE__*/(0, _reactJsxRuntime.jsx)(LoadingState, {}) : null, view.kind === 'error' ? /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.View, {

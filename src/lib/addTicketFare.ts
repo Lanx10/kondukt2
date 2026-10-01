@@ -19,7 +19,8 @@ export type { PassengerType };
  * can contradict is how one shift gets counted twice.
  *
  * Units are the store's own: money in centavos, distance in milli-km
- * (thousandths of a kilometre). Every division rounds half-up on integers.
+ * (thousandths of a kilometre). Every division rounds half-up on integers,
+ * and a ticket's fare is rounded to the whole peso.
  */
 
 // ── Bounds ──────────────────────────────────────────────────────────────────
@@ -144,17 +145,16 @@ export type PriceInput = {
 /**
  * The one function the fare card runs.
  *
- * Two cases, and the boundary is the minimum distance:
+ * Two cases, one boundary, then one rounding rule: at or under the minimum
+ * distance the fare is the flat minimum fare; past it the fare is distance ×
+ * rate; and whatever either branch produced is rounded to the whole peso,
+ * `.5`–`.9` up and `.4`–`.0` down.
  *
- * - At or under the minimum distance the fare is the flat **minimum fare** —
- *   no rate is multiplied at all.
- * - Past it the fare is **the distance times the rate**, the whole distance.
- *   Never the minimum fare plus the extra kilometres: that reading charges a
- *   long rider for the first kilometre twice.
- *
- * Half-up rounding is integer: `floor((rate × billable + 500) / 1000)`. No
- * floats, so 86.2 km × ₱2.25 is ₱193.95 on every device rather than ₱193.94 on
- * the one with a different FPU.
+ * The distance ÷ 1000 divides half-up, and then the fare itself is a **whole
+ * peso**: the leftover fraction decides the direction — `.5` to `.9` rounds
+ * up, `.4` down to `.0` — so ₱193.95 is charged as ₱194.00 and ₱112.06 as
+ * ₱112.00. Both steps are integer, so 86.2 km × ₱2.25 reads the same on every
+ * device rather than ₱193.94 on the one with a different FPU.
  *
  * The rate is picked by TWO tests: whether the passenger is discounted, and
  * which road the trip runs on. Before, the discounted branch ignored the road
@@ -192,7 +192,10 @@ export function priceTicket(input: PriceInput): FareBreakdown | null {
   const distanceFloorApplied = input.distanceMilli <= rules.minimumDistanceMilli;
   const billableMilli = distanceFloorApplied ? rules.minimumDistanceMilli : input.distanceMilli;
   const rawCentavos = Math.floor((rateCentavos * billableMilli + 500) / 1000);
-  const perPassengerCentavos = distanceFloorApplied ? rules.minimumFareCentavos : rawCentavos;
+  const baseCentavos = distanceFloorApplied ? rules.minimumFareCentavos : rawCentavos;
+  // Whole pesos on the way out, and the fraction decides which way: `.5`–`.9`
+  // up, `.4`–`.0` down. Integer, so the direction never depends on the FPU.
+  const perPassengerCentavos = Math.floor((baseCentavos + 50) / 100) * 100;
   const fareFloorApplied = distanceFloorApplied;
   const quantity = clampQuantity(input.quantity);
 

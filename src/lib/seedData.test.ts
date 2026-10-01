@@ -115,18 +115,18 @@ check(
 const expressRegular = seed.tickets.find(
   (ticket) => ticket.trip_id === 1 && ticket.passenger_type === 'REGULAR',
 )!;
-check('86.2 km express, regular: ₱193.95', expressRegular.final_fare_per_passenger, 19_395);
-check('86.2 km express, regular: ₱387.90 for two', expressRegular.total_fare, 38_790);
+check('86.2 km express, regular: ₱194.00 (₱193.95 rounds up)', expressRegular.final_fare_per_passenger, 19_400);
+check('86.2 km express, regular: ₱388.00 for two', expressRegular.total_fare, 38_800);
 const expressStudent = seed.tickets.find(
   (ticket) => ticket.trip_id === 1 && ticket.passenger_type === 'STUDENT',
 )!;
-check('86.2 km express, student: ₱112.06 (the discounted express rate)', expressStudent.final_fare_per_passenger, 11_206);
+check('86.2 km express, student: ₱112.00 (₱112.06 rounds down, the discounted express rate)', expressStudent.final_fare_per_passenger, 11_200);
 const hop = seed.tickets.find((ticket) => ticket.trip_id === 2)!;
 check('4.4 km ordinary: lifted to the ₱50 minimum', hop.final_fare_per_passenger, 5_000);
 const longRun = seed.tickets.find(
   (ticket) => ticket.trip_id === 5 && ticket.passenger_type === 'REGULAR',
 )!;
-check('217.4 km express, regular: ₱489.15', longRun.final_fare_per_passenger, 48_915);
+check('217.4 km express, regular: ₱489.00', longRun.final_fare_per_passenger, 48_900);
 
 // ── timestamps are in the past, and inside their own run ───────────────────
 check('no seeded stamp is in the future', seed.tickets.every((t) => t.created_at <= NOON), true);

@@ -232,7 +232,7 @@ export function DashboardScreen({
           backTestID="dash-back"
         >
           <ScrollView
-            contentContainerStyle={{ paddingBottom: insets.bottom + space(6) }}
+            contentContainerStyle={{ paddingBottom: insets.bottom + space(9) }}
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.readableWidth}>
@@ -266,7 +266,7 @@ export function DashboardScreen({
         backTestID="dash-back"
       >
         <ScrollView
-          contentContainerStyle={{ paddingBottom: insets.bottom + space(6) }}
+          contentContainerStyle={{ paddingBottom: insets.bottom + space(9) }}
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.readableWidth}>

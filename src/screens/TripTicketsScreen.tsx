@@ -315,7 +315,7 @@ export function TripTicketsScreen({
           </>
         }
         contentContainerStyle={{
-          paddingBottom: insets.bottom + space(6),
+          paddingBottom: insets.bottom + space(9),
         }}
         showsVerticalScrollIndicator={false}
       />

@@ -423,7 +423,7 @@ export function TerminalConfigScreen({ onBack, onOpenEditor }: TerminalConfigScr
           }
           contentContainerStyle={[
             styles.column,
-            { paddingBottom: insets.bottom + space(6) },
+            { paddingBottom: insets.bottom + space(9) },
           ]}
         />
       </KeyboardAvoidingView>

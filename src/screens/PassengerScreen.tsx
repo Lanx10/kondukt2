@@ -729,7 +729,7 @@ export function PassengerScreen({ onBack, onOpenTrips }: PassengerScreenProps) {
         ListFooterComponent={footer}
         contentContainerStyle={[
           styles.column,
-          { paddingBottom: insets.bottom + space(6) },
+          { paddingBottom: insets.bottom + space(9) },
         ]}
         showsVerticalScrollIndicator={false}
       />

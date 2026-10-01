@@ -135,7 +135,7 @@ export function TicketDetailScreen({ tripId, ticketId, backLabel, onBack }: Tick
         onLayout={(e) => setColumnWidth(e.nativeEvent.layout.width)}
         contentContainerStyle={[
           styles.column,
-          { paddingBottom: insets.bottom + space(6) },
+          { paddingBottom: insets.bottom + space(9) },
         ]}
         showsVerticalScrollIndicator={false}
       >
