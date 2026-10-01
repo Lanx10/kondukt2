@@ -3,9 +3,7 @@
     "name": "Kondukt",
     "slug": "kondukt",
     "version": "1.0.2",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.0.2",
     "updates": {
       "checkAutomatically": "ON_LOAD",
       "url": "https://u.expo.dev/0703c149-6dbc-4c9b-a126-2767d67a57c8",

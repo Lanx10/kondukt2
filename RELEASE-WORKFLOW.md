@@ -63,7 +63,7 @@ cannot express them. All fields are optional except that *some* valid version so
 |---|---|---|
 | App version (user-facing, compared to release tags) | `expo.version` in `app.json` (`package.json` version matches) | `1.0.2` |
 | Android `versionCode` | `expo.android.versionCode` in `app.json` (`eas.json` has `appVersionSource: local`) | `4` |
-| Expo `runtimeVersion` | `expo.runtimeVersion.policy: "appVersion"` → resolves to the app version | `1.0.0` |
+| Expo `runtimeVersion` | `expo.runtimeVersion` — a **stable custom string**, deliberately *not* the app version | `1.0.2` |
 | EAS Update channel | `eas.json` build profiles | `production` / `preview` / `development` |
 | Updater configuration | `src/lib/apkUpdateConfig.ts` (`UPDATE_CONFIG`) | owner `Lanx10`, repo `kondukt2`, tag prefix `v`, 6 h auto-check, mandatory allowed |
 
@@ -156,10 +156,36 @@ the on-demand path for both channels.
 ### Configuration status (OTA)
 
 - `expo-updates ~57.0.24`, `expo-constants ~57.0.20` installed.
-- `expo.runtimeVersion.policy: "appVersion"`, `expo.updates.checkAutomatically: "ON_LOAD"`.
+- `expo.runtimeVersion` is a **fixed string** (`1.0.2`), not the `appVersion` policy. Under `appVersion` each release was pinned to its own OTA runtime (`1.0.1` vs `1.0.2` vs …), so a JavaScript fix could never reach a build that had already shipped — which is exactly how the broken 1.0.1 APK verifier became unrepairable over the air. A fixed runtime keeps every build on the same native baseline on one channel; bump it **only** when native code changes.
+- `expo.updates.checkAutomatically: "ON_LOAD"`.
 - One-time on your EAS account: `npx eas login`, `npx eas init` (writes
-  `extra.eas.projectId`), `npx eas update:configure` (writes `expo.updates.url`).
-  Without them OTA is simply disabled and its card says so calmly — nothing crashes.
+  `extra.eas.projectId`), `npx eas update:configure` (writes
+  `expo.updates.url`). Without them OTA is simply disabled and its card says so
+  calmly — nothing crashes.
+
+### Repairing installs stranded on an old runtimeVersion
+
+A build only accepts updates whose `runtimeVersion` matches the value baked into
+that build. Before the runtime became a fixed string, `appVersion` policy baked each
+release its own value (`1.0.1` → `"1.0.1"`, `1.0.2` → `"1.0.2"`), so an already
+shipped build can never be handed a JavaScript fix under the new stable runtime. To
+repair one, publish once against *its* runtime: temporarily set `expo.runtimeVersion`
+in `app.json` to that build's baked value, publish, then restore the stable value.
+
+```bash
+# rescue the 1.0.1 installs whose APK verifier crashes on an 84 MB file:
+#   1. set "runtimeVersion": "1.0.1" in app.json
+#   2. publish
+npx eas-cli@latest update --channel production --platform android \
+  --environment production --non-interactive -m "Rescue: fixed APK verifier"
+#   3. restore "runtimeVersion": "1.0.2"
+```
+
+`eas update` has no runtime-version flag — the value is read from the app config at
+publish time, so the temporary edit *is* the mechanism. Delivery depends only on
+`runtimeVersion`; the app pins `expo-channel-name: production` in its request
+headers, so every build listens on the `production` channel whatever build profile
+produced it.
 
 ## Code map
 
