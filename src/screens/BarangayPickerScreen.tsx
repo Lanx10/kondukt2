@@ -281,7 +281,8 @@ export function BarangayPickerScreen({
             <Text style={styles.rowKm}>{distanceKm(item.kmMarker)}</Text>
           </Pressable>
         )}
-        ListFooterComponent={<View style={{ height: insets.bottom + space(4) }} />}
+        // The byline is pinned over the frame, so the list's tail clears it.
+        ListFooterComponent={<View style={{ height: insets.bottom + space(9) }} />}
         showsVerticalScrollIndicator={false}
       />
     </View>
