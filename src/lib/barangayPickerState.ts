@@ -205,3 +205,83 @@ export function rowAnnouncement(row: BarangayRow, side: PickerSide, formatKm: (m
     `Choosing the ${side === 'boarding' ? 'boarding' : 'destination'} location.`
   );
 }
+
+// ── Route scoping (the Add-ticket pickers) ──────────────────────────────────
+
+/**
+ * The fields the route rules read off a stop. A full registry row, the
+ * ticket screen's slimmer terminal shape, and a resolved route all satisfy it.
+ */
+export type RouteStop = { id: number; name: string; km_marker: number };
+
+/**
+ * The running trip's route bounds, read back from its stored snapshots.
+ *
+ * A trip records its ends as name snapshots, not ids, so the markers are found
+ * by matching those names against the registry. Either marker can be null —
+ * a route whose terminal was renamed or deleted since the trip started — and
+ * callers fall back rather than offer an empty list.
+ */
+export function resolveRouteMarkers(
+  terminals: RouteStop[],
+  originSnapshot: string | null | undefined,
+  destinationSnapshot: string | null | undefined,
+): { originMarker: number | null; destinationMarker: number | null } {
+  const markerOf = (name: string | null | undefined): number | null =>
+    typeof name === 'string'
+      ? terminals.find((row) => row.name === name)?.km_marker ?? null
+      : null;
+  return {
+    originMarker: markerOf(originSnapshot),
+    destinationMarker: markerOf(destinationSnapshot),
+  };
+}
+
+/** Which end of the leg a ticket picker is choosing. */
+export type TicketPickerSide = 'board' | 'drop';
+
+/** A stop's route fields as the bounds and direction rules read them. */
+function toRouteRow(row: RouteStop): BarangayRow {
+  return {
+    id: row.id,
+    barangayName: barangayNameOf(row.name),
+    municipalityName: municipalityNameOf(row.name),
+    kmMarker: row.km_marker,
+    isActive: true,
+  };
+}
+
+/**
+ * The stops a ticket picker may offer for one side of the running trip.
+ *
+ * The boarding list is the trip's own range — from the origin terminal's KM to
+ * the destination's — walked in the trip's direction, so a run that starts at
+ * 140 km lists 140 km onward and never a stop the route does not reach. The
+ * destination list is that same range with everything at or before the chosen
+ * boarding removed. This is what makes the picker short: two hundred stops
+ * become the dozen the bus actually passes.
+ *
+ * Falls back to the whole registry when the route cannot be resolved — an
+ * empty picker would block recording every ticket on the trip, which is worse
+ * than an unscoped one. The destination side needs a chosen boarding to cut
+ * at; with none, the full range stands.
+ */
+export function stopsForTicketPick<S extends RouteStop>(input: {
+  stops: S[];
+  side: TicketPickerSide;
+  board: RouteStop | null;
+  originMarker: number | null;
+  destinationMarker: number | null;
+}): S[] {
+  const { stops, side, board, originMarker, destinationMarker } = input;
+  if (originMarker === null || destinationMarker === null) return stops;
+  const byId = new Map(stops.map((row) => [row.id, row]));
+  const rows = stops.map(toRouteRow);
+  const picked =
+    side === 'drop' && board !== null
+      ? destinationStopsAfterOrigin(rows, board.id, board.km_marker, destinationMarker)
+      : tripStopsWithinBounds(rows, originMarker, destinationMarker);
+  return picked
+    .map((row) => byId.get(row.id))
+    .filter((row): row is S => row !== undefined);
+}

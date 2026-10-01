@@ -4,7 +4,9 @@ import {
   filterBarangaysByQuery,
   municipalityNameOf,
   nearestOriginStop,
+  resolveRouteMarkers,
   rowAnnouncement,
+  stopsForTicketPick,
   toBarangayRow,
   toPickerState,
   tripStopsWithinBounds,
@@ -158,6 +160,87 @@ check(
   'announcement names side and km',
   rowAnnouncement(stops[3], 'boarding', (m) => `${(m / 1000).toFixed(3)} km`),
   'Pick Iba, Zambales, 96.800 km. Choosing the boarding location.',
+);
+
+// ── route scoping (the Add-ticket pickers) ───────────────────────────────────
+// The registry rows carry `name` + `km_marker`, which is what the ticket
+// screen holds; the trip snapshots are matched back to these by name.
+const routeStops: TerminalRowRecord[] = [
+  terminal(1, 'Santa Cruz, Olongapo', 314_200),
+  terminal(2, 'Caloocan, Kalakhang Maynila', 228_000),
+  terminal(3, 'Subic, Subic', 249_600),
+  terminal(4, 'Iba, Zambales', 96_800),
+  terminal(5, 'Masinloc, Zambales', 150_000),
+  terminal(6, 'Palauig, Zambales', 150_000),
+];
+check(
+  'markers resolve from the trip snapshots',
+  resolveRouteMarkers(routeStops, 'Santa Cruz, Olongapo', 'Iba, Zambales'),
+  { originMarker: 314_200, destinationMarker: 96_800 },
+);
+check(
+  'unmatched snapshot leaves its marker null',
+  resolveRouteMarkers(routeStops, 'Renamed Terminal', null),
+  { originMarker: null, destinationMarker: null },
+);
+
+// The trip runs 96.8 → 314.2 km: the boarding list is 140 km onward in that
+// direction, and never a stop the route does not reach.
+const withFaraway = [...routeStops, terminal(7, 'Too Far, Nowhere', 400_000)];
+check(
+  'boarding list is the route range, starting at the origin KM',
+  stopsForTicketPick({
+    stops: withFaraway,
+    side: 'board',
+    board: null,
+    originMarker: 96_800,
+    destinationMarker: 314_200,
+  }).map((r) => r.id),
+  [4, 5, 6, 2, 3, 1],
+);
+check(
+  'boarding list drops a stop beyond the destination',
+  stopsForTicketPick({
+    stops: withFaraway,
+    side: 'board',
+    board: null,
+    originMarker: 96_800,
+    destinationMarker: 314_200,
+  }).some((r) => r.id === 7),
+  false,
+);
+check(
+  'unresolvable route falls back to the whole list',
+  stopsForTicketPick({
+    stops: routeStops,
+    side: 'board',
+    board: null,
+    originMarker: null,
+    destinationMarker: 314_200,
+  }).length,
+  routeStops.length,
+);
+check(
+  'destination list is strictly past the chosen boarding',
+  stopsForTicketPick({
+    stops: routeStops,
+    side: 'drop',
+    board: routeStops[3],
+    originMarker: 96_800,
+    destinationMarker: 314_200,
+  }).map((r) => r.id),
+  [5, 6, 2, 3, 1],
+);
+check(
+  'destination list with no boarding is the full range',
+  stopsForTicketPick({
+    stops: routeStops,
+    side: 'drop',
+    board: null,
+    originMarker: 96_800,
+    destinationMarker: 314_200,
+  }).map((r) => r.id),
+  [4, 5, 6, 2, 3, 1],
 );
 
 console.log(failures === 0 ? '\nall passed' : `\n${failures} FAILED`);

@@ -10,6 +10,7 @@ import * as _dataTripTicketsStore from '../data/tripTicketsStore';
 import * as _dataFareStore from '../data/fareStore';
 import * as _libAddTicketFare from '../lib/addTicketFare';
 import * as _libAddTripState from '../lib/addTripState';
+import * as _libBarangayPickerState from '../lib/barangayPickerState';
 import * as _libTripTicketsFormat from '../lib/tripTicketsFormat';
 import * as _libUpdateGuard from '../lib/updateGuard';
 import type { TicketRowRecord, TerminalRowRecord, TripRowRecord } from '../data/schema';
@@ -155,6 +156,19 @@ type Observation = {
    // The store's terminal read is unordered; the sheet sorts by KM so the list
    // reads as the route's geography rather than as insert order.
    let terminals = [...(ready?.terminals ?? noFares?.terminals ?? observation.terminals)].sort((a, b) => a.km_marker - b.km_marker || a.id - b.id);
+   // The running trip's route, read back from its stored snapshots. The
+   // picker offers the route's own stretch of road — from the starting
+   // terminal's KM onward — instead of every barangay on the device, so
+   // choosing a stop is a short list rather than a search.
+   let routeMarkers = (0, _libBarangayPickerState.resolveRouteMarkers)(terminals, trip?.origin_location_snapshot, trip?.destination_location_snapshot);
+   let barangaStops = terminals.filter(stop => stop.kind === 'BARANGAY');
+   let ticketStops = sheet === null ? barangaStops : (0, _libBarangayPickerState.stopsForTicketPick)({
+     stops: barangaStops,
+     side: sheet === SIDE.DROP ? 'drop' : 'board',
+     board,
+     originMarker: routeMarkers.originMarker,
+     destinationMarker: routeMarkers.destinationMarker
+   });
 
    // The road is a setting on the trip and is stored with it, so this screen
    // reads the trip's own value and only overrides it once the conductor taps.
@@ -510,7 +524,11 @@ type Observation = {
        // Barangays only: terminals are the route's ends, not boardings. The
        // commit refusal still reads the whole list for its missing /
        // deactivated sentences.
-       terminals: terminals.filter(stop => stop.kind === 'BARANGAY'),
+       terminals: ticketStops,
+       // True once the trip's route resolved: the list is then the route's own
+       // stretch of road, and the sheet says so rather than claiming to hold
+       // every barangay on the device.
+       scoped: sheet !== null && routeMarkers.originMarker !== null && routeMarkers.destinationMarker !== null,
        other: sheet === SIDE.BOARD ? drop : board,
        onClose: () => setSheet(null),
        onSelect: (terminal: any) => {
@@ -915,6 +933,7 @@ type Observation = {
  function TerminalSheet({
    kind,
    terminals,
+   scoped,
    other,
    onClose,
    onSelect
@@ -930,7 +949,7 @@ type Observation = {
    return /*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_componentsBottomSheet.Sheet, {
      kind: kind,
      title: kind === SIDE.DROP ? 'Destination' : 'Boarding point',
-     subtitle: `${terminals.length} barangay${terminals.length === 1 ? '' : 's'} on this device`,
+     subtitle: `${terminals.length} barangay${terminals.length === 1 ? '' : 's'} ${scoped ? 'on this route' : 'on this device'}`,
      onClose: onClose,
      fill: true,
       children: [/*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.TextInput, {
@@ -993,11 +1012,11 @@ type Observation = {
        },
        ListFooterComponent: /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.Text, {
          style: styles.sheetFootnote,
-         children: "A device only carries the barangays its operator configured. A barangay missing from this list is one this bus does not stop at."
+         children: scoped ? "Only the barangays between this trip's terminals are listed. A barangay outside the route cannot be boarded on this trip." : "A device only carries the barangays its operator configured. A barangay missing from this list is one this bus does not stop at."
        }),
        ListEmptyComponent: /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.Text, {
          style: styles.sheetFootnote,
-         children: terminals.length === 0 ? 'No barangays on this device yet.' : `No barangay matches “${query.trim()}”.`
+         children: terminals.length === 0 ? scoped ? 'No barangay falls on this trip’s route.' : 'No barangays on this device yet.' : `No barangay matches “${query.trim()}”.`
        }),
        showsVerticalScrollIndicator: false
      })]
