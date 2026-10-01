@@ -8,8 +8,6 @@ import {
   BARANGAY_NOT_FOUND_ERROR,
   TERMINAL_COMMA_ERROR,
   TERMINAL_KM_ERROR,
-  TERMINAL_MUNICIPALITY_GONE_ERROR,
-  TERMINAL_MUNICIPALITY_REQUIRED_ERROR,
   TERMINAL_NAME_ERROR,
   barangayEditorComposeName,
   barangayEditorFieldsFromRecord,
@@ -17,11 +15,11 @@ import {
   barangayEditorMunicipalityOptions,
   buildTerminalWrite,
   commitTerminalEditorField,
+  composeTerminalName,
   duplicateBarangayError,
   initialTerminalEditorUiState,
   municipalityDisplayLabel,
   parseTerminalKm,
-  pickTerminalMunicipality,
   terminalEditorAccessibilityTitle,
   terminalEditorFieldsFromRecord,
   terminalEditorHint,
@@ -37,10 +35,11 @@ import {
  * Run with: npx tsx src/lib/terminalEditorState.test.ts
  *
  * The fragile parts: record preservation (is_active carried through, id
- * kept, the link loaded), the file's KM cap (231000 refused, 0 refused,
- * thousandths out), all-errors-at-once across three fields, the one-way
- * formatting rule, create mode's empty defaults, and the Barangay Editor's
- * separate looser KM rule staying untouched beside it.
+ * kept, the stored tail carried through an edit), the file's KM cap (231000
+ * refused, 0 refused, thousandths out), all-errors-at-once across the two
+ * fields, the one-way formatting rule, create mode's empty defaults, and the
+ * Barangay Editor's municipality field and looser KM rule staying untouched
+ * beside it.
  */
 
 let failures = 0;
@@ -59,7 +58,14 @@ const rec = (
   name: string,
   km: number,
   active: 0 | 1,
-): TerminalRowRecord => ({ id, name, km_marker: km, is_active: active, municipality_id: null });
+): TerminalRowRecord => ({
+  id,
+  name,
+  km_marker: km,
+  is_active: active,
+  municipality_id: null,
+  kind: 'TERMINAL',
+});
 
 const mun = (
   id: number,
@@ -68,14 +74,10 @@ const mun = (
   active: 0 | 1,
 ): MunicipalityRowRecord => ({ id, name, province, is_active: active });
 
-// The terminal route's context: the picker's table and the create rule.
-const tMunis: MunicipalityRowRecord[] = [
-  mun(4, 'Olongapo City', 'Zambales', 1),
-  mun(19, 'Subic', 'Zambales', 0),
-];
-const tctx = { municipalities: tMunis, requireActiveMunicipality: true };
-const tv = (fields: { name: string; km: string; municipalityId: number | null }) =>
-  validateTerminalEditorFields(fields, tctx);
+// The terminal route has no municipality input; its validator takes the two
+// fields alone.
+const tv = (fields: { name: string; km: string }) =>
+  validateTerminalEditorFields(fields);
 
 // ── mode copy ───────────────────────────────────────────────────────────────
 check('create title', terminalEditorTitle('create'), 'ADD TERMINAL');
@@ -94,8 +96,7 @@ const create = initialTerminalEditorUiState('create');
 check('create mode flag', create.mode, 'create');
 check('create name empty', create.name, '');
 check('create km empty, never "0"', create.km, '');
-check('create starts with no municipality', create.municipalityId, null);
-check('create has no field error yet', create.muniError, null);
+check('create has no field error yet', create.saveError, null);
 check('create not loading', create.isLoading, false);
 check('create not saving', create.isSaving, false);
 
@@ -104,9 +105,9 @@ check('edit starts loading', edit.isLoading, true);
 
 // ── load-time derivation ────────────────────────────────────────────────────
 check(
-  '4500 loads as 4.5 with no link',
+  '4500 loads as 4.5',
   terminalEditorFieldsFromRecord(rec(1, 'Santa Cruz', 4_500, 1)),
-  { name: 'Santa Cruz', municipalityId: null, km: '4.5' },
+  { name: 'Santa Cruz', km: '4.5' },
 );
 check('0 loads as 0', terminalEditorFieldsFromRecord(rec(2, 'Iba', 0, 1))?.km, '0');
 check(
@@ -121,12 +122,12 @@ check(
 );
 check('missing record reads null', terminalEditorFieldsFromRecord(null), null);
 check(
-  'edit prefills the PLACE half and the link — never the composed tail',
+  'edit prefills the PLACE half — the stored tail is carried on write, never loaded',
   terminalEditorFieldsFromRecord({
     ...rec(1, 'Santa Cruz, Olongapo', 228_000, 1),
     municipality_id: 4,
   }),
-  { name: 'Santa Cruz', municipalityId: 4, km: '228' },
+  { name: 'Santa Cruz', km: '228' },
 );
 
 // ── clear-on-keystroke ──────────────────────────────────────────────────────
@@ -148,61 +149,26 @@ check('km keystroke clears km error', afterKm.kmError, null);
 check('km keystroke keeps name error', afterKm.nameError, TERMINAL_NAME_ERROR);
 check('km keystroke clears save failure', afterKm.saveError, null);
 
-// Picking a municipality clears its own error and any stale write refusal.
-const picked = pickTerminalMunicipality(
-  { ...errored, muniError: TERMINAL_MUNICIPALITY_REQUIRED_ERROR },
-  4,
-);
-check('picking writes the id', picked.municipalityId, 4);
-check('picking clears the municipality error', picked.muniError, null);
-check('picking clears a stale save failure', picked.saveError, null);
-check('picking leaves the other field errors', picked.nameError, TERMINAL_NAME_ERROR);
-
-// ── validation: the file's order within each field, all at once across ──────
-const clean = tv({ name: 'Santa Cruz', km: '4.5', municipalityId: 4 });
+// ── validation: the file's order within each field, all at once across ──
+const clean = tv({ name: 'Santa Cruz', km: '4.5' });
 check('valid name', clean.nameError, null);
-check('valid municipality', clean.muniError, null);
 check('valid km converts to stored', clean.kmStored, 4_500);
 
 check(
   'whitespace-only name fails',
-  tv({ name: '   ', km: '4.5', municipalityId: 4 }).nameError,
+  tv({ name: '   ', km: '4.5' }).nameError,
   TERMINAL_NAME_ERROR,
 );
 check(
   'the comma is refused at the boundary',
-  tv({ name: 'Foo, Bar', km: '4.5', municipalityId: 4 }).nameError,
+  tv({ name: 'Foo, Bar', km: '4.5' }).nameError,
   TERMINAL_COMMA_ERROR,
 );
 check(
-  'no municipality is its own field error',
-  tv({ name: 'A', km: '4.5', municipalityId: null }).muniError,
-  TERMINAL_MUNICIPALITY_REQUIRED_ERROR,
-);
-check(
-  'a vanished municipality is the race guard',
-  tv({ name: 'A', km: '4.5', municipalityId: 99 }).muniError,
-  TERMINAL_MUNICIPALITY_GONE_ERROR,
-);
-check(
-  'create refuses a deactivated municipality',
-  tv({ name: 'A', km: '4.5', municipalityId: 19 }).muniError,
-  TERMINAL_MUNICIPALITY_GONE_ERROR,
-);
-check(
-  'edit keeps the deactivated municipality it loaded',
-  validateTerminalEditorFields(
-    { name: 'A', km: '4.5', municipalityId: 19 },
-    { municipalities: tMunis, requireActiveMunicipality: false },
-  ).muniError,
-  null,
-);
-check(
-  'all three fields fail together',
-  tv({ name: '  ', km: '', municipalityId: null }),
+  'both fields fail together',
+  tv({ name: '  ', km: '' }),
   {
     nameError: TERMINAL_NAME_ERROR,
-    muniError: TERMINAL_MUNICIPALITY_REQUIRED_ERROR,
     kmError: TERMINAL_KM_ERROR,
     kmStored: null,
   },
@@ -210,15 +176,15 @@ check(
 
 // ── the file's KM rule: the three-digit cap is the point ────────────────────
 check('the sentence names the cap', TERMINAL_KM_ERROR, 'Enter the registered KM as a number, up to 999.9.');
-check('4.5 to 4500', tv({ name: 'A', km: '4.5', municipalityId: 4 }).kmStored, 4_500);
-check('86.2 to 86200', tv({ name: 'A', km: '86.2', municipalityId: 4 }).kmStored, 86_200);
-check('150.25 stays within the cap', tv({ name: 'A', km: '150.25', municipalityId: 4 }).kmStored, 150_250);
-check('232.4 stores 232400', tv({ name: 'A', km: '232.4', municipalityId: 4 }).kmStored, 232_400);
+check('4.5 to 4500', tv({ name: 'A', km: '4.5' }).kmStored, 4_500);
+check('86.2 to 86200', tv({ name: 'A', km: '86.2' }).kmStored, 86_200);
+check('150.25 stays within the cap', tv({ name: 'A', km: '150.25' }).kmStored, 150_250);
+check('232.4 stores 232400', tv({ name: 'A', km: '232.4' }).kmStored, 232_400);
 check('232.44 stores 232440 — display rounds, the store keeps', parseTerminalKm('232.44'), 232_440);
 check('a thousands separator is stripped: 1,2 → 12000', parseTerminalKm('1,2'), 12_000);
 check('the cap itself: 999.9 → 999900', parseTerminalKm('999.9'), 999_900);
-check('raw thousandths are refused', tv({ name: 'A', km: '231000', municipalityId: 4 }).kmError, TERMINAL_KM_ERROR);
-check('raw thousandths store nothing', tv({ name: 'A', km: '231000', municipalityId: 4 }).kmStored, null);
+check('raw thousandths are refused', tv({ name: 'A', km: '231000' }).kmError, TERMINAL_KM_ERROR);
+check('raw thousandths store nothing', tv({ name: 'A', km: '231000' }).kmStored, null);
 check('four digits are refused', parseTerminalKm('1234'), null);
 check('zero is refused', parseTerminalKm('0'), null);
 check('a negative is refused', parseTerminalKm('-5'), null);
@@ -227,7 +193,7 @@ check('malformed 1.2.3 is refused', parseTerminalKm('1.2.3'), null);
 check('empty is refused', parseTerminalKm(''), null);
 check(
   'a twenty-digit overflow is a field error, not a crash',
-  tv({ name: 'A', km: '99999999999999999999', municipalityId: 4 }).kmError,
+  tv({ name: 'A', km: '99999999999999999999' }).kmError,
   TERMINAL_KM_ERROR,
 );
 
@@ -248,7 +214,7 @@ check(
   0,
 );
 check(
-  'the link is written when the caller knows it',
+  'the link is written when the caller knows it — the barangay route',
   buildTerminalWrite(rec(7, 'Old', 1_000, 1), 'New, Olongapo City', 2_000, 4).municipality_id,
   4,
 );
@@ -258,52 +224,63 @@ check(
   false,
 );
 
-// ── the terminal hint: the file's caption, full stored name on nearest ──────
+// ── the terminal name: bare on create, tail carried on edit ─────────────────
+check('create stores the bare place', composeTerminalName('Dau', null), 'Dau');
+check('the name is trimmed at the boundary', composeTerminalName('  Dau  ', null), 'Dau');
+check(
+  'edit carries the stored tail byte-for-byte',
+  composeTerminalName('Santa Cruz', rec(1, 'Santa Cruz, Olongapo', 228_000, 1)),
+  'Santa Cruz, Olongapo',
+);
+check(
+  'a stored name with no comma stays whole',
+  composeTerminalName('Subic', rec(9, 'Subic', 249_600, 1)),
+  'Subic',
+);
+
+// ── the terminal hint: what will be stored, against the whole registry ──────
 const tTerminals: TerminalRowRecord[] = [
   { ...rec(1, 'Olongapo, Olongapo', 232_400, 1), municipality_id: 4 },
   { ...rec(2, 'Dau, Olongapo City', 100_000, 1), municipality_id: 4 },
   { ...rec(3, 'Old Town, Olongapo City', 150_000, 0), municipality_id: 4 },
 ];
-const thintCtx = { municipalities: tMunis, terminals: tTerminals };
-const tfields = (name: string, municipalityId: number | null, km: string) => ({
-  name,
-  municipalityId,
-  km,
-});
+const thintCtx = { terminals: tTerminals };
 check(
-  'before a municipality it asks for one',
-  terminalEditorHint(tfields('Dau', null, '232.4'), thintCtx),
-  'Choose a municipality to see the KM markers registered in it.',
+  'the caption quotes the bare place it will store',
+  terminalEditorHint({ name: 'Dau', km: '232.4' }, thintCtx),
+  'Stores "Dau" · nearest 232.4 KM · Olongapo, Olongapo',
 );
 check(
-  'with no name it shows the destination pair',
-  terminalEditorHint(tfields('', 4, ''), thintCtx),
-  'Olongapo City, Zambales · highest marker here 232.4 KM',
-);
-check(
-  'the file\'s smoke test: Dau / Olongapo City / 232.4',
-  terminalEditorHint(tfields('Dau', 4, '232.4'), thintCtx),
-  'Stores "Dau, Olongapo City" · Zambales · nearest 232.4 KM · Olongapo, Olongapo',
+  'no name: the caption is the marker context alone',
+  terminalEditorHint({ name: '', km: '' }, thintCtx),
+  'Highest marker here 232.4 KM',
 );
 check(
   'the nearest line prints the FULL stored name, the file\'s own reading',
-  terminalEditorHint(tfields('Dau', 4, '149'), thintCtx).includes(
+  terminalEditorHint({ name: 'Dau', km: '149' }, thintCtx).includes(
     'nearest 150 KM · Old Town, Olongapo City',
   ),
   true,
 );
 check(
   'a refused raw value reads as nothing typed: highest marker shows',
-  terminalEditorHint(tfields('Dau', 4, '231000'), thintCtx).includes('highest marker here 232.4 KM'),
+  terminalEditorHint({ name: 'Dau', km: '231000' }, thintCtx).includes('highest marker here 232.4 KM'),
   true,
 );
 check(
-  'an empty municipality says so',
-  terminalEditorHint(tfields('Dau', 4, ''), {
-    municipalities: tMunis,
-    terminals: [],
-  }).includes('no marker registered here yet'),
+  'the context is the whole registry, however each row was filed',
+  terminalEditorHint({ name: 'X', km: '99' }, thintCtx).includes('nearest 100 KM · Dau, Olongapo City'),
   true,
+);
+check(
+  'an empty registry qualifies the stored row honestly',
+  terminalEditorHint({ name: 'Dau', km: '' }, { terminals: [] }),
+  'Stores "Dau" · no marker registered here yet',
+);
+check(
+  'no name and an empty registry is one honest sentence',
+  terminalEditorHint({ name: '', km: '' }, { terminals: [] }),
+  'No marker registered here yet',
 );
 
 // ── the Barangay Editor: its own looser KM rule is untouched ────────────────
@@ -361,6 +338,15 @@ check(
   validateBarangayEditorFields(fields('A', 19, '1'), {
     ...bctx,
     requireActiveMunicipality: false,
+  }).muniError,
+  null,
+);
+check(
+  'barangay edit keeps the no-municipality row it loaded',
+  validateBarangayEditorFields(fields('Subic', null, '4.5'), {
+    ...bctx,
+    requireActiveMunicipality: false,
+    allowMissingMunicipality: true,
   }).muniError,
   null,
 );

@@ -16,6 +16,8 @@ import {
 } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
 import { useUpdates } from '../lib/UpdateProvider';
+import { useApkUpdates } from '../lib/ApkUpdateProvider';
+import { formatBytes } from '../lib/apkUpdateState';
 
 export type SettingsScreenProps = {
   onBack: () => void;
@@ -57,6 +59,10 @@ export function SettingsScreen({
   // The OTA update state, owned by the one provider in App.tsx. The card and
   // the "Update available" sheet below are its only surfaces.
   const updates = useUpdates();
+  // The GitHub Releases APK updater — the app's primary update mechanism.
+  // Its card, available/required sheet and permission sheet are the only
+  // surfaces that drive installable releases.
+  const apk = useApkUpdates();
 
   const modules: SettingsModule[] = [
     {
@@ -116,7 +122,14 @@ export function SettingsScreen({
           <Text style={styles.sectionHeading} accessibilityRole="header">
             App Updates
           </Text>
+          <ApkUpdateCard apk={apk} theme={theme} styles={styles} />
           <UpdateCard updates={updates} theme={theme} styles={styles} />
+          {apk.dialogOpen && apk.release !== null ? (
+            <ApkAvailableSheet apk={apk} theme={theme} styles={styles} />
+          ) : null}
+          {apk.permissionOpen ? (
+            <ApkPermissionSheet apk={apk} theme={theme} styles={styles} />
+          ) : null}
           {updates.dialogOpen ? (
             <UpdateSheet updates={updates} theme={theme} styles={styles} />
           ) : null}
@@ -211,7 +224,7 @@ function UpdateCard({
           <Icon name="update" size={24} color={accent.fg} />
         </View>
         <View style={styles.updateTopText}>
-          <Text style={styles.cardTitle}>App updates</Text>
+          <Text style={styles.cardTitle}>Interface updates</Text>
           <Text
             style={styles.updateStatus}
             accessibilityLiveRegion="polite"
@@ -256,6 +269,243 @@ function UpdateCard({
   );
 }
 
+/**
+ * The APK update card — the primary "App updates" surface: installed
+ * version, live status (check / download % / verify / install / errors),
+ * last check, and one button whose label follows the phase.
+ */
+function ApkUpdateCard({
+  apk,
+  theme,
+  styles,
+}: {
+  apk: ReturnType<typeof useApkUpdates>;
+  theme: KonduktTheme;
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  const accent = theme.accent.primary;
+  const label = apkBusyLabel(apk);
+  const action = () => {
+    if (apk.phase === 'available') return void apk.updateNow();
+    if (apk.phase === 'ready') return void apk.installNow();
+    if (apk.phase === 'permission') return void apk.openPermissionSettings();
+    return void apk.checkNow();
+  };
+  const a11y =
+    apk.phase === 'ready'
+      ? 'Install the downloaded update'
+      : apk.phase === 'permission'
+        ? 'Open Android settings to allow installs'
+        : apk.phase === 'available'
+          ? 'Download and install the update now'
+          : 'Check for updates';
+  return (
+    <GlassCard style={styles.updateCard}>
+      <View style={styles.updateTopRow}>
+        <View style={[styles.iconChip, { backgroundColor: accent.container }]}>
+          <Icon name="update" size={24} color={accent.fg} />
+        </View>
+        <View style={styles.updateTopText}>
+          <Text style={styles.cardTitle}>App updates</Text>
+          <Text
+            style={styles.updateStatus}
+            accessibilityLiveRegion="polite"
+            testID="apk-update-status"
+          >
+            {apk.statusText}
+          </Text>
+        </View>
+      </View>
+      <Text style={styles.updateMeta} testID="apk-update-meta">
+        {apk.installedVersion !== null
+          ? `Version ${apk.installedVersion}`
+          : 'Version information unavailable.'}
+      </Text>
+      <Text style={styles.updateMeta} testID="apk-update-last-check">
+        {apk.lastCheckLabel !== null
+          ? `Last checked ${apk.lastCheckLabel}`
+          : 'No update check yet on this install.'}
+      </Text>
+      <Pressable
+        onPress={action}
+        disabled={apk.busy}
+        accessibilityRole="button"
+        accessibilityLabel={a11y}
+        accessibilityState={{ disabled: apk.busy, busy: apk.busy }}
+        testID="apk-update-check"
+        style={({ pressed }) => [
+          styles.primaryBtn,
+          apk.busy && styles.primaryBtnDisabled,
+          pressed && !apk.busy && styles.pressed,
+        ]}
+      >
+        <Text style={styles.primaryBtnLabel}>{label}</Text>
+      </Pressable>
+    </GlassCard>
+  );
+}
+
+/** The card's button label for the current APK phase. */
+function apkBusyLabel(apk: ReturnType<typeof useApkUpdates>): string {
+  if (apk.busy) {
+    switch (apk.phase) {
+      case 'checking':
+        return 'Checking…';
+      case 'downloading':
+        return 'Downloading…';
+      case 'verifying':
+        return 'Verifying…';
+      case 'installing':
+        return 'Installing…';
+      default:
+        return 'Working…';
+    }
+  }
+  if (apk.phase === 'available') return 'Update Now';
+  if (apk.phase === 'ready') return 'Install Update';
+  if (apk.phase === 'permission') return 'Open Settings';
+  return 'Check for Updates';
+}
+
+/**
+ * The "Update available" / "Update required" sheet: new version, release
+ * notes, file size, and the only place a download is ever started. A
+ * mandatory release hides "Later" — but the sheet itself can still be
+ * dismissed, so an operator is never trapped away from the rest of Settings.
+ */
+function ApkAvailableSheet({
+  apk,
+  theme,
+  styles,
+}: {
+  apk: ReturnType<typeof useApkUpdates>;
+  theme: KonduktTheme;
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  const release = apk.release;
+  if (release === null) return null;
+  return (
+    <Sheet
+      kind="apk-update"
+      title={apk.mandatory ? 'Update required' : 'Update available'}
+      subtitle={`Kondukt ${release.version} is ready to install`}
+      onClose={apk.dismissDialog}
+      footer={
+        <View style={styles.sheetFooter}>
+          {apk.mandatory ? null : (
+            <Pressable
+              onPress={apk.dismissDialog}
+              accessibilityRole="button"
+              accessibilityLabel="Later"
+              testID="apk-update-later"
+              style={({ pressed }) => [styles.ghostAction, pressed && styles.pressed]}
+            >
+              <Text style={styles.ghostActionLabel}>Later</Text>
+            </Pressable>
+          )}
+          <Pressable
+            onPress={apk.updateNow}
+            disabled={apk.busy}
+            accessibilityRole="button"
+            accessibilityLabel="Update Now"
+            accessibilityState={{ disabled: apk.busy, busy: apk.busy }}
+            testID="apk-update-now"
+            style={({ pressed }) => [
+              styles.solidButton,
+              apk.busy && styles.primaryBtnDisabled,
+              pressed && !apk.busy && styles.pressed,
+            ]}
+          >
+            <Text style={styles.solidButtonLabel}>
+              {apk.busy ? 'Downloading…' : 'Update Now'}
+            </Text>
+          </Pressable>
+        </View>
+      }
+    >
+      <Text style={styles.sheetBodyText}>
+        {apk.mandatory
+          ? 'This version is required — Kondukt cannot keep running on the installed version. The update downloads over your trips, tickets, history and settings, which all stay on this device.'
+          : 'A new version of Kondukt is available. It downloads now and installs through Android’s normal installer; your trips, tickets, history and settings stay on this device.'}
+      </Text>
+      {release.releaseNotes.length > 0 ? (
+        <View style={styles.releaseNotes}>
+          {release.releaseNotes.map((note) => (
+            <Text key={note} style={styles.releaseNote}>
+              •  {note}
+            </Text>
+          ))}
+        </View>
+      ) : null}
+      <DetailCard>
+        <DetailRow label="Installed version" value={apk.installedVersion ?? '—'} />
+        <DetailRow label="New version" value={release.version} />
+        <DetailRow label="File size" value={formatBytes(release.sizeBytes ?? -1)} />
+        <DetailRow label="Release tag" value={release.tag} />
+      </DetailCard>
+      <Text style={styles.sheetHint} accessibilityLiveRegion="polite">
+        {apk.statusText}
+      </Text>
+    </Sheet>
+  );
+}
+
+/**
+ * The "Installation permission required" sheet: Android needs the user to
+ * allow installs from this source before the system prompt will appear. The
+ * button opens exactly that settings screen; granting stays in Android's
+ * hands — nothing is auto-granted here.
+ */
+function ApkPermissionSheet({
+  apk,
+  theme,
+  styles,
+}: {
+  apk: ReturnType<typeof useApkUpdates>;
+  theme: KonduktTheme;
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  return (
+    <Sheet
+      kind="apk-permission"
+      title="Installation permission required"
+      subtitle="Android needs permission to install the update"
+      onClose={apk.dismissPermission}
+      footer={
+        <View style={styles.sheetFooter}>
+          <Pressable
+            onPress={apk.dismissPermission}
+            accessibilityRole="button"
+            accessibilityLabel="Later"
+            testID="apk-permission-later"
+            style={({ pressed }) => [styles.ghostAction, pressed && styles.pressed]}
+          >
+            <Text style={styles.ghostActionLabel}>Later</Text>
+          </Pressable>
+          <Pressable
+            onPress={apk.openPermissionSettings}
+            accessibilityRole="button"
+            accessibilityLabel="Open Settings"
+            testID="apk-permission-settings"
+            style={({ pressed }) => [styles.solidButton, pressed && styles.pressed]}
+          >
+            <Text style={styles.solidButtonLabel}>Open Settings</Text>
+          </Pressable>
+        </View>
+      }
+    >
+      <Text style={styles.sheetBodyText}>
+        Because Kondukt is installed outside Google Play, Android asks you to allow installs
+        from this app first. Tap Open Settings, turn on “Install from this source”, then come
+        back and tap Install Update. The downloaded update waits for you.
+      </Text>
+      <Text style={styles.sheetHint} accessibilityLiveRegion="polite">
+        {apk.statusText}
+      </Text>
+    </Sheet>
+  );
+}
+
 /** The "Update available" sheet: the only place an update is ever started. */
 function UpdateSheet({
   updates,
@@ -266,6 +516,14 @@ function UpdateSheet({
   theme: KonduktTheme;
   styles: ReturnType<typeof makeStyles>;
 }) {
+  // Which code is on screen right now: the binary's own bundle, or an OTA
+  // update that has already been applied. The id is printed short — it is a
+  // debugging aid, not a secret, and the full value lives in the logs.
+  const running = updates.runInfo.isEmbeddedLaunch
+    ? 'Embedded build'
+    : updates.runInfo.updateId !== null
+      ? `Update ${updates.runInfo.updateId.slice(0, 8)}`
+      : 'OTA update';
   return (
     <Sheet
       kind="update"
@@ -304,15 +562,16 @@ function UpdateSheet({
       }
     >
       <Text style={styles.sheetBodyText}>
-        A new version of the application is available. It can be downloaded now: the new
+        A new version of the interface is available. It can be downloaded now: the new
         interface, business logic and content are installed over this one, and your trips,
-        tickets, history and settings stay on this device. Native Android changes still arrive
-        through Google Play.
+        tickets, history and settings stay on this device. New Android binaries arrive as
+        app updates from GitHub Releases — see App updates above.
       </Text>
       <DetailCard>
         <DetailRow label="Installed version" value={updates.runInfo.version ?? '—'} />
         <DetailRow label="Runtime version" value={updates.runInfo.runtimeVersion ?? '—'} />
         <DetailRow label="Update channel" value={updates.runInfo.channel ?? 'Not configured'} />
+        <DetailRow label="Running" value={running} />
       </DetailCard>
       <Text style={styles.sheetHint} accessibilityLiveRegion="polite">
         {updates.statusText}
@@ -442,5 +701,16 @@ const makeStyles = (theme: KonduktTheme) =>
       ...type.bodySmall,
       color: theme.palette.onSurfaceVariant,
       marginTop: space(3),
+    },
+
+    // Release notes in the APK sheet: a simple bulleted list on the sheet's
+    // own body rhythm — no new surface, just text.
+    releaseNotes: {
+      marginTop: space(3),
+      gap: space(1),
+    },
+    releaseNote: {
+      ...type.bodySmall,
+      color: theme.palette.onSurfaceVariant,
     },
   });

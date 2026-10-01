@@ -64,8 +64,7 @@ export function routeDistance(
 
 /**
  * What a chosen route will bill, in the reference's measure(): the route
- * distance, the floor applied to it, the toll road's extra half kilometre
- * added after the floor, and the rate for the chosen road.
+ * distance, the floor applied to it, and the rate for the chosen road.
  *
  * `ok: false` carries the refusal in the app's own words — the same sentences
  * `startTrip` re-validates inside its transaction, so a conductor is never
@@ -76,7 +75,6 @@ export type TripMeasure = {
   reason: string | null;
   distMilli: number;
   flooredMilli: number;
-  adjMilli: number;
   billableMilli: number;
   rateCentavos: number;
   minDistBinds: boolean;
@@ -85,10 +83,10 @@ export type TripMeasure = {
 /**
  * Measures a route against the fare rules, integer end to end.
  *
- * The order is the rule and matches the reference's: the minimum distance is
- * applied to the ROUTE distance first, and the toll road's adjustment is added
- * after it — the adjustment is distance the driver is billed for, not distance
- * they drove, so it cannot be what the floor is measured against.
+ * The order is the rule: the minimum distance is applied to the ROUTE
+ * distance, and that floored distance is what bills — nothing is added to it
+ * on any road, so this card and the boarding screen always quote the same
+ * billable figure for the same pair of terminals.
  */
 export function measureTrip(input: {
   origin: TerminalRowRecord | null;
@@ -102,7 +100,6 @@ export function measureTrip(input: {
     reason,
     distMilli: 0,
     flooredMilli: 0,
-    adjMilli: 0,
     billableMilli: 0,
     rateCentavos: 0,
     minDistBinds: false,
@@ -117,7 +114,6 @@ export function measureTrip(input: {
   const distMilli = Math.abs(destination.km_marker - origin.km_marker);
   if (distMilli === 0) return fail('The route distance is zero. Choose different terminals.');
 
-  const adjMilli = usesSctex ? rules.sctexAdjustmentMilli : 0;
   const rateCentavos = usesSctex ? rules.expressRatePerKmCentavos : rules.ratePerKmCentavos;
   const flooredMilli = Math.max(distMilli, rules.minimumDistanceMilli);
   return {
@@ -125,8 +121,7 @@ export function measureTrip(input: {
     reason: null,
     distMilli,
     flooredMilli,
-    adjMilli,
-    billableMilli: flooredMilli + adjMilli,
+    billableMilli: flooredMilli,
     rateCentavos,
     minDistBinds: distMilli < rules.minimumDistanceMilli,
   };
@@ -149,17 +144,7 @@ export function estimateNote(input: {
     return (
       `These two terminals are ${formatKm(measure.distMilli)} apart, so ` +
       `${formatKm(measure.flooredMilli)} is billed against the ` +
-      `${formatKm(rules.minimumDistanceMilli)} minimum distance` +
-      (measure.adjMilli ? `, and ${formatKm(measure.adjMilli)} more is billed on this road` : '') +
-      '.' +
-      minFare
-    );
-  }
-  if (measure.adjMilli) {
-    return (
-      `The billable distance is ${formatKm(measure.billableMilli)} — the ` +
-      `${formatKm(measure.distMilli)} route plus ${formatKm(measure.adjMilli)} on this road — ` +
-      'and the expressway rate applies to all of it.' +
+      `${formatKm(rules.minimumDistanceMilli)} minimum distance.` +
       minFare
     );
   }

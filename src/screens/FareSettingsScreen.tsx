@@ -353,9 +353,6 @@ export function FareSettingsScreen({ onBack }: FareSettingsScreenProps) {
       expressRatePerKmCentavos: readPeso(seated.expressRatePerKm),
       specialRatePerKmCentavos: readPeso(values.specialRate),
       specialExpressRatePerKmCentavos: readPeso(seated.specialExpressRate),
-      // Never folded into the billable distance: `priceTicket` applies the
-      // distance floor and then the fare floor, and adds nothing between them.
-      sctexAdjustmentMilli: 0,
     };
   }, [values]);
 

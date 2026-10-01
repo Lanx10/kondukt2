@@ -12,7 +12,7 @@ import { barangayNameOf } from './barangayPickerState';
  * validation contract: every check runs on every attempt and all failures
  * show together — the prototype's first-error-only `validate()` is the one
  * contract this port deliberately drops, stated here as the decision: a
- * three-field form that highlights one error per tap costs a tap per error.
+ * form that highlights one error per tap costs a tap per error.
  * Third, the one-way rule: the KM and name text a user typed is theirs until
  * a fresh load — nothing reformats it after a save.
  *
@@ -25,8 +25,13 @@ import { barangayNameOf } from './barangayPickerState';
  * rules and neither screen ships two phrasings.
  *
  * The composed name is built at the form boundary and never here for the
- * write — `barangayEditorComposeName` below is the shared composition the
- * terminal route also uses. The DUPLICATE is not validated here at all: its
+ * write. The two routes compose differently, and both composers live here:
+ * the barangay route joins the place to its municipality row
+ * (`barangayEditorComposeName`); the terminal route no longer asks for a
+ * municipality, so it stores the bare place on create and carries a stored
+ * name's tail through an edit (`composeTerminalName`) — the UPDATE replaces
+ * the whole column, and dropping the tail would erase provenance the form
+ * never showed. The DUPLICATE is not validated here at all: its
  * rule is a SELECT on `lower(name)` in `saveTerminal()`, and its rejection
  * arrives through the save channel verbatim — same discipline as
  * `saveMunicipality`.
@@ -41,9 +46,6 @@ export type TerminalEditorUiState = {
   nameError: string | null;
   km: string;
   kmError: string | null;
-  /** The third column's control: null until a municipality is picked. */
-  municipalityId: number | null;
-  muniError: string | null;
   /** The one notice slot: a store rejection or a write failure, never a field error. */
   saveError: string | null;
   isLoading: boolean;
@@ -61,10 +63,6 @@ export const TERMINAL_KM_ERROR = 'Enter the registered KM as a number, up to 999
  * here would describe a refusal this path never makes.
  */
 export const BARANGAY_KM_ERROR = 'Enter a valid KM marker.';
-export const TERMINAL_MUNICIPALITY_REQUIRED_ERROR =
-  'Choose the municipality this terminal belongs to.';
-export const TERMINAL_MUNICIPALITY_GONE_ERROR =
-  'That municipality is no longer available.';
 export const TERMINAL_SAVE_ERROR = 'Unable to save terminal.';
 export const TERMINAL_NOT_FOUND_ERROR = 'Terminal not found.';
 export const BARANGAY_NOT_FOUND_ERROR = 'Barangay not found.';
@@ -91,8 +89,6 @@ export function initialTerminalEditorUiState(
     nameError: null,
     km: '',
     kmError: null,
-    municipalityId: null,
-    muniError: null,
     saveError: null,
     isLoading: mode === 'edit',
     isSaving: false,
@@ -101,20 +97,20 @@ export function initialTerminalEditorUiState(
 
 /**
  * One load-time derivation: the stored integer becomes field text with
- * trailing zeros stripped (4500 → "4.5", 0 → "0"), the name field takes the
- * PLACE half of the composed string (first comma — written down beside the
- * other splitters), and the link rides along so an edit loads the column the
- * two-field screen used to leave untouched. A `null` record means the id does
- * not exist — only meaningful for edit; create never loads a record.
+ * trailing zeros stripped (4500 → "4.5", 0 → "0") and the name field takes
+ * the PLACE half of the composed string (first comma — written down beside
+ * the other splitters). The municipality link is NOT read: it is the
+ * Barangay Editor's field, and this route leaves the stored column exactly
+ * as the store holds it. A `null` record means the id does not exist — only
+ * meaningful for edit; create never loads a record.
  */
 export function terminalEditorFieldsFromRecord(
   record: TerminalRowRecord | null,
-): { name: string; municipalityId: number | null; km: string } | null {
+): { name: string; km: string } | null {
   if (record === null) return null;
   const comma = record.name.indexOf(',');
   return {
     name: (comma === -1 ? record.name : record.name.slice(0, comma)).trim(),
-    municipalityId: record.municipality_id ?? null,
     km: formatScaled(record.km_marker, SCALE_KM),
   };
 }
@@ -140,23 +136,6 @@ export function commitTerminalEditorField(
   // dismisses it, per the existing editor's behavior.
   next.saveError = null;
   return next;
-}
-
-/**
- * Choosing a municipality: the selection is the driver's until a fresh load,
- * and it invalidates the refusal that belonged to the previous value — its
- * own field error and any stale whole-save rejection both clear.
- */
-export function pickTerminalMunicipality(
-  state: TerminalEditorUiState,
-  municipalityId: number | null,
-): TerminalEditorUiState {
-  return {
-    ...state,
-    municipalityId,
-    muniError: null,
-    saveError: null,
-  };
 }
 
 /**
@@ -209,28 +188,16 @@ function convertKmField(km: string): { kmError: string | null; kmStored: number 
   return { kmError: null, kmStored: parsed };
 }
 
-export type TerminalEditorContext = {
-  municipalities: MunicipalityRowRecord[];
-  /**
-   * Create refuses a deactivated municipality (it could be deactivated
-   * between render and save); edit may keep the one it loaded — a driver
-   * could never fix a row whose municipality was deactivated later.
-   */
-  requireActiveMunicipality: boolean;
-};
-
 /**
  * Every failure at once, in the file's precedence within each field: name
- * empty → name comma; municipality missing → municipality gone; KM any
- * refusal. The duplicate is NOT here — its rule is the data layer's SELECT
- * on the composed name, and its sentence arrives through the save channel.
+ * empty → name comma; KM any refusal. There is no municipality check here —
+ * the link is the Barangay Editor's field to choose, and a terminal created
+ * by this route carries none of its own. The duplicate is NOT here — its
+ * rule is the data layer's SELECT on the composed name, and its sentence
+ * arrives through the save channel.
  */
-export function validateTerminalEditorFields(
-  state: Pick<TerminalEditorUiState, 'name' | 'km' | 'municipalityId'>,
-  context: TerminalEditorContext,
-): {
+export function validateTerminalEditorFields(state: Pick<TerminalEditorUiState, 'name' | 'km'>): {
   nameError: string | null;
-  muniError: string | null;
   kmError: string | null;
   kmStored: number | null;
 } {
@@ -239,18 +206,6 @@ export function validateTerminalEditorFields(
   if (trimmedName === '') nameError = TERMINAL_NAME_ERROR;
   else if (trimmedName.indexOf(',') !== -1) nameError = TERMINAL_COMMA_ERROR;
 
-  const municipality =
-    context.municipalities.find((row) => row.id === state.municipalityId) ?? null;
-  let muniError: string | null = null;
-  if (state.municipalityId === null) {
-    muniError = TERMINAL_MUNICIPALITY_REQUIRED_ERROR;
-  } else if (
-    municipality === null ||
-    (context.requireActiveMunicipality && municipality.is_active !== 1)
-  ) {
-    muniError = TERMINAL_MUNICIPALITY_GONE_ERROR;
-  }
-
   const { kmError, kmStored } = (() => {
     const stored = parseTerminalKm(state.km);
     // Empty, malformed ("1.2.3"), zero, negative, raw thousandths, 4+ digits.
@@ -258,7 +213,7 @@ export function validateTerminalEditorFields(
       ? { kmError: TERMINAL_KM_ERROR, kmStored: null }
       : { kmError: null, kmStored: stored };
   })();
-  return { nameError, muniError, kmError, kmStored };
+  return { nameError, kmError, kmStored };
 }
 
 export type TerminalWrite = {
@@ -267,12 +222,11 @@ export type TerminalWrite = {
   km_marker: number;
   is_active: 0 | 1;
   /**
-   * Present only when the caller knows the link. The real table has
-   * `municipality_id INTEGER REFERENCES municipalities(id)` (the old
-   * docstring claiming otherwise was false), and the INSERT path binds it;
-   * a caller that omits it — the two-field Terminal Editor — leaves the key
-   * absent, so the UPDATE never touches the column and an edit cannot wipe
-   * a link it never loaded.
+   * Present only when the caller knows the link — the Barangay Editor, which
+   * always passes it because a new stop is linked by construction. The
+   * terminal route never passes it: the UPDATE branch therefore leaves the
+   * stored column untouched, and a save from the two-field form can never
+   * null a link it does not show.
    */
   municipality_id?: number | null;
 };
@@ -284,8 +238,9 @@ export type TerminalWrite = {
  * the active flag ride through, so an inactive terminal stays inactive).
  * Create asks the store for a fresh id with the active default. The
  * municipality link is written when the caller passes one — create always
- * does on the Barangay Editor, which exists to mint linked rows.
- * Timestamps are the store's business; the screen writes none.
+ * does on the Barangay Editor, which exists to mint linked rows, while the
+ * terminal route passes none. Timestamps are the store's business; the
+ * screen writes none.
  */
 export function buildTerminalWrite(
   loaded: TerminalRowRecord | null,
@@ -304,6 +259,21 @@ export function buildTerminalWrite(
         };
   if (municipalityId !== undefined) base.municipality_id = municipalityId;
   return base;
+}
+
+/**
+ * What the terminal route writes into `terminals.name`. The route no longer
+ * asks for a municipality, so create stores the bare place — and an edit
+ * carries the stored tail byte-for-byte: the UPDATE replaces the whole
+ * column, and rewriting `'Santa Cruz, Olongapo'` as `'Santa Cruz'` would
+ * erase the provenance the unlinked readers display. The tail belongs to
+ * the record's history, not to a control on this form.
+ */
+export function composeTerminalName(name: string, loaded: TerminalRowRecord | null): string {
+  const trimmed = name.trim();
+  if (loaded === null) return trimmed;
+  const comma = loaded.name.indexOf(',');
+  return comma === -1 ? trimmed : `${trimmed}${loaded.name.slice(comma)}`;
 }
 
 // ── Barangay Editor: create and edit over the same three fields ────────────
@@ -361,6 +331,8 @@ export type BarangayEditorContext = {
    * could never fix a row whose municipality was deactivated later.
    */
   requireActiveMunicipality: boolean;
+  /** Edit keeps the no-municipality row it loaded — see the terminal context. */
+  allowMissingMunicipality?: boolean;
 };
 
 /**
@@ -384,7 +356,7 @@ export function validateBarangayEditorFields(
     context.municipalities.find((row) => row.id === fields.municipalityId) ?? null;
   let muniError: string | null = null;
   if (fields.municipalityId === null) {
-    muniError = BARANGAY_MUNICIPALITY_REQUIRED_ERROR;
+    if (!context.allowMissingMunicipality) muniError = BARANGAY_MUNICIPALITY_REQUIRED_ERROR;
   } else if (
     municipality === null ||
     (context.requireActiveMunicipality && municipality.is_active !== 1)
@@ -448,22 +420,20 @@ export function barangayEditorComposeName(
 }
 
 /**
- * The nearest stored marker in this municipality, or the highest when no
- * number is typed yet — every figure is a stored row, inactive ones included,
+ * The nearest stored marker in the given rows, or the highest when no number
+ * is typed yet — every figure is a stored row, inactive ones included,
  * because a deactivated stop still sits on the route. KM text renders through
  * `formatScaled`, so trailing zeros are trimmed: the honest rendering of
- * 5000 is `5 KM`, never `5.0 KM`.
+ * 5000 is `5 KM`, never `5.0 KM`. The caller owns the scoping: the barangay
+ * route passes one municipality's rows, the terminal route the registry.
  */
 function kmContextLine(
   terminals: TerminalRowRecord[],
-  municipalityId: number,
   typedKm: number | null,
   /** What follows `nearest … · ` — the stored name as each editor prints it. */
   nameOf: (stored: string) => string,
 ): string {
-  const rows = terminals
-    .filter((row) => row.municipality_id === municipalityId)
-    .sort((a, b) => a.km_marker - b.km_marker);
+  const rows = [...terminals].sort((a, b) => a.km_marker - b.km_marker);
   const format = (milli: number) => `${formatScaled(milli, SCALE_KM)} KM`;
   if (rows.length === 0) return 'no marker registered here yet';
   if (typedKm === null) {
@@ -478,16 +448,19 @@ function kmContextLine(
   return `nearest ${format(best.km_marker)} · ${nameOf(best.name)}`;
 }
 
-/** The shared caption body; the two editors differ only in two arguments. */
-function editorHint(
+/**
+ * The barangay route's hint under the card: the composed name, the province,
+ * and the marker context the chosen municipality already holds — derived
+ * from the same rows the registry lists, never typed. Before a municipality
+ * is chosen it says exactly that and nothing else.
+ */
+export function barangayEditorHint(
   fields: BarangayEditorFields,
   context: {
     municipalities: MunicipalityRowRecord[];
     terminals: TerminalRowRecord[];
     loaded?: TerminalRowRecord | null;
   },
-  typedKm: number | null,
-  nameOf: (stored: string) => string,
 ): string {
   if (fields.municipalityId === null) {
     return 'Choose a municipality to see the KM markers registered in it.';
@@ -504,41 +477,35 @@ function editorHint(
       : `Stores "${barangayEditorComposeName(fields, municipality, context.loaded ?? null)}"${
           province === '' ? '' : ` · ${province}`
         }`;
-  return `${head} · ${kmContextLine(context.terminals, municipality.id, typedKm, nameOf)}`;
+  return `${head} · ${kmContextLine(
+    context.terminals.filter((row) => row.municipality_id === municipality.id),
+    convertKmField(fields.km).kmStored,
+    barangayNameOf,
+  )}`;
 }
 
 /**
- * The hint under the card: the composed name, the province, and the marker
- * context — derived from the same rows the registry lists, never typed.
- * Before a municipality is chosen it says exactly that and nothing else.
- */
-export function barangayEditorHint(
-  fields: BarangayEditorFields,
-  context: {
-    municipalities: MunicipalityRowRecord[];
-    terminals: TerminalRowRecord[];
-    loaded?: TerminalRowRecord | null;
-  },
-): string {
-  return editorHint(fields, context, convertKmField(fields.km).kmStored, barangayNameOf);
-}
-
-/**
- * The terminal route's caption — the same figure, two decisions swapped:
- * the typed number parses through the file's cap (a refused `231000` reads
- * as "nothing typed yet", so the hint shows the highest marker), and the
- * nearest line prints the FULL stored name, the way add-terminal.html does
- * (`nearest 232.4 KM · Olongapo, Olongapo`), because that string is the row.
+ * The terminal route's hint: what will be stored, and where the typed marker
+ * sits on the registered route. The route has no municipality field, so the
+ * context is the WHOLE stop registry — every marker on the one road, however
+ * it was filed. The typed number parses through the file's cap (a refused
+ * `231000` reads as "nothing typed yet", so the hint shows the highest
+ * marker), and the nearest line prints the FULL stored name, the way
+ * add-terminal.html does (`nearest 232.4 KM · Olongapo, Olongapo`), because
+ * that string is the row. No name means the caption is the context alone.
  */
 export function terminalEditorHint(
-  fields: BarangayEditorFields,
-  context: {
-    municipalities: MunicipalityRowRecord[];
-    terminals: TerminalRowRecord[];
-    loaded?: TerminalRowRecord | null;
-  },
+  fields: { name: string; km: string },
+  context: { terminals: TerminalRowRecord[] },
 ): string {
-  return editorHint(fields, context, parseTerminalKm(fields.km), (stored) => stored);
+  const line = kmContextLine(context.terminals, parseTerminalKm(fields.km), (stored) => stored);
+  if (fields.name.trim() === '') {
+    // The caption is the context alone, sentence-case: "Highest marker here
+    // 232.4 KM" or, on a registry with no rows yet, the honest "No marker
+    // registered here yet".
+    return line.charAt(0).toUpperCase() + line.slice(1);
+  }
+  return `Stores "${fields.name.trim()}" · ${line}`;
 }
 
 export type BarangayMunicipalityOption = {

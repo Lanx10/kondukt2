@@ -56,7 +56,9 @@ export const SEED_FARE = {
   special_express_deluxe_rate_per_km: 170,
 } as const;
 
-export const SEED_SCTEX = { km_adjustment_milli: 500 } as const;
+// The column is NOT NULL and the row must exist; nothing prices from it —
+// fare math adds no toll-road adjustment on any road.
+export const SEED_SCTEX = { km_adjustment_milli: 0 } as const;
 
 /** `SEED_FARE` in the shape the calculator reads. */
 export function seedRules(): FareRules {
@@ -67,7 +69,6 @@ export function seedRules(): FareRules {
     expressRatePerKmCentavos: SEED_FARE.express_rate_per_km,
     specialRatePerKmCentavos: SEED_FARE.special_rate_per_km,
     specialExpressRatePerKmCentavos: SEED_FARE.special_express_rate_per_km,
-    sctexAdjustmentMilli: SEED_SCTEX.km_adjustment_milli,
   };
 }
 
@@ -83,13 +84,17 @@ export const SEED_MUNICIPALITIES: (MunicipalityRowRecord & { id: number })[] = [
  * The stop registry, KM markers included. Every seeded trip's distance is the
  * difference between two of these, so the route a trip describes and the route
  * the Add-trip picker offers are the same road.
+ *
+ * Filed as `TERMINAL`: these are route endpoints, and Terminal Configuration
+ * is the list they belong to. Barangays are the stops a driver adds later,
+ * from the Barangay Configuration module.
  */
 export const SEED_TERMINALS: (TerminalRowRecord & { id: number })[] = [
-  { id: 1, name: 'Santa Cruz, Olongapo', km_marker: 228_000, is_active: 1, municipality_id: 1 },
-  { id: 2, name: 'Caloocan, Kalakhang Maynila', km_marker: 314_200, is_active: 1, municipality_id: 2 },
-  { id: 3, name: 'Olongapo, Olongapo', km_marker: 232_400, is_active: 1, municipality_id: 1 },
-  { id: 4, name: 'Subic, Subic', km_marker: 249_600, is_active: 1, municipality_id: null },
-  { id: 5, name: 'Iba, Zambales', km_marker: 96_800, is_active: 1, municipality_id: 3 },
+  { id: 1, name: 'Santa Cruz, Olongapo', km_marker: 228_000, is_active: 1, municipality_id: 1, kind: 'TERMINAL' },
+  { id: 2, name: 'Caloocan, Kalakhang Maynila', km_marker: 314_200, is_active: 1, municipality_id: 2, kind: 'TERMINAL' },
+  { id: 3, name: 'Olongapo, Olongapo', km_marker: 232_400, is_active: 1, municipality_id: 1, kind: 'TERMINAL' },
+  { id: 4, name: 'Subic, Subic', km_marker: 249_600, is_active: 1, municipality_id: null, kind: 'TERMINAL' },
+  { id: 5, name: 'Iba, Zambales', km_marker: 96_800, is_active: 1, municipality_id: 3, kind: 'TERMINAL' },
 ];
 
 const terminalByName = (name: string) => {

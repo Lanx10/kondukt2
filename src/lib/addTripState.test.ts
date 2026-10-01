@@ -38,6 +38,7 @@ function terminal(over: Partial<TerminalRowRecord> = {}): TerminalRowRecord {
     km_marker: 228_000,
     is_active: 1,
     municipality_id: null,
+    kind: 'TERMINAL',
     ...over,
   };
 }
@@ -110,7 +111,7 @@ check('route distance is the absolute marker gap', measured.distMilli, 86_200);
 check('ordinary road adds no adjustment', measured.billableMilli, 86_200);
 check('ordinary road bills the ordinary rate', measured.rateCentavos, rules.ratePerKmCentavos);
 const express = measureTrip({ origin: santaCruz, destination: caloocan, usesSctex: true, rules });
-check('sctex adds its half kilometre after the floor', express.billableMilli, 86_700);
+check('sctex bills the same distance — no adjustment is added', express.billableMilli, 86_200);
 check('sctex bills the express rate', express.rateCentavos, rules.expressRatePerKmCentavos);
 const floored = measureTrip({
   origin: terminal({ id: 3, km_marker: 1_000 }),
@@ -145,10 +146,9 @@ check(
     ' The minimum fare of ₱50.00 applies to every boarding on it.',
 );
 check(
-  'the toll branch carries the adjustment through',
+  'the express branch still names the minimum fare',
   estimateNote({ measure: express, rules }),
-  'The billable distance is 86.7 km — the 86.2 km route plus 0.5 km on this road — ' +
-    'and the expressway rate applies to all of it.' +
+  'On this road the route distance is the billable distance.' +
     ' The minimum fare of ₱50.00 applies to every boarding on it.',
 );
 

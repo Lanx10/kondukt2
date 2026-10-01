@@ -1,129 +1,223 @@
-# Release Workflow — OTA Updates vs Google Play
+# Release Workflow — GitHub Releases (APK) vs EAS Update (OTA)
 
-Kondukt ships through **two completely separate update channels**. This document is the
-source of truth for both. Do not mix them: the app never downloads an APK, never installs
-from unknown sources, and never talks to a server other than EAS Update for OTA content.
+Kondukt ships as a **directly distributed APK** — there is no Google Play release.
+Two separate update channels exist, and this document is the source of truth for both:
 
-| | OTA (EAS Update) | Google Play release |
+| | APK (GitHub Releases) — **primary** | OTA (EAS Update) — secondary |
 |---|---|---|
-| Delivers | JavaScript/TypeScript, UI, business logic, assets, bug fixes | New Android binary (native modules, native config, versionCode bumps) |
-| Mechanism | `expo-updates` + EAS Update, fetched in-app | Play Store distributes the AAB; users update through Play |
-| Compatibility gate | `runtimeVersion` must match the installed build | `versionCode` / Play track rules |
-| Never used for | Installing a new Android binary | Replacing the app's own JS hot-update path |
+| Delivers | The full Android binary (native modules, config, versionCode bumps) | JavaScript/TypeScript, UI, business logic, assets |
+| Mechanism | In-app download from this repo's GitHub Releases + Android's normal installer | `expo-updates` + EAS Update, fetched in-app |
+| Compatibility gate | Semver compare + optional `versionCode` / `minimumVersion` | `runtimeVersion` must match the installed build |
+| Never used for | Replacing JS hot-update as the *only* path | Installing a new Android binary |
 
-**The app must never implement:** direct APK downloading, manual APK installation,
-unknown-source installs, custom APK replacement, or a second update server for binaries.
-If native code changes, Google Play is the only distribution path.
+The two systems are visible side by side in Settings → App Updates: **App updates**
+(GitHub Releases APK) and **Interface updates** (OTA). Neither uses Google Play. The
+app never embeds credentials of any kind: GitHub Releases are public and need no token.
+
+## GitHub release structure (the version manifest)
+
+The app's single source of truth for "what is the latest release?" is
+`GET https://api.github.com/repos/<owner>/<repo>/releases/latest` — GitHub's own
+latest-release metadata. The release itself is the manifest:
+
+```
+GitHub Repository (Lanx10/kondukt2)
+└── Releases
+    ├── v1.0.0
+    │   └── kondukt-1.0.0.apk
+    ├── v1.1.0
+    │   └── kondukt-1.1.0.apk
+    └── v1.2.0
+        └── kondukt-1.2.0.apk
+```
+
+- **Tag** `v<semver>` → the released version (`v1.2.0` → `1.2.0`).
+- **Asset** `kondukt-<semver>.apk` → the file to download. The name is derived from
+  release metadata at runtime; the app never hardcodes a filename. The asset URL must
+  live under `https://github.com/<owner>/<repo>/releases/download/` or it is rejected.
+- **Release body (optional JSON manifest)** — parsed only when the body is a JSON
+  object; otherwise the body's lines become the release notes shown in the sheet:
+
+```json
+{
+  "version": "1.2.0",
+  "versionCode": 12,
+  "minimumVersion": "1.0.0",
+  "apkUrl": "https://github.com/Lanx10/kondukt2/releases/download/v1.2.0/kondukt-1.2.0.apk",
+  "releaseNotes": [
+    "Improved ticket entry",
+    "Fixed trip history",
+    "Performance improvements"
+  ],
+  "sha256": "<64 hex chars of the APK, optional>"
+}
+```
+
+`minimumVersion` and `sha256` exist **only** in this body manifest — GitHub's API
+cannot express them. All fields are optional except that *some* valid version source
+(tag or `version`) and *some* trusted APK URL (asset preferred) must resolve.
 
 ## Version concepts (keep them separate)
 
 | Concept | Source of truth | Current value |
 |---|---|---|
-| App version (user-facing) | `expo.version` in `app.json` (also `package.json` version) | `1.0.0` |
-| Android `versionCode` | `expo.android.versionCode` in `app.json` (`eas.json` sets `appVersionSource: local`) | `1` |
+| App version (user-facing, compared to release tags) | `expo.version` in `app.json` (`package.json` version matches) | `1.0.0a` |
+| Android `versionCode` | `expo.android.versionCode` in `app.json` (`eas.json` has `appVersionSource: local`) | `2` |
 | Expo `runtimeVersion` | `expo.runtimeVersion.policy: "appVersion"` → resolves to the app version | `1.0.0` |
 | EAS Update channel | `eas.json` build profiles | `production` / `preview` / `development` |
-| Update ID | Per published OTA update, returned by EAS at publish time (shown as `Updates.updateId` when running one) | n/a until first publish |
+| Updater configuration | `src/lib/apkUpdateConfig.ts` (`UPDATE_CONFIG`) | owner `Lanx10`, repo `kondukt2`, tag prefix `v`, 6 h auto-check, mandatory allowed |
 
-`runtimeVersion.policy: "appVersion"` means: OTA updates are only delivered to installs
-whose app version matches the update's runtime. Bump `expo.version` only for releases
-that require it (typically with a new binary); while it stays `1.0.0`, every Play build
-of 1.0.0 shares one OTA runtime.
+Version comparison is numeric per semver segment (`1.10.0 > 1.9.0`), malformed input
+never crashes or forces an update, and a released `versionCode` above the installed one
+breaks equal-version ties. Mandatory updates happen **only** when the release body sets
+`minimumVersion` above the installed version **and** `allowMandatoryUpdates` is true —
+an update merely existing is never forced.
 
-## Configuration status
+## APK release procedure (exact)
 
-Present in this project:
-
-- `expo-updates ~57.0.24` (SDK 57-matched, installed via `npx expo install expo-updates`)
-- `expo-constants ~57.0.20` (reads the app version for the Settings card)
-- `app.json` → `expo.runtimeVersion: { "policy": "appVersion" }`
-- `app.json` → `expo.updates.checkAutomatically: "NEVER"` — the app's own throttled
-  check owns the cadence (one at start, one per return to foreground, min. 6 h apart),
-  so there is exactly one checker and no surprise network calls.
-- `eas.json` → channels `development`, `preview`, `production` on the matching profiles.
-
-**One-time setup still required on your EAS account** (values are never invented here):
-
-1. `npx eas login` (an Expo account is required).
-2. `npx eas init` — links this repository to an EAS project and writes
-   `extra.eas.projectId` into `app.json`. This is the project ID EAS Update serves from.
-3. `npx eas update:configure` — writes `expo.updates.url`
-   (`https://u.expo.dev/<projectId>`) into `app.json`. Without a URL, OTA is simply
-   disabled (`Updates.isEnabled === false`) and the Settings card says so calmly —
-   nothing crashes.
-4. Verify after step 3 that `expo.updates.checkAutomatically` is still `"NEVER"`
-   (the app owns checking; re-add it if the CLI overwrote it).
-
-## OTA JavaScript/UI update (no Play release needed)
-
-1. Modify application code.
-2. Test locally (`npx expo start`, `npx expo lint`, `npx tsc --noEmit`, test suites).
-3. Build/test the production environment as appropriate — OTA is only valid for a
-   **release build** with a configured update URL (`npx eas build --profile production`).
-4. Publish to the production channel:
+1. Update the application code.
+2. Update the application version: `expo.version` in `app.json` + `package.version`
+   (keep them equal).
+3. Increment `expo.android.versionCode` in `app.json` (every release must increase).
+4. Test: `npx tsc --noEmit`, `npx expo lint`, the test suites
+   (`npx -y tsx src/lib/apkUpdateState.test.ts` and the rest under `src/lib/*.test.ts`,
+   `src/data/*.test.ts`), then manual passes on a device.
+5. Build the production APK:
    ```bash
-   npx eas update --channel production --message "Describe the change"
+   npx eas build --platform android --profile preview
    ```
-   EAS stamps the update with the current `runtimeVersion` (the app version), so only
-   installs speaking that runtime receive it.
-5. Users receive it through the in-app mechanism (see below): the next check finds it,
-   the user taps **Update Now**, and the app restarts into the new code. Local data
-   (trips, tickets, passengers, history, configuration) is untouched — OTA replaces
-   code and assets only, never the database.
+   `eas.json`'s `preview` profile produces an APK (channel `preview`, `buildType: apk`).
+   Native config changes (new permissions, native modules) need
+   `npx expo prebuild -p android` first if the `android/` directory is stale.
+6. Create a GitHub Release on `Lanx10/kondukt2` (web UI or `gh release create`).
+7. Tag it with the project convention: `v<semver>` — `v1.1.0`, `v1.2.0`, `v1.3.0`.
+   Never reuse a tag; never tag a draft as final until the APK is attached.
+8. Upload exactly one APK asset named `kondukt-<semver>.apk`
+   (e.g. `kondukt-1.1.0.apk`).
+9. Paste the release notes as the body — plain lines, or the JSON manifest above when
+   you need `minimumVersion` / `sha256` / `versionCode`.
+10. Publish the release, then verify the endpoint:
+    ```bash
+    curl -s https://api.github.com/repos/Lanx10/kondukt2/releases/latest
+    ```
+    Confirm `tag_name`, the `.apk` asset, and (if used) that the body parses as JSON.
+11. Install the previous version on a test device.
+12. Open the application (or Settings → App updates → Check for Updates — manual
+    checks bypass the 6 h throttle).
+13. Verify the newer version is detected (sheet shows new version + notes + size).
+14. Tap **Update Now**; verify download progress and percentage.
+15. Verify Android's installer prompt appears and the install completes.
+16. Verify existing local data (tickets, trips, passengers, history, fare/terminal/
+    barangay configuration) remains intact — installing an APK never touches
+    `kondukt.db`.
+17. Launch the updated app; verify version reporting and that Settings shows
+    *You're already using the latest version.*
 
-## Native Android update (Play release)
-
-1. Modify native functionality or dependencies (`npx expo install <pkg>` for native
-   modules; regenerate native projects if needed: `npx expo prebuild -p android`).
-2. Increment versions according to the release strategy:
-   - bump `expo.version` in `app.json` (and `package.json` `version` to match),
-   - bump `expo.android.versionCode` in `app.json` (Play requires each upload to
-     increase; the current value is `1`).
-   - Bumping `expo.version` automatically moves `runtimeVersion` (policy `appVersion`),
-     which correctly stops OTA delivery to older binaries.
-3. Create a production Android build:
-   ```bash
-   npx eas build --platform android --profile production
-   ```
-   (produces the AAB; `eas.json` production profile sets `buildType: app-bundle` and
-   `channel: production`).
-4. Submit the AAB to Google Play Console (manually or `npx eas submit -p android`).
-5. Google Play distributes the new binary; users update through Play. The app performs
-   **no** APK download or install of its own.
-
-## How the user triggers an update from the app
+## How the user experiences updates (APK channel)
 
 - **Automatic (quiet):** on app start and on return to foreground, at most once every
-  6 hours, the app checks for an OTA update. If one exists and no ticket/trip-entry
-  screen is open, the **"Update available"** sheet appears with **Update Now** and
-  **Later**. Automatic checks never restart the app on their own.
-- **Manual:** Settings → **App Updates** → **Check for Updates**. The card shows the
-  current version/runtime/channel, the last check time, and one of:
-  *You're already using the latest version*, *An update is available to download*,
-  *Downloading update…*, *Update downloaded (ready)*, an offline/unavailable error, or
-  the development-build notice. While an update is downloaded and waiting, the button
-  becomes **Restart to Update**.
-- A restart into the update happens only on an explicit press. Checks and downloads
-  fail soft: the app stays fully usable offline, errors show friendly copy (never stack
-  traces), and no local data is ever deleted or reset by updating.
+  6 hours (`UPDATE_CONFIG.automaticCheckIntervalMs`), the app asks GitHub for the latest
+  release. Failures (offline, rate limit, no release) are logged and swallowed — an
+  offline device never sees update errors, and the app stays fully usable.
+- **Notification:** if a newer release exists and no transaction screen is open, the
+  *Update available* (or *Update required*) sheet appears with new version, release
+  notes, file size, **Later** (hidden when mandatory) and **Update Now**.
+- **Manual:** Settings → **App updates** → **Check for Updates** (always allowed,
+  ignores the throttle).
+- **Download → verify → install:** *Update Now* downloads with a live percentage,
+  verifies the file (exists, exact GitHub asset size, ZIP/APK magic bytes, optional
+  SHA-256 from the manifest), then launches Android's normal installer. Failures delete
+  the bad file and show friendly copy; the card's button becomes **Install Update**
+  once a verified file waits.
+- **Unknown sources:** if Android blocks the install, the *Installation permission
+  required* sheet explains and offers **Open Settings** (the per-app
+  "Install unknown apps" screen). The user grants it; returning to the app shows
+  **Install Update** again. Nothing is ever auto-granted.
+- **Guards:** while a transaction screen is registered
+  (`src/lib/updateGuard.ts`), no sheet pops automatically and nothing downloads —
+  the news waits on the Settings card.
 
-## Guarded moments
+## OTA JavaScript/UI update (secondary channel)
 
-`src/lib/updateGuard.ts` — `AddTripScreen` and `AddTicketScreen` register while
-mounted. While any is registered, an available update will **not** open its sheet and
-a downloaded update will **not** auto-restart. The news waits in the Settings card
-until the transaction screen is closed.
+Still available for JS-only changes (no native/`versionCode` delta):
+
+1. Modify application code; test locally.
+2. Publish: `npx eas update --channel production --message "Describe the change"`
+   (requires the one-time EAS setup: `npx eas login`, `npx eas init`,
+   `npx eas update:configure` — see the Configuration status list below).
+3. Users receive it through **Interface updates** in Settings: throttled check,
+   **Update Now** restarts into the new code. Local data is untouched.
+
+EAS Update is **never** a substitute for the APK channel: native changes require a new
+APK release on GitHub. `app.json` keeps `updates.checkAutomatically: "NEVER"` — the
+app's own throttled check owns the cadence for both channels.
+
+### Configuration status (OTA)
+
+- `expo-updates ~57.0.24`, `expo-constants ~57.0.20` installed.
+- `expo.runtimeVersion.policy: "appVersion"`, `expo.updates.checkAutomatically: "NEVER"`.
+- One-time on your EAS account: `npx eas login`, `npx eas init` (writes
+  `extra.eas.projectId`), `npx eas update:configure` (writes `expo.updates.url`).
+  Without them OTA is simply disabled and its card says so calmly — nothing crashes.
 
 ## Code map
 
 | File | Role |
 |---|---|
-| `src/lib/updateState.ts` | Pure rules: phases, throttle, error classification, all copy |
-| `src/lib/updateState.test.ts` | Self-check (`npx tsx src/lib/updateState.test.ts`) |
-| `src/lib/updateService.ts` | The **only** `expo-updates` import: check/download/apply, single-flight |
-| `src/lib/UpdateProvider.tsx` | App-wide state machine + lifecycle (`useUpdates()`) |
-| `src/lib/updateGuard.ts` | Workflow guard used by the transaction screens |
-| `src/lib/preferences.ts` | Persists the last check timestamp (throttle across restarts) |
-| `src/screens/SettingsScreen.tsx` | Update card + "Update available" sheet |
+| `src/lib/apkUpdateConfig.ts` | **Single** updater config: owner, repo, tag prefix, throttle, mandatory switch |
+| `src/lib/apkUpdateState.ts` | Pure rules: semver, release parsing, verdict, phases, throttle, all copy |
+| `src/lib/apkUpdateState.test.ts` | Self-check (`npx tsx src/lib/apkUpdateState.test.ts`) |
+| `src/lib/apkUpdateService.ts` | GitHub fetch / download / verify / install, single-flight, trusted-URL gate |
+| `src/lib/ApkUpdateProvider.tsx` | App-wide APK state machine + lifecycle (`useApkUpdates()`) |
+| `src/lib/updateState.ts` | Pure rules for the OTA channel |
+| `src/lib/updateService.ts` | The **only** `expo-updates` import |
+| `src/lib/UpdateProvider.tsx` | OTA state machine (`useUpdates()`) |
+| `src/lib/updateGuard.ts` | Workflow guard shared by both channels |
+| `src/lib/preferences.ts` | Persists each channel's last-check timestamp |
+| `src/screens/SettingsScreen.tsx` | Both update cards + their sheets |
+| `app.json` | version / versionCode / `REQUEST_INSTALL_PACKAGES` |
 
-There is exactly one update service and one provider; do not add a second checker.
+## Troubleshooting
+
+**No update detected**
+- Check the endpoint (step 10): is there a published release with a valid `v<semver>`
+  tag? Drafts and pre-releases are ignored by GitHub's `/releases/latest`.
+- Is the asset `.apk` and under this repository's `releases/download/`? Foreign URLs
+  are rejected by design.
+- Manual check bypasses the 6 h throttle: Settings → App updates → Check for Updates.
+- Installed version ahead of the release (local dev build) reports *up to date*.
+
+**Download fails / interrupted**
+- Partial files are deleted automatically; tap **Update Now** again on a stable
+  connection. The status line shows friendly copy only — the log has the detail
+  (`[apk-update] download failed (...)`).
+- Repeated 403/429 from GitHub = rate limiting: wait (manual checks count too).
+
+**Verification failed**
+- The file is deleted and never installed. Re-download. If it persists, the uploaded
+  asset does not match its GitHub size (corrupt upload) — re-upload the APK to the
+  release; with `sha256` in the manifest, check the digest matches the file.
+
+**"Installation permission required"**
+- Android 8+ blocks installs from apps the user hasn't authorized. Tap **Open Settings**
+  → enable **Install from this source** for Kondukt → return → **Install Update**.
+  If the settings screen does not open, enable it manually:
+  Settings → Apps → Kondukt → Install unknown apps.
+- Some devices wipe this choice on update; it is a per-install grant, never stored by
+  the app.
+
+**Install prompt opens then closes / installer error**
+- The verified file may have been evicted from cache (low storage): tap
+  **Install Update** → if it re-downloads, storage cleared it. Keep enough free space
+  for one full APK copy.
+
+## Security notes
+
+- No GitHub tokens, passwords, or private-repo credentials in the app — the repo must
+  stay **public** or the updater cannot work (and embedding credentials would ship
+  them to every user).
+- Download URLs are rejected unless they are release assets of the configured
+  repository; the updater never falls back to another host.
+- Downloads live in the app cache and are deleted on failure or after verification
+  failure. Nothing else in storage is touched; the SQLite database is never deleted,
+  migrated away from, or reset by an update.

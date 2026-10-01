@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { StyleSheet, Modal, Pressable, Text, View } from 'react-native';
+import { StyleSheet, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { Icon } from '../icons';
 import { palette, radius, space, type } from '../theme';
 
@@ -60,7 +60,22 @@ export function Sheet({
               <Icon name="close" size={18} color={palette.onSurface} />
             </Pressable>
           </View>
-          <View style={[styles.sheetBody, fill && styles.sheetBodyFill]}>{children}</View>
+          <View style={[styles.sheetBody, fill && styles.sheetBodyFill]}>
+            {/* Non-fill bodies scroll inside the sheet's clamp. Android's Yoga
+                does not shrink a child that lacks `flexShrink` when the sheet's
+                `maxHeight` bites, so raw children would overflow the sheet and
+                be clipped with no way to reach them; the scroll takes the
+                shrink instead and bounds itself, so a short body still hugs its
+                content and a long one scrolls. Fill bodies keep their children
+                direct — each picker list owns its own scroll. */}
+            {fill ? (
+              children
+            ) : (
+              <ScrollView style={styles.sheetScroll} showsVerticalScrollIndicator={false}>
+                {children}
+              </ScrollView>
+            )}
+          </View>
           {footer}
         </Pressable>
       </Pressable>
@@ -180,8 +195,28 @@ const styles = StyleSheet.create({
     minHeight: 0,
     flexShrink: 1,
   },
+  /**
+   * The `fill` body.
+   *
+   * NOT `flex: 1`: that shorthand sets `flexBasis: 0`, and this sheet's height
+   * is its content (capped by `maxHeight`). Android's Yoga then has no definite
+   * height to grow into and collapses the body to zero — a picker sheet that
+   * renders its title and none of its rows, which is exactly how Add Barangay's
+   * municipality list broke on a real phone (the browser's CSS stretches the
+   * same tree, so it looked fine there). `flexBasis: 'auto'` keeps the body at
+   * its children's height, so a short list hugs its content and a long one is
+   * bounded by the sheet's `maxHeight` and then scrolls (the body shrinks, and
+   * each picker's ScrollView shrinks with it).
+   */
   sheetBodyFill: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 'auto',
+  },
+  // The non-fill body's scroll: `flexShrink` is the whole trick — it lets the
+  // scroll absorb the sheet's `maxHeight` clamp where a plain child would not.
+  sheetScroll: {
+    flexShrink: 1,
   },
   detailCard: {
     paddingVertical: space(2),

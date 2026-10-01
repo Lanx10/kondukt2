@@ -1,70 +1,72 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { GlassCard } from './GlassCard';
 import { Icon, IconName } from '../icons';
-import { Accent, accent, glass, radius, space, type } from '../theme';
+import { Accent, accent, glass, glassBlur, palette, radius, space, type } from '../theme';
 
 export type QuickAction = {
   key: string;
   icon: IconName;
   title: string;
+  /** The reference's blurb — announced, never rendered under the title. */
   subtitle: string;
+  /** The live figure the reference prints in the tile: "₱1,068.00 today". */
+  value: string;
+  /** The figure's context, announced after it — reference: aria only. */
+  extra: string;
+  /** Where the tile goes, announced last — reference: "Opens <screen>." */
+  opens: string;
   accent: Accent;
   onPress: () => void;
 };
 
 /**
- * One card in the home grid.
+ * One card in the home grid — home.html's `.qa-btn`, glass edition.
  *
- * These were the app's only opaque panels: white fill, `outlineVariant` border,
- * while every neighbouring card on the page (the hero's aside, the last-trip
- * card, the storage note, every ledger row) was glass. Seven white rectangles
- * in the middle of a glass stack is what made the page read as two designs, so
- * the surface is now the shared `GlassCard` and the ink comes from the glass
- * tokens — `onGlass` / `onGlassVariant` / `accentPrimary` — which are the ones
- * chosen to clear 4.5:1 against a *tinted* panel rather than against white.
+ * The reference tile is four facts and nothing else: chip, title, the live
+ * figure, and the rest in the accessible name. The static subtitle used to
+ * print under every title where the reference prints today's number, so the
+ * tiles read as menu entries rather than as the day's summary; `value`,
+ * `extra` and `opens` were already computed on the screen and dropped on the
+ * floor here.
  *
- * The card keeps its own grid geometry (min height, padding, the 2-column cell
- * it sits in); only the paint moved.
+ * Surface: the shared `GlassCard`, frosted with `glassBlur` — the same
+ * `blur(18px)` the reference's `.glass` carries — at the reference's 16px
+ * corner (not the 28px panel radius: `.qa-btn` overrides `.glass` in the
+ * stylesheet) and its 112px floor, 40px chip, 14px padding.
  */
-function QuickActionCard({ action, compact }: { action: QuickAction; compact: boolean }) {
+function QuickActionCard({ action }: { action: QuickAction }) {
   const tone = accent[action.accent];
+  // The reference's tone-primary chip ink is `--primary-solid`; the M3 role
+  // colour (#E65100) sits at 3.6:1 on the container where solid clears 5.2.
+  const chipInk = action.accent === 'primary' ? palette.primarySolid : tone.fg;
   return (
     <GlassCard
       onPress={action.onPress}
-      cornerRadius={radius.glass}
+      intensity={glassBlur}
+      cornerRadius={radius.large}
       accessibilityRole="button"
-      accessibilityLabel={action.title}
-      accessibilityHint={action.subtitle}
-      style={[styles.card, compact && styles.cardCompact]}
+      accessibilityLabel={`${action.title}. ${action.subtitle}. ${action.value}. ${action.extra}. Opens ${action.opens}.`}
+      style={styles.card}
     >
       <View style={[styles.iconContainer, { backgroundColor: tone.container }]}>
-        <Icon name={action.icon} size={24} color={tone.fg} />
+        <Icon name={action.icon} size={22} color={chipInk} />
       </View>
       <Text style={styles.title} numberOfLines={2}>
         {action.title}
       </Text>
-      <Text style={styles.subtitle} numberOfLines={3}>
-        {action.subtitle}
+      <Text style={styles.value} numberOfLines={1} ellipsizeMode="tail">
+        {action.value}
       </Text>
-      <View style={styles.chevron}>
-        <Icon name="chevron" size={16} color={glass.accentPrimary} />
-      </View>
     </GlassCard>
   );
 }
 
-export function QuickActionsGrid({
-  actions,
-  compact,
-}: {
-  actions: QuickAction[];
-  compact: boolean;
-}) {
+export function QuickActionsGrid({ actions }: { actions: QuickAction[] }) {
   return (
     <View style={styles.grid}>
       {actions.map((action) => (
         <View key={action.key} style={styles.cell}>
-          <QuickActionCard action={action} compact={compact} />
+          <QuickActionCard action={action} />
         </View>
       ))}
     </View>
@@ -75,23 +77,20 @@ const styles = StyleSheet.create({
   // 14 + 6 cell padding = 20, so card edges line up with the hero and heading.
   grid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: space(3.5) },
   cell: { width: '50%', padding: space(1.5) },
-  // No fill and no border of its own: the glass supplies the tint, the lit rim
-  // and the shadow, so a second border here would double the edge.
+  // No fill and no border of its own: the glass supplies the frost, the tint,
+  // the lit rim and the shadow, so a second border here would double the edge.
   card: {
-    minHeight: 152,
-    padding: space(4),
-    borderRadius: radius.glass,
+    minHeight: 112,
+    padding: space(3.5),
+    borderRadius: radius.large,
   },
-  // Narrow screens get a taller card rather than clipped or truncated text.
-  cardCompact: { minHeight: 184 },
   iconContainer: {
-    width: 48,
-    height: 48,
+    width: 40,
+    height: 40,
     borderRadius: radius.medium,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  title: { ...type.titleMedium, color: glass.onGlass, marginTop: space(3) },
-  subtitle: { ...type.bodySmall, color: glass.onGlassVariant, marginTop: space(1), flex: 1 },
-  chevron: { alignSelf: 'flex-end', marginTop: space(2) },
+  title: { ...type.titleMedium, color: glass.onGlass, marginTop: space(2.5) },
+  value: { ...type.bodySmall, color: glass.onGlassVariant },
 });

@@ -212,6 +212,8 @@ export function BarangayEditor({ id, onBack }: BarangayEditorProps) {
         terminals,
         editingId: id,
         requireActiveMunicipality: id === null,
+        // Edit keeps a row that loads unlinked (the seed's Subic) unlinked.
+        allowMissingMunicipality: id !== null,
       },
     );
     if (
@@ -242,12 +244,12 @@ export function BarangayEditor({ id, onBack }: BarangayEditorProps) {
       municipality,
       loaded,
     );
-    const write = buildTerminalWrite(
-      loaded,
-      composed,
-      validation.kmStored,
-      state.municipalityId,
-    );
+    const write = {
+      ...buildTerminalWrite(loaded, composed, validation.kmStored, state.municipalityId),
+      // Files the record under this module, so it lists under Barangay
+      // Configuration and not in the terminal registry.
+      kind: 'BARANGAY' as const,
+    };
 
     savingRef.current = true;
     setState((current) => ({
@@ -599,6 +601,7 @@ export function BarangayEditor({ id, onBack }: BarangayEditorProps) {
           fill
         >
           <ScrollView
+            style={styles.pickScroll}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.pickList}
           >
@@ -791,6 +794,10 @@ const styles = StyleSheet.create({
   noteLockText: { ...type.bodySmall, color: glass.onGlassVariant, marginTop: space(1) },
 
   // ── the municipality sheet: the registry's own pick rows ──
+  // The scroll takes the sheet's maxHeight clamp (see BottomSheet): without
+  // the shrink the list measures full-content, gets clipped by the sheet and
+  // cannot scroll on Android.
+  pickScroll: { flexShrink: 1 },
   pickList: { gap: space(2), paddingBottom: space(2) },
   pickRow: {
     minHeight: 56,

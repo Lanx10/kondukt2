@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '../../icons';
 import { palette, radius, space, tintedGlass, type } from '../../theme';
 import { GlassCard } from '../GlassCard';
@@ -89,130 +89,132 @@ export function RangeCalendarModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <Pressable style={styles.scrim} onPress={onCancel}>
         <GlassCard style={styles.card} intensity={40}>
-          <Pressable>
-            <View
-              style={styles.grabber}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-            />
-            <View style={styles.head}>
-              <Pressable
-                onPress={() => setViewed(new Date(viewed.getFullYear(), viewed.getMonth() - 1, 1))}
-                accessibilityRole="button"
-                accessibilityLabel="Previous month"
-                hitSlop={12}
-                style={({ pressed }) => [styles.stepperButton, pressed && styles.pressed]}
-              >
-                <Icon name="chevronLeft" size={20} color={palette.onSurfaceVariant} />
-              </Pressable>
-              <Text style={styles.month} accessibilityRole="header">
-                {MONTH_NAMES[viewed.getMonth()]} {viewed.getFullYear()}
-              </Text>
-              <Pressable
-                onPress={() => setViewed(new Date(viewed.getFullYear(), viewed.getMonth() + 1, 1))}
-                accessibilityRole="button"
-                accessibilityLabel="Next month"
-                hitSlop={12}
-                style={({ pressed }) => [styles.stepperButton, pressed && styles.pressed]}
-              >
-                <Icon name="chevron" size={20} color={palette.onSurfaceVariant} />
-              </Pressable>
-            </View>
-
-            <View style={styles.weekdays}>
-              {WEEKDAY_INITIALS.map((initial, index) => (
-                <Text key={`${initial}${index}`} style={styles.weekday}>
-                  {initial}
+          <Pressable style={styles.cardBody}>
+            <ScrollView style={styles.cardScroll} showsVerticalScrollIndicator={false}>
+              <View
+                style={styles.grabber}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              />
+              <View style={styles.head}>
+                <Pressable
+                  onPress={() => setViewed(new Date(viewed.getFullYear(), viewed.getMonth() - 1, 1))}
+                  accessibilityRole="button"
+                  accessibilityLabel="Previous month"
+                  hitSlop={12}
+                  style={({ pressed }) => [styles.stepperButton, pressed && styles.pressed]}
+                >
+                  <Icon name="chevronLeft" size={20} color={palette.onSurfaceVariant} />
+                </Pressable>
+                <Text style={styles.month} accessibilityRole="header">
+                  {MONTH_NAMES[viewed.getMonth()]} {viewed.getFullYear()}
                 </Text>
-              ))}
-            </View>
+                <Pressable
+                  onPress={() => setViewed(new Date(viewed.getFullYear(), viewed.getMonth() + 1, 1))}
+                  accessibilityRole="button"
+                  accessibilityLabel="Next month"
+                  hitSlop={12}
+                  style={({ pressed }) => [styles.stepperButton, pressed && styles.pressed]}
+                >
+                  <Icon name="chevron" size={20} color={palette.onSurfaceVariant} />
+                </Pressable>
+              </View>
 
-            <View style={styles.grid}>
-              {cells.map(({ millis, date, inMonth }) => {
-                const future = millis > today;
-                const isStart = start !== null && millis === start;
-                const isEnd = end !== null && millis === end;
-                const isBetween =
-                  start !== null && end !== null && millis > start && millis < end;
-                const selectable = inMonth && !future;
-                const edge = isStart || isEnd;
-                const state = edge
-                  ? `, ${isStart ? 'start' : 'end'} of the range`
-                  : isBetween
-                    ? ', inside the range'
-                    : '';
-                return (
-                  <Pressable
-                    key={millis}
-                    onPress={() => pick(millis)}
-                    disabled={!selectable}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${formatDateLong(new Date(millis))}${state}`}
-                    accessibilityState={{ disabled: !selectable, selected: edge }}
-                    style={({ pressed }) => [
-                      styles.dayCell,
-                      isBetween && styles.dayBetween,
-                      edge && styles.dayEdge,
-                      pressed && selectable && styles.pressed,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.dayLabel,
-                        !inMonth && styles.dayOutside,
-                        future && styles.dayFuture,
-                        isBetween && styles.dayBetweenLabel,
-                        edge && styles.dayEdgeLabel,
+              <View style={styles.weekdays}>
+                {WEEKDAY_INITIALS.map((initial, index) => (
+                  <Text key={`${initial}${index}`} style={styles.weekday}>
+                    {initial}
+                  </Text>
+                ))}
+              </View>
+
+              <View style={styles.grid}>
+                {cells.map(({ millis, date, inMonth }) => {
+                  const future = millis > today;
+                  const isStart = start !== null && millis === start;
+                  const isEnd = end !== null && millis === end;
+                  const isBetween =
+                    start !== null && end !== null && millis > start && millis < end;
+                  const selectable = inMonth && !future;
+                  const edge = isStart || isEnd;
+                  const state = edge
+                    ? `, ${isStart ? 'start' : 'end'} of the range`
+                    : isBetween
+                      ? ', inside the range'
+                      : '';
+                  return (
+                    <Pressable
+                      key={millis}
+                      onPress={() => pick(millis)}
+                      disabled={!selectable}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${formatDateLong(new Date(millis))}${state}`}
+                      accessibilityState={{ disabled: !selectable, selected: edge }}
+                      style={({ pressed }) => [
+                        styles.dayCell,
+                        isBetween && styles.dayBetween,
+                        edge && styles.dayEdge,
+                        pressed && selectable && styles.pressed,
                       ]}
                     >
-                      {date}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+                      <Text
+                        style={[
+                          styles.dayLabel,
+                          !inMonth && styles.dayOutside,
+                          future && styles.dayFuture,
+                          isBetween && styles.dayBetweenLabel,
+                          edge && styles.dayEdgeLabel,
+                        ]}
+                      >
+                        {date}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
 
-            <Text style={styles.selection} accessibilityLiveRegion="polite">
-              {start === null
-                ? 'Tap a start date, then an end date.'
-                : end === null
-                  ? `${formatDateLong(new Date(start))} → tap an end date`
-                  : `${formatDateLong(new Date(start))} – ${formatDateLong(new Date(end))}`}
-            </Text>
-            <Text style={styles.error} accessibilityLiveRegion="polite" accessibilityRole="alert">
-              {error ?? ''}
-            </Text>
+              <Text style={styles.selection} accessibilityLiveRegion="polite">
+                {start === null
+                  ? 'Tap a start date, then an end date.'
+                  : end === null
+                    ? `${formatDateLong(new Date(start))} → tap an end date`
+                    : `${formatDateLong(new Date(start))} – ${formatDateLong(new Date(end))}`}
+              </Text>
+              <Text style={styles.error} accessibilityLiveRegion="polite" accessibilityRole="alert">
+                {error ?? ''}
+              </Text>
 
-            <View style={styles.actions}>
-              <Pressable
-                onPress={onCancel}
-                accessibilityRole="button"
-                accessibilityLabel="Cancel custom range"
-                style={({ pressed }) => [styles.ghost, pressed && styles.pressed]}
-              >
-                <Text style={styles.ghostLabel}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  if (start === null || end === null) {
-                    setError('Choose both a start and an end date to apply the range.');
-                    return;
-                  }
-                  onApply(start, end);
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Apply custom range"
-                style={({ pressed }) => [styles.solid, pressed && styles.pressed]}
-              >
-                <GlassCard
-                  tint={tintedGlass.accent}
-                  cornerRadius={radius.full}
-                  style={StyleSheet.absoluteFill}
-                  pointerEvents="none"
-                />
-                <Text style={styles.solidLabel}>Apply range</Text>
-              </Pressable>
-            </View>
+              <View style={styles.actions}>
+                <Pressable
+                  onPress={onCancel}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancel custom range"
+                  style={({ pressed }) => [styles.ghost, pressed && styles.pressed]}
+                >
+                  <Text style={styles.ghostLabel}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    if (start === null || end === null) {
+                      setError('Choose both a start and an end date to apply the range.');
+                      return;
+                    }
+                    onApply(start, end);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Apply custom range"
+                  style={({ pressed }) => [styles.solid, pressed && styles.pressed]}
+                >
+                  <GlassCard
+                    tint={tintedGlass.accent}
+                    cornerRadius={radius.full}
+                    style={StyleSheet.absoluteFill}
+                    pointerEvents="none"
+                  />
+                  <Text style={styles.solidLabel}>Apply range</Text>
+                </Pressable>
+              </View>
+            </ScrollView>
           </Pressable>
         </GlassCard>
       </Pressable>
@@ -231,12 +233,23 @@ const styles = StyleSheet.create({
   // 24px of air above and below, 20px at the sides: a centred dialog wants more
   // vertical room than the 20px square padding gave it, and a month grid is the
   // densest thing in the app.
+  //
+  // `maxHeight` is the landscape escape hatch: the grid plus both action rows
+  // is taller than a phone held sideways, and Android's Yoga does not clamp a
+  // wrap-content card to the scrim's remaining height — it overflows, and the
+  // scrim clips the top and bottom rows away with nothing to scroll them back.
   card: {
     width: '100%',
     maxWidth: 360,
+    maxHeight: '100%',
     paddingVertical: space(6),
     paddingHorizontal: space(5),
   },
+  // The shrink chain that makes the clamp above mean anything: card → body →
+  // scroll, each level `flexShrink: 1`, so the overflow lands in the scroll
+  // where a swipe can reach it instead of under the clip.
+  cardBody: { flexShrink: 1 },
+  cardScroll: { flexShrink: 1 },
   grabber: {
     width: 36,
     height: 4,

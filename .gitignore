@@ -45,6 +45,10 @@ keystore.properties
 
 # local junk: build artifacts, logs, tool metadata
 /artifacts/
+/.artifacts/
+*.err
+# release APKs ship via GitHub Releases, never git
+/*.apk
 *.log
 __pycache__/
 .freebuff/

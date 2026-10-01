@@ -14,27 +14,22 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SectionChrome } from '../components/SectionChrome';
 import { GlassBackdrop } from '../components/GlassBackdrop';
 import { GlassCard } from '../components/GlassCard';
-import { Sheet } from '../components/BottomSheet';
 import { Icon } from '../icons';
 import { accent, glass, maxContentWidth, palette, radius, space, type } from '../theme';
 import {
-  fetchAllMunicipalities,
   fetchAllTerminals,
   fetchTerminalById,
   saveTerminal,
 } from '../data/tripTicketsStore';
-import type { MunicipalityRowRecord, TerminalRowRecord } from '../data/schema';
+import type { TerminalRowRecord } from '../data/schema';
 import { applyFareInputFilter } from '../lib/fareFormat';
 import { setScreenFlash } from '../lib/screenFlash';
 import {
-  barangayEditorComposeName,
-  barangayEditorMunicipalityOptions,
-  municipalityDisplayLabel,
-  pickTerminalMunicipality,
   TERMINAL_NOT_FOUND_ERROR,
   TERMINAL_SAVE_ERROR,
   buildTerminalWrite,
   commitTerminalEditorField,
+  composeTerminalName,
   initialTerminalEditorUiState,
   terminalEditorAccessibilityTitle,
   terminalEditorFieldsFromRecord,
@@ -51,30 +46,30 @@ export type TerminalEditorScreenProps = {
 
 /**
  * The Terminal Editor: one screen for both create and edit, one route, one
- * optional id — the app-side port of add-terminal.html.
+ * optional id — the app-side port of add-terminal.html, minus its
+ * municipality picker.
  *
- * Three fields, the file's own three columns: the PLACE name (the form
- * refuses a comma because the stored string is `place, municipality` and two
- * readers downstream split it on different commas), the municipality by
- * PICKER — never typed — and the marker in thousandths under the file's cap.
- * The composed name is built at this boundary and handed to the store whole;
- * nothing else in the app composes a terminal name.
+ * Two fields: the PLACE name (the form refuses a comma because a stored name
+ * is `place, municipality` and two readers downstream split it on different
+ * commas) and the marker in thousandths under the file's cap. The
+ * municipality link is the Barangay Editor's field — it composes the stored
+ * tail; this route stores the bare place on create and carries a loaded
+ * row's tail through an edit untouched, so a save from here can never wipe
+ * a link or a provenance this form does not show.
  *
  * Validation keeps the app's contract, stated as the decision: every failure
- * on every attempt, all shown at once — the file's first-error-only
- * `validate()` is the one contract dropped, because a three-field form that
- * highlights one error per tap costs a tap per error. Field refusals mark
- * their own control and take focus; a store rejection (the duplicate) and a
- * write failure share the ONE notice above the form — two channels, never a
+ * on every attempt, all shown at once — the prototype's first-error-only
+ * `validate()` is the one contract dropped, because a form that highlights
+ * one error per tap costs a tap per error. Field refusals mark their own
+ * control and take focus; a store rejection (the duplicate) and a write
+ * failure share the ONE notice above the form — two channels, never a
  * stack, no dismiss, cleared when a value changes. A failed write never
  * navigates.
  *
  * Edit carries every column the driver cannot see: the id and the active
- * flag ride through from the loaded record, and the municipality link loads
- * into the picker so a save cannot null an association it never showed.
- * On success the screen goes straight back — create first announces itself
- * through the flash the registry consumes once; the list repaints through
- * `subscribeToTrips` either way.
+ * flag ride through from the loaded record. On success the screen goes
+ * straight back — the registry's flash announces the write once, and the
+ * list repaints through `subscribeToTrips` either way.
  */
 export function TerminalEditorScreen({ terminalId, onBack }: TerminalEditorScreenProps) {
   const insets = useSafeAreaInsets();
@@ -85,18 +80,14 @@ export function TerminalEditorScreen({ terminalId, onBack }: TerminalEditorScree
   const title = terminalEditorTitle(mode);
 
   // Both editable values are strings. A number-bound field cannot hold a
-  // decimal point mid-typing; the conversion happens once, at save. Loading
-  // starts true in BOTH modes: the picker's municipality table has to land
-  // before the form can offer a choice or tell the truth about one.
+  // decimal point mid-typing; the conversion happens once, at save.
   const [state, setState] = useState(() => ({
     ...initialTerminalEditorUiState(mode),
-    isLoading: true,
+    isLoading: terminalId !== null,
   }));
-  const [municipalities, setMunicipalities] = useState<MunicipalityRowRecord[] | null>(null);
   const [terminals, setTerminals] = useState<TerminalRowRecord[] | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
   const [focusedField, setFocusedField] = useState<'name' | 'km' | null>(null);
 
   // The loaded record, held as STATE — the hint renders from it, so it can
@@ -110,18 +101,17 @@ export function TerminalEditorScreen({ terminalId, onBack }: TerminalEditorScree
   const nameRef = useRef<TextInput>(null);
   const kmRef = useRef<TextInput>(null);
 
-  // The two tables load in both modes; the record only in edit. A missing
-  // terminal is an error, never a create fallback.
+  // The registry loads in both modes: the hint reads the stored markers so a
+  // new number is typed next to the route's own figures. The record only in
+  // edit. A missing terminal is an error, never a create fallback.
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      fetchAllMunicipalities(),
       fetchAllTerminals(),
       terminalId === null ? Promise.resolve(null) : fetchTerminalById(terminalId),
     ])
-      .then(([municipalityRows, terminalRows, record]) => {
+      .then(([terminalRows, record]) => {
         if (cancelled) return;
-        setMunicipalities(municipalityRows);
         setTerminals(terminalRows);
         if (terminalId !== null) {
           const fields = terminalEditorFieldsFromRecord(record);
@@ -135,7 +125,6 @@ export function TerminalEditorScreen({ terminalId, onBack }: TerminalEditorScree
             ...current,
             isLoading: false,
             name: fields.name,
-            municipalityId: fields.municipalityId,
             km: fields.km,
           }));
           return;
@@ -165,63 +154,44 @@ export function TerminalEditorScreen({ terminalId, onBack }: TerminalEditorScree
     });
   }, []);
 
-  /** Choosing a municipality: one render, the sheet closes with it. */
-  const pickMunicipality = useCallback((municipalityId: number) => {
-    setState((current) => pickTerminalMunicipality(current, municipalityId));
-    setSheetOpen(false);
-  }, []);
-
   const onSave = useCallback(() => {
     if (savingRef.current) return; // guard a second save in flight
-    if (municipalities === null) return; // the picker's table has not landed
 
     // Every check on every attempt; field refusals mark their own control
-    // and the FIRST text field at fault takes focus (the picker is a
-    // button — it cannot take focus, so its error announces in place).
-    const validation = validateTerminalEditorFields(state, {
-      municipalities,
-      requireActiveMunicipality: mode === 'create',
-    });
+    // and the FIRST text field at fault takes focus.
+    const validation = validateTerminalEditorFields(state);
     if (
       validation.nameError !== null ||
-      validation.muniError !== null ||
       validation.kmError !== null ||
       validation.kmStored === null
     ) {
       setState((current) => ({
         ...current,
         nameError: validation.nameError,
-        muniError: validation.muniError,
         kmError: validation.kmError,
         saveError: null,
       }));
       if (validation.nameError !== null) nameRef.current?.focus();
-      else if (validation.kmError !== null) kmRef.current?.focus();
+      else kmRef.current?.focus();
       return;
     }
 
-    // The composition happens HERE, at the boundary: the store receives the
-    // string it stores and never a set of parts. An edit that did not move
-    // the municipality keeps its stored tail byte-for-byte.
-    const chosen = municipalities.find((row) => row.id === state.municipalityId) ?? null;
-    const composed = barangayEditorComposeName(
-      { name: state.name, municipalityId: state.municipalityId, km: state.km },
-      chosen,
-      loaded,
-    );
-    const write = buildTerminalWrite(
-      loaded,
-      composed,
-      validation.kmStored,
-      state.municipalityId,
-    );
+    // The name happens HERE, at the boundary: create stores the bare place;
+    // an edit carries the loaded row's stored tail byte-for-byte, so a save
+    // that fixes a KM never rewrites the provenance under it.
+    const name = composeTerminalName(state.name, loaded);
+    const write = {
+      ...buildTerminalWrite(loaded, name, validation.kmStored),
+      // Files the record under this module, so it lists under Terminal
+      // Configuration and not in the barangay registry.
+      kind: 'TERMINAL' as const,
+    };
 
     savingRef.current = true;
     setState((current) => ({
       ...current,
       isSaving: true,
       nameError: null,
-      muniError: null,
       kmError: null,
       saveError: null,
     }));
@@ -229,9 +199,11 @@ export function TerminalEditorScreen({ terminalId, onBack }: TerminalEditorScree
     void saveTerminal(write).then((result) => {
       savingRef.current = false;
       if (result.kind === 'saved') {
-        if (mode === 'create' && chosen !== null) {
-          // The registry's one announcement, consumed once on the other side.
-          setScreenFlash(`${state.name.trim()} added to ${chosen.name}.`);
+        // The registry's one announcement, consumed once on the other side.
+        if (mode === 'create') {
+          setScreenFlash(`${state.name.trim()} added.`);
+        } else {
+          setScreenFlash(`${state.name.trim()} updated.`);
         }
         onBack();
         return;
@@ -246,42 +218,13 @@ export function TerminalEditorScreen({ terminalId, onBack }: TerminalEditorScree
         saveError: result.kind === 'rejected' ? result.reason : TERMINAL_SAVE_ERROR,
       }));
     });
-  }, [state, municipalities, loaded, mode, onBack]);
-
-  // Picker options: active municipalities, province-then-name, each with the
-  // all-status terminal count its sub-line prints — one filter, one order,
-  // one count, shared with the registry's own picker.
-  const options = useMemo(
-    () =>
-      municipalities === null || terminals === null
-        ? []
-        : barangayEditorMunicipalityOptions(municipalities, terminals),
-    [municipalities, terminals],
-  );
-
-  const chosenMunicipality =
-    state.municipalityId === null || municipalities === null
-      ? null
-      : (municipalities.find((row) => row.id === state.municipalityId) ?? null);
-
-  // The control reads its own value and affordance back: the composed pair
-  // when one is chosen, the instruction when there is not.
-  const muniValue =
-    chosenMunicipality === null ? 'Choose a municipality' : municipalityDisplayLabel(chosenMunicipality);
-  const muniLabel =
-    chosenMunicipality === null
-      ? `Municipality. Choose a municipality.${state.muniError !== null ? ' Invalid.' : ''}`
-      : `Municipality. ${muniValue}. Change it.${state.muniError !== null ? ' Invalid.' : ''}`;
+  }, [state, loaded, mode, onBack]);
 
   // The caption re-derives on every keystroke because it quotes what will be
-  // written and reads the marker context back from the table.
+  // written and reads the registry's markers back.
   const hint = useMemo(
-    () =>
-      terminalEditorHint(
-        { name: state.name, municipalityId: state.municipalityId, km: state.km },
-        { municipalities: municipalities ?? [], terminals: terminals ?? [], loaded },
-      ),
-    [state.name, state.municipalityId, state.km, municipalities, terminals, loaded],
+    () => terminalEditorHint({ name: state.name, km: state.km }, { terminals: terminals ?? [] }),
+    [state.name, state.km, terminals],
   );
 
   const body = (() => {
@@ -352,7 +295,7 @@ export function TerminalEditorScreen({ terminalId, onBack }: TerminalEditorScree
         ) : null}
 
         <View testID="tc-form" style={styles.formSection}>
-          {/* One card, three fields, the commit — the family's shared
+          {/* One card, two fields, the commit — the family's shared
               range-card bytes, 14px padding kept so the editors do not split
               into two measurements. */}
           <GlassCard style={styles.formCard}>
@@ -393,42 +336,6 @@ export function TerminalEditorScreen({ terminalId, onBack }: TerminalEditorScree
               {state.nameError !== null ? (
                 <Text style={styles.errorText} accessibilityLiveRegion="polite">
                   {state.nameError}
-                </Text>
-              ) : null}
-
-              {/* Not a text field: the municipality is a foreign key a typo
-                  would corrupt, so it opens the sheet — the picker supplies
-                  the second half of the composed name, never the driver. */}
-              <Pressable
-                testID="tc-muni-btn"
-                onPress={() => setSheetOpen(true)}
-                disabled={state.isSaving}
-                accessibilityRole="button"
-                accessibilityLabel={muniLabel}
-                accessibilityState={{ expanded: sheetOpen, disabled: state.isSaving }}
-                style={({ pressed }) => [
-                  styles.field,
-                  state.muniError !== null && styles.fieldInvalid,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <View style={styles.fieldIcon}>
-                  <Icon name="pin" size={18} color={accent.tertiary.onContainer} />
-                </View>
-                <View style={styles.fieldBody}>
-                  <Text style={styles.fieldLabel}>Municipality</Text>
-                  <Text
-                    numberOfLines={1}
-                    style={[styles.fieldValue, chosenMunicipality === null && styles.fieldValueEmpty]}
-                  >
-                    {muniValue}
-                  </Text>
-                </View>
-                <Icon name="chevronDown" size={18} color={palette.onSurfaceVariant} />
-              </Pressable>
-              {state.muniError !== null ? (
-                <Text style={styles.errorText} accessibilityLiveRegion="polite">
-                  {state.muniError}
                 </Text>
               ) : null}
 
@@ -499,8 +406,8 @@ export function TerminalEditorScreen({ terminalId, onBack }: TerminalEditorScree
           </GlassCard>
 
           {/* The most useful line on the screen: the row this write is about
-              to store, and the marker context the chosen municipality already
-              holds — every figure fetched, never typed. */}
+              to store, and the marker context the registry already holds —
+              every figure fetched, never typed. */}
           <Text testID="tc-kmhint" style={styles.hint} accessibilityLiveRegion="polite">
             {hint}
           </Text>
@@ -550,64 +457,6 @@ export function TerminalEditorScreen({ terminalId, onBack }: TerminalEditorScree
           {body}
         </KeyboardAvoidingView>
       </SectionChrome>
-
-      {sheetOpen ? (
-        <Sheet
-          kind="muni"
-          title="Municipality"
-          subtitle="Chooses where this terminal belongs"
-          onClose={() => setSheetOpen(false)}
-          closeTestID="tc-sheet-close"
-          fill
-        >
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.pickList}
-          >
-            {options.map((option) => {
-              const current = option.id === state.municipalityId;
-              const n = option.barangayCount;
-              const subLine = `${option.province} · ${n} ${n === 1 ? 'terminal' : 'terminals'}`;
-              return (
-                <Pressable
-                  key={option.id}
-                  testID={`tc-muni-${option.id}`}
-                  onPress={() => pickMunicipality(option.id)}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    current
-                      ? `${option.name}, ${subLine}, currently applied`
-                      : `${option.name}, ${subLine}`
-                  }
-                  accessibilityState={{ selected: current }}
-                  style={({ pressed }) => [
-                    styles.pickRow,
-                    current && styles.pickRowCurrent,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <View style={styles.pickBody}>
-                    <Text
-                      numberOfLines={1}
-                      style={[styles.pickName, current && styles.pickNameCurrent]}
-                    >
-                      {option.name}
-                    </Text>
-                    <Text style={[styles.pickSub, current && styles.pickSubCurrent]}>
-                      {subLine}
-                    </Text>
-                  </View>
-                  <Icon
-                    name="check"
-                    size={18}
-                    color={current ? palette.onPrimaryContainer : palette.onSurfaceVariant}
-                  />
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </Sheet>
-      ) : null}
     </View>
   );
 }
@@ -683,12 +532,6 @@ const styles = StyleSheet.create({
     outlineWidth: 0,
   },
   fieldValue: { ...type.bodyMedium, fontFamily: 'Poppins_600SemiBold', color: palette.onSurface },
-  // "Choose a municipality" reads as the absence of a choice, not a value.
-  fieldValueEmpty: {
-    fontFamily: 'Poppins_400Regular',
-    fontWeight: '500',
-    color: palette.onSurfaceVariant,
-  },
   kmLine: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
   kmInput: {
     flex: 1,
@@ -735,35 +578,6 @@ const styles = StyleSheet.create({
   noteLockBody: { flex: 1 },
   noteLockLabel: { ...type.labelSmall, color: glass.onGlassVariant },
   noteLockText: { ...type.bodySmall, color: glass.onGlassVariant, marginTop: space(1) },
-
-  // ── the municipality sheet: the family's pick rows ──
-  pickList: { gap: space(2), paddingBottom: space(2) },
-  pickRow: {
-    minHeight: 56,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space(3),
-    paddingVertical: space(2),
-    paddingHorizontal: space(3),
-    borderWidth: 1,
-    borderColor: palette.outline,
-    borderRadius: radius.large,
-    backgroundColor: palette.surface,
-  },
-  // 2px on the applied row and one less padding, so choosing a row does
-  // not resize the list under the finger.
-  pickRowCurrent: {
-    borderWidth: 2,
-    borderColor: palette.primarySolid,
-    backgroundColor: palette.primaryContainer,
-    paddingVertical: 7,
-    paddingHorizontal: 11,
-  },
-  pickBody: { flex: 1, minWidth: 0 },
-  pickName: { ...type.bodyMedium, color: palette.onSurface },
-  pickNameCurrent: { color: palette.onPrimaryContainer },
-  pickSub: { ...type.bodySmall, color: palette.onSurfaceVariant, marginTop: 2 },
-  pickSubCurrent: { color: palette.onPrimaryContainer, opacity: 0.85 },
 
   // ── body-owned states: they replace the form entirely ──
   centerBlock: {

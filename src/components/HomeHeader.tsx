@@ -3,11 +3,11 @@ import {
   AccessibilityInfo,
   Animated,
   Easing,
+  Image,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { Icon } from '../icons';
 import { accent, palette, radius, space, type } from '../theme';
 
 /**
@@ -26,9 +26,15 @@ import { accent, palette, radius, space, type } from '../theme';
 export function HomeHeader({ tagline, tripLabel }: { tagline: string; tripLabel?: string }) {
   return (
     <View style={styles.root}>
-      <View style={styles.mark}>
-        <Icon name="bus" size={26} color={palette.onPrimary} />
-      </View>
+      {/* The favicon itself, bare — no badge card behind it. */}
+      <Image
+        // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro asset require; there is no type declaration for *.ico
+        source={require('../../assets/favicon.ico')}
+        style={styles.mark}
+        accessible
+        accessibilityRole="image"
+        accessibilityLabel="Kondukt app icon"
+      />
       <View style={styles.text}>
         <Text style={styles.wordmark} accessibilityRole="header" numberOfLines={1}>
           KONDUKT
@@ -98,9 +104,6 @@ const styles = StyleSheet.create({
     height: 48,
     // The reference's 14, not medium's 12 — see `radius.brand`.
     borderRadius: radius.brand,
-    backgroundColor: palette.primarySolid,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   text: {
     flex: 1,

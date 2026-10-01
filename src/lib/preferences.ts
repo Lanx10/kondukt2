@@ -15,6 +15,9 @@ import type { ThemeMode } from '../theme';
  * the update system last checked for an OTA release
  * (`kondukt.preferences.lastUpdateCheckAt` — a timestamp, so the automatic
  * check stays throttled across restarts rather than firing every launch).
+ * Plus `kondukt.preferences.lastApkUpdateCheckAt`, the same timestamp for
+ * the GitHub Releases APK updater, kept separate so the two channels throttle
+ * independently.
  *
  * Each stored value encodes its boolean as `1` / `0`, not the words
  * "true"/"false" and not a mode string: the setting IS a boolean, and words
@@ -29,6 +32,7 @@ import type { ThemeMode } from '../theme';
 const THEME_KEY = 'kondukt.preferences.themeMode';
 const DELUXE_KEY = 'kondukt.preferences.deluxeEnabled';
 const LAST_UPDATE_CHECK_KEY = 'kondukt.preferences.lastUpdateCheckAt';
+const LAST_APK_UPDATE_CHECK_KEY = 'kondukt.preferences.lastApkUpdateCheckAt';
 
 /** The dark flag, decoded. Anything unrecognised — including a missing key —
  * reads as null, which the caller treats as the light default. */
@@ -140,6 +144,41 @@ export async function saveLastUpdateCheck(at: number): Promise<boolean> {
   try {
     await AsyncStorage.setItem(LAST_UPDATE_CHECK_KEY, String(at));
     lastUpdateCheckCached = at;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+let lastApkUpdateCheckCached: number | null = null;
+
+/**
+ * When the GitHub Releases APK updater last *attempted* a check, in epoch
+ * milliseconds, or null when it never has. Its own key — deliberately
+ * separate from the OTA timestamp above — so one channel's attempt cannot
+ * starve the other's throttle window, and so a session-heavy operator's phone
+ * hits the GitHub API (60 unauthenticated requests/hour) at most once per
+ * interval. Failures count; storage failures read as "never".
+ */
+export async function loadLastApkUpdateCheck(): Promise<number | null> {
+  if (lastApkUpdateCheckCached !== null) return lastApkUpdateCheckCached;
+  try {
+    const stored = await AsyncStorage.getItem(LAST_APK_UPDATE_CHECK_KEY);
+    const parsed = stored === null ? null : Number(stored);
+    if (parsed !== null && Number.isFinite(parsed) && parsed > 0) {
+      lastApkUpdateCheckCached = parsed;
+    }
+    return lastApkUpdateCheckCached;
+  } catch {
+    return null;
+  }
+}
+
+/** Persists the last APK update-check timestamp; false means write failed. */
+export async function saveLastApkUpdateCheck(at: number): Promise<boolean> {
+  try {
+    await AsyncStorage.setItem(LAST_APK_UPDATE_CHECK_KEY, String(at));
+    lastApkUpdateCheckCached = at;
     return true;
   } catch {
     return false;

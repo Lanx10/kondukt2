@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Icon } from '../icons';
-import { glass, palette, space, type } from '../theme';
+import { glass, glassBlur, palette, space, type } from '../theme';
 import { GlassCard } from './GlassCard';
 
 /** "1 trip" / "3 trips" — the note's counts, and the footnote's. */
@@ -34,6 +34,7 @@ export function StorageNote({
   return (
     <View style={[styles.root, style]}>
       <GlassCard
+        intensity={glassBlur}
         style={styles.card}
         accessible
         accessibilityLabel={summary}

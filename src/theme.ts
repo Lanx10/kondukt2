@@ -136,6 +136,16 @@ export const cardShadow = {
 } as const;
 
 /**
+ * The frost on every glass panel, mapped from the reference's
+ * `backdrop-filter: blur(18px) saturate(180%)` (home.html `.glass`).
+ * At intensity 0 the BlurView samples nothing and the panel reads as a flat
+ * white wash — the tint with no refraction — which is exactly the "white
+ * card" the glass run is meant to replace. `saturate` has no React Native
+ * primitive; the blur is the half that reads.
+ */
+export const glassBlur = 18;
+
+/**
  * The accent fill for a coloured control: solid, not a wash.
  *
  * It used to sit at 0.9 alpha over the blur so the backdrop still breathed

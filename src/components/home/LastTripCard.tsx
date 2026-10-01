@@ -1,6 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Icon } from '../../icons';
-import { glass, palette, space, type } from '../../theme';
+import { glass, glassBlur, palette, space, type } from '../../theme';
 import { GlassCard } from '../GlassCard';
 import type { LastCompletedTrip } from '../../data/historyStore';
 import { formatShortTime } from '../../lib/tripScreenFormat';
@@ -36,6 +35,7 @@ export function LastTripCard({
         LAST TRIP
       </Text>
       <GlassCard
+        intensity={glassBlur}
         style={styles.card}
         accessible
         accessibilityLabel={`Last trip. ${route}. ${summary}. ${centavos(trip.earnings)} collected.`}
@@ -57,8 +57,7 @@ export function LastTripCard({
             hitSlop={12}
             style={({ pressed }) => [styles.link, pressed && styles.pressed]}
           >
-            <Text style={styles.linkLabel}>View all</Text>
-            <Icon name="chevron" size={14} color={glass.accentPrimary} />
+            <Text style={styles.linkLabel}>View all in History</Text>
           </Pressable>
         </View>
       </GlassCard>

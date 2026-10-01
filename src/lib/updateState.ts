@@ -7,10 +7,12 @@
  * Two update channels exist in this app and only one is handled here:
  *
  *  - OTA (EAS Update / expo-updates): JavaScript, UI, business logic and
- *    assets, delivered to builds whose runtimeVersion matches. This module.
- *  - Google Play: new Android binaries (native modules, versionCode bumps).
- *    Never downloaded in-app — Play owns that distribution. See
- *    RELEASE-WORKFLOW.md.
+ *    assets, delivered to builds whose runtimeVersion matches. This module —
+ *    the secondary channel.
+ *  - GitHub Releases: new Android binaries (native modules, versionCode
+ *    bumps), downloaded and installed in-app by the primary updater
+ *    (`apkUpdateState.ts` / `apkUpdateService.ts`). Never handled here.
+ *    Google Play is not used. See RELEASE-WORKFLOW.md.
  */
 
 /** Where the update flow is in its life cycle. */

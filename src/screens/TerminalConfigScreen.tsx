@@ -4,7 +4,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -31,11 +30,9 @@ import {
   deriveTerminalView,
   TERMINAL_FILTERS,
   terminalCardAnnouncement,
-  terminalCaption,
   terminalChromeSubtitle,
   terminalDetailPairs,
   terminalEmptyState,
-  terminalMunicipalityNameOf,
   terminalNameOf,
   terminalRowValue,
   terminalSheetSubtitle,
@@ -45,9 +42,8 @@ import {
 export type TerminalConfigScreenProps = {
   onBack: () => void;
   /**
-   * Editor in create mode (no id) or edit mode (terminal id). This screen
-   * only ever passes null today: the sheet carries no Edit until the editor
-   * can round-trip `municipality_id`, so the seam stays typed and unused.
+   * Editor in create mode (no id) or edit mode (terminal id). The ADD pill
+   * passes null; the record sheet's EDIT action passes the row's id.
    */
   onOpenEditor: (terminalId: number | null) => void;
 };
@@ -69,7 +65,7 @@ type Overlay =
  * `Not linked`: a fact to be shown, not an error to report. The one error
  * channel is a load failure, and it owns the body.
  *
- * One write: the row opens a sheet, the sheet holds exactly one action, and
+ * One write: the row opens a sheet, the sheet holds EDIT and DEACTIVATE, and
  * DEACTIVATE asks first behind a confirmation that is deliberately not
  * error-tinted — nothing is deleted, only deactivated. The list follows the
  * store's result; no optimistic flip, no refetch on focus: `subscribeToTrips`
@@ -107,7 +103,11 @@ export function TerminalConfigScreen({ onBack, onOpenEditor }: TerminalConfigScr
   useEffect(() => {
     let cancelled = false;
     const run = () =>
-      Promise.all([fetchAllTerminals(), fetchAllMunicipalities()])
+      // The TERMINAL half of the registry: the barangay list is the other
+      // module's, and reading every stop here is what made the two
+      // Configuration screens show the same rows. Municipalities load in the
+      // same pass because the row's caption is a join.
+      Promise.all([fetchAllTerminals('TERMINAL'), fetchAllMunicipalities()])
         .then(([terminalRows, municipalityRows]) => {
           if (cancelled) return;
           setTerminals(terminalRows);
@@ -391,25 +391,13 @@ export function TerminalConfigScreen({ onBack, onOpenEditor }: TerminalConfigScr
               ) : null}
             </GlassCard>
           }
-          renderItem={({ item }) => {
-            const value = terminalRowValue(item, municipalities ?? []);
-            // A row with NEITHER a link nor a municipality in its own name is
-            // a data fault; every other unlinked row still names one and
-            // stays plain glass. The reference paints only the truly
-            // homeless row in the error pigment — an all-red seed list reads
-            // as a failure rather than as data.
-            const homeless =
-              terminalCaption(item, municipalities ?? []) === '' &&
-              terminalMunicipalityNameOf(item.name) === '';
-            return (
-              <TerminalRecordRow
-                terminal={item}
-                value={value}
-                homeless={homeless}
-                onPress={() => setOverlay({ kind: 'record', id: item.id })}
-              />
-            );
-          }}
+          renderItem={({ item }) => (
+            <TerminalRecordRow
+              terminal={item}
+              value={terminalRowValue(item, municipalities ?? [])}
+              onPress={() => setOverlay({ kind: 'record', id: item.id })}
+            />
+          )}
           ListFooterComponent={
             <>
               <Text style={styles.secNote} testID="tc-secnote">
@@ -486,6 +474,7 @@ export function TerminalConfigScreen({ onBack, onOpenEditor }: TerminalConfigScr
         <RecordSheet
           terminal={target}
           allMunicipalities={municipalities ?? []}
+          onEdit={() => onOpenEditor(target.id)}
           onDeactivate={requestDeactivate}
           onClose={closeOverlay}
         />
@@ -503,18 +492,18 @@ export function TerminalConfigScreen({ onBack, onOpenEditor }: TerminalConfigScr
  * ONE shape of record: title (first comma is the boundary), the municipality
  * and marker, the pill, the chevron. The row is the tap target — it carries
  * no inline actions, and both lines clamp to one line so twenty rows land on
- * one height; the sheet carries the untruncated text.
+ * one height; the sheet carries the untruncated text. An unlinked row is a
+ * normal row of this registry — the editor creates terminals without a
+ * municipality — so it is plain glass like every other, captioned honestly
+ * by `terminalRowValue`.
  */
 function TerminalRecordRow({
   terminal,
   value,
-  homeless,
   onPress,
 }: {
   terminal: TerminalRowRecord;
   value: string;
-  /** Neither a link nor a municipality in the name: a red GLASS row. */
-  homeless: boolean;
   onPress: () => void;
 }) {
   const active = terminal.is_active === 1;
@@ -522,19 +511,16 @@ function TerminalRecordRow({
     <GlassCard
       onPress={onPress}
       testID={`tc-row-${terminal.id}`}
-      // A data fault is a red GLASS card, not a flat panel: the same
-      // material as every other row, carrying the error pigment.
-      tint={homeless ? tintedGlass.error : undefined}
       cornerRadius={radius.glass}
       style={styles.row}
       accessibilityRole="button"
       accessibilityLabel={terminalCardAnnouncement(terminal, value)}
     >
       <View style={styles.rowBody}>
-        <Text style={[styles.rowTitle, homeless && styles.rowTitleHomeless]} numberOfLines={1}>
+        <Text style={styles.rowTitle} numberOfLines={1}>
           {terminalNameOf(terminal.name)}
         </Text>
-        <Text style={[styles.rowValue, homeless && styles.rowValueHomeless]} numberOfLines={1}>
+        <Text style={styles.rowValue} numberOfLines={1}>
           {value}
         </Text>
       </View>
@@ -552,11 +538,7 @@ function TerminalRecordRow({
             {active ? 'ACTIVE' : 'INACTIVE'}
           </Text>
         </View>
-        <Icon
-          name="chevron"
-          size={18}
-          color={homeless ? '#FFFFFF' : palette.onSurfaceVariant}
-        />
+        <Icon name="chevron" size={18} color={palette.onSurfaceVariant} />
       </View>
     </GlassCard>
   );
@@ -605,18 +587,21 @@ function PickOption({
 }
 
 /**
- * The record sheet: what is stored, and the one action this screen owns. The
+ * The record sheet: what is stored, and the two actions this screen owns —
+ * EDIT hands the id to the shared editor, DEACTIVATE writes the status. The
  * municipality line agrees with the row it was opened from and says where the
  * value came from — the join, the composed name, or neither.
  */
 function RecordSheet({
   terminal,
   allMunicipalities,
+  onEdit,
   onDeactivate,
   onClose,
 }: {
   terminal: TerminalRowRecord;
   allMunicipalities: MunicipalityRowRecord[];
+  onEdit: () => void;
   onDeactivate: () => void;
   onClose: () => void;
 }) {
@@ -631,7 +616,23 @@ function RecordSheet({
       closeTestID="tc-sheet-close"
       footer={
         <View style={styles.sheetActions}>
-          {/* The sheet's ONLY action. Live for an inactive row too: the state
+          {/* EDIT first, ghost glass — same material and position as the
+              Barangay sheet's, so the two registries read as one. It closes
+              the sheet by unmounting into the editor route. */}
+          <Pressable
+            onPress={onEdit}
+            accessibilityRole="button"
+            accessibilityLabel={`Edit ${title}`}
+            style={({ pressed }) => [styles.sheetGhost, pressed && styles.pressed]}
+          >
+            <GlassCard
+              cornerRadius={radius.large}
+              style={StyleSheet.absoluteFill}
+              pointerEvents="none"
+            />
+            <Text style={styles.sheetGhostLabel}>EDIT</Text>
+          </Pressable>
+          {/* Live for an inactive row too: the state
               is answered with a sentence, never a dead control. */}
           <Pressable
             onPress={onDeactivate}
@@ -668,23 +669,21 @@ function RecordSheet({
         </View>
       }
     >
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View testID="tc-record-rows">
-          <DetailCard>
-            {pairs.map((pair) => (
-              <DetailRow
-                key={pair.label}
-                label={pair.label}
-                value={pair.value}
-                tabular={pair.label !== 'Municipality'}
-              />
-            ))}
-          </DetailCard>
-        </View>
-        <Text style={styles.sheetNote}>
-          The stored values this record reads. Only the status is written from this sheet.
-        </Text>
-      </ScrollView>
+      <View testID="tc-record-rows">
+        <DetailCard>
+          {pairs.map((pair) => (
+            <DetailRow
+              key={pair.label}
+              label={pair.label}
+              value={pair.value}
+              tabular={pair.label !== 'Municipality'}
+            />
+          ))}
+        </DetailCard>
+      </View>
+      <Text style={styles.sheetNote}>
+        The stored values this record reads. Only the status is written from this sheet.
+      </Text>
     </Sheet>
   );
 }
@@ -927,8 +926,6 @@ const styles = StyleSheet.create({
   addPillLabel: { ...type.labelSmall, color: palette.onPrimary },
 
   // ── the record row: Settings' card, minus its chip ──
-  // A GlassCard: the homeless fault is the red glass variant (the `tint`
-  // prop in TerminalRecordRow), never a flat error panel.
   row: {
     minHeight: 90,
     flexDirection: 'row',
@@ -939,10 +936,6 @@ const styles = StyleSheet.create({
   rowBody: { flex: 1, minWidth: 0 },
   rowTitle: { ...type.titleMedium, color: palette.onSurface },
   rowValue: { ...type.bodyMedium, color: palette.onSurfaceVariant, marginTop: 2 },
-  // On the red glass row the neutral ink goes white: white clears 6.5:1 on
-  // `tintedGlass.error` and reads as the fault.
-  rowTitleHomeless: { color: '#FFFFFF' },
-  rowValueHomeless: { fontFamily: 'Poppins_600SemiBold', color: '#FFFFFF' },
   rowEnd: { flexDirection: 'row', alignItems: 'center', gap: space(2), flexShrink: 0 },
   pill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.full },
   pillActive: { backgroundColor: accent.tertiary.container },

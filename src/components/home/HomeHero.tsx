@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon, type IconName } from '../../icons';
-import { cardShadow, palette, radius, space, tintedGlass, type } from '../../theme';
+import { cardShadow, glassBlur, palette, radius, space, tintedGlass, type } from '../../theme';
 import { GlassCard } from '../GlassCard';
 import { Skeleton } from '../SummaryDisclosure';
 
@@ -129,7 +129,6 @@ export function HomeHero({
                 style={({ pressed }) => [
                   styles.action,
                   styles.actionGhost,
-                  running && styles.actionGhostRunning,
                   pressed && styles.pressed,
                 ]}
               >
@@ -158,6 +157,7 @@ export function HomeHero({
         <View style={[styles.card, styles.cardRunning]}>{content}</View>
       ) : (
         <GlassCard
+          intensity={glassBlur}
           style={[styles.card, failed && styles.cardError]}
           accessible
           accessibilityLabel={`${eyebrow}. ${title}. ${body}${when ? ` ${when}` : ''}`}
@@ -181,9 +181,9 @@ const styles = StyleSheet.create({
     padding: space(5),
   },
   cardError: {
+    // The reference's `.hero-error` sets `border: none` — the pale red fill
+    // and the red eyebrow carry the state, not an outline around the card.
     backgroundColor: palette.errorContainer,
-    borderWidth: 1,
-    borderColor: palette.error,
   },
   // Solid amber, the only yellow in the app. `cardShadow` rather than a second
   // shadow: the same numbers as every other panel, so it sits at the same depth.
@@ -304,10 +304,9 @@ const styles = StyleSheet.create({
   actionGhost: {
     backgroundColor: 'transparent',
     borderWidth: 1,
+    // The reference keeps `--outline` here even on the amber card; the darker
+    // onSecondary border this used to swap in was the app's own invention.
     borderColor: palette.outline,
-  },
-  actionGhostRunning: {
-    borderColor: palette.onSecondary,
   },
   actionLabel: {
     ...type.labelLarge,

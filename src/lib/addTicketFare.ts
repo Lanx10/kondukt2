@@ -70,9 +70,6 @@ export type FareConfigRow = {
   special_express_rate_per_km?: number;
 };
 
-/** The express-way (SCTEX) configuration row, when the device has one. */
-export type SctexConfigRow = { km_adjustment_milli?: number } | null;
-
 export type FareRules = {
   minimumFareCentavos: number;
   minimumDistanceMilli: number;
@@ -80,11 +77,10 @@ export type FareRules = {
   expressRatePerKmCentavos: number;
   specialRatePerKmCentavos: number;
   specialExpressRatePerKmCentavos: number;
-  sctexAdjustmentMilli: number;
 };
 
 /**
- * Projects the two singleton configuration rows onto the calculator's inputs.
+ * Projects the stored fare row onto the calculator's inputs.
  *
  * The express-way columns fall back to their ordinary counterparts **only when
  * the column is absent entirely** — `??`, not `||`. A device whose database
@@ -94,7 +90,7 @@ export type FareRules = {
  * actually entered is a real value and is never substituted: `||` would make
  * the cell quietly read as a different rate than the one on the form.
  */
-export function toFareRules(fare: FareConfigRow, sctex: SctexConfigRow): FareRules {
+export function toFareRules(fare: FareConfigRow): FareRules {
   return {
     minimumFareCentavos: fare.minimum_fare,
     minimumDistanceMilli: fare.minimum_distance_milli,
@@ -103,7 +99,6 @@ export function toFareRules(fare: FareConfigRow, sctex: SctexConfigRow): FareRul
     specialRatePerKmCentavos: fare.special_rate_per_km,
     specialExpressRatePerKmCentavos:
       fare.special_express_rate_per_km ?? fare.special_rate_per_km,
-    sctexAdjustmentMilli: sctex?.km_adjustment_milli ?? 0,
   };
 }
 
@@ -151,9 +146,8 @@ export type PriceInput = {
  *
  * The order is the rule and is not negotiable: the **distance floor applies
  * first**, and the **fare floor applies after** rounding. Nothing is added to
- * the distance between the two — the stored KM adjustment is never folded in —
- * so get either floor wrong and the minimum stops binding on exactly the short
- * hops where it exists to bind.
+ * the distance between the two, so get either floor wrong and the minimum
+ * stops binding on exactly the short hops where it exists to bind.
  *
  * Half-up rounding is integer: `floor((rate × billable + 500) / 1000)`. No
  * floats, so 86.2 km × ₱2.25 is ₱193.95 on every device rather than ₱193.94 on
@@ -467,7 +461,6 @@ export function computeAddTicketView(input: {
   tickets: LedgerTicket[];
   terminals: TerminalRow[];
   fare: FareConfigRow | null;
-  sctex: SctexConfigRow;
 }): AddTicketView {
   if (input.error !== null) return { kind: 'error', message: input.error };
   if (input.loading) return { kind: 'loading' };
@@ -485,6 +478,6 @@ export function computeAddTicketView(input: {
     trip: input.trip,
     tickets: input.tickets,
     terminals: input.terminals,
-    rules: toFareRules(input.fare, input.sctex),
+    rules: toFareRules(input.fare),
   };
 }

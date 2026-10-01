@@ -81,6 +81,7 @@ function runAll(db: DatabaseSync, statements: string[]) {
   const columns = { trips: columnsOf(db, 'trips'), terminals: columnsOf(db, 'terminals') };
   check('bootstrap creates uses_sctex itself', columns.trips.includes('uses_sctex'), true);
   check('bootstrap links terminals to municipalities', columns.terminals.includes('municipality_id'), true);
+  check('bootstrap splits the two registries', columns.terminals.includes('kind'), true);
   check(
     'the version the fresh seed stamps plans no migration',
     upgradeStatements({ seeded: SEEDED_VERSION, columns }),
@@ -187,11 +188,56 @@ function runAll(db: DatabaseSync, statements: string[]) {
   checkDoesNotThrow('and the re-plan runs cleanly', () => runAll(db, replan));
 }
 
-// ── 5. The planner's one primitive ─────────────────────────────────────────
+// ── 5. A device stamped 'v5' gains the registry column ─────────────────────
+{
+  const db = bootstrapped();
+  // Roll it back to the v5 shape: the stop registry with no discriminator, so
+  // Terminal Configuration and Barangay Configuration read the same rows.
+  db.exec('DROP TABLE terminals');
+  db.exec(`CREATE TABLE terminals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    km_marker INTEGER NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    municipality_id INTEGER REFERENCES municipalities(id)
+  )`);
+  // Unlinked, exactly like the seed's own Subic row: the assertion below is
+  // about the new column, not the link.
+  db.exec(
+    `INSERT INTO terminals (name, km_marker, is_active, municipality_id)
+     VALUES ('Iba, Zambales', 96800, 1, NULL)`,
+  );
+  stamp(db, 'v5');
+
+  const columns = { trips: columnsOf(db, 'trips'), terminals: columnsOf(db, 'terminals') };
+  const plan = upgradeStatements({ seeded: 'v5', columns });
+  check(
+    'a v5 device gets the registry column',
+    plan.some((s) => /ALTER TABLE terminals ADD COLUMN kind/.test(s)),
+    true,
+  );
+  check('and only the column and the restamp', plan.length, 2);
+  checkDoesNotThrow('the v5 plan runs', () => runAll(db, plan));
+  check(
+    'the rows it already holds are filed as barangays',
+    db.prepare('SELECT kind FROM terminals').get(),
+    { kind: 'BARANGAY' },
+  );
+  check(
+    'a fourth launch plans nothing',
+    upgradeStatements({
+      seeded: SEEDED_VERSION,
+      columns: { trips: columnsOf(db, 'trips'), terminals: columnsOf(db, 'terminals') },
+    }),
+    [],
+  );
+}
+
+// ── 6. The planner's one primitive ─────────────────────────────────────────
 check('a missing column gets an ALTER', addColumnStatement('trips', 'uses_sctex', 'INTEGER NOT NULL DEFAULT 0', ['id']), 'ALTER TABLE trips ADD COLUMN uses_sctex INTEGER NOT NULL DEFAULT 0');
 check('a present column gets nothing', addColumnStatement('trips', 'uses_sctex', 'INTEGER NOT NULL DEFAULT 0', ['id', 'uses_sctex']), null);
 
-// ── 6. Unknown / unstamped databases are the caller's rebuild case ─────────
+// ── 7. Unknown / unstamped databases are the caller's rebuild case ─────────
 check('an unstamped database plans nothing here', upgradeStatements({ seeded: null, columns: { trips: [], terminals: [] } }), []);
 check('a v1 database plans nothing here', upgradeStatements({ seeded: 'v1', columns: { trips: [], terminals: [] } }), []);
 

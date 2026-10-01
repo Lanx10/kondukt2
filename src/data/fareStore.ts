@@ -272,10 +272,10 @@ const writtenValues = (input: FareWriteInput) =>
  * **The update is narrower than the table.** It names exactly the ten columns
  * the form owns and mentions the other three nowhere. The two percent columns
  * and the km adjustment are no longer on the form, so a screen that still wrote
- * them would write zeros for values it never showed — and since the adjustment
- * feeds `priceTicket`, saving an unrelated concession rate would quietly move
- * every express-way fare on the device. A field the form dropped is left exactly
- * as the device last set it.
+ * them would write zeros for values it never showed — and since fare math adds
+ * no toll-road adjustment on any road, the adjustment column applies to
+ * nothing and must never be disturbed by an unrelated save. A field the form
+ * dropped is left exactly as the device last set it.
  *
  * The km adjustment's own row is created once, at zero, and never written
  * again: there is no longer anywhere in the app to set it, so a device that has

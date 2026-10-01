@@ -102,6 +102,10 @@ type Observation = {
    let [openTicket, setOpenTicket] = _react.useState<any>(null);
    let [recorded, setRecorded] = _react.useState<any>(null);
    let [recording, setRecording] = (0, _react.useState)(false);
+   // A press that lands before the next render still reads `recording` as false
+   // — state flips too late to guard the same tick. The ref flips now, so a
+   // double-press cannot insert the same boarding twice.
+   let recordingRef = (0, _react.useRef)(false);
    let [writeError, setWriteError] = _react.useState<string | null>(null);
    (0, _react.useEffect)(() => {
      let cancelled = false;
@@ -179,7 +183,8 @@ type Observation = {
    let capLine = (0, _libAddTicketFare.ledgerCapLine)(fold);
    let canRecord = ready !== null && breakdown !== null && blockReason === null && !recording;
    let onRecord = () => {
-     if (!canRecord || !breakdown || !ready || !board || !drop) return;
+     if (!canRecord || recordingRef.current || !breakdown || !ready || !board || !drop) return;
+     recordingRef.current = true;
      // Snapshotted at the press, before the write, because the quantity resets
      // to 1 the moment the ticket lands and the sheet must print the group that
      // boarded. The clock is read here, at the press, for the same reason.
@@ -207,6 +212,7 @@ type Observation = {
        passengerQuantity: (0, _libAddTicketFare.clampQuantity)(quantity),
        farePerPassenger: breakdown.perPassengerCentavos
      }).then(() => {
+       recordingRef.current = false;
        setRecording(false);
        // The four settings carry over: the next group boards at the same stop
        // on the same bus. The quantity does not — a group of twenty is one
@@ -215,6 +221,7 @@ type Observation = {
        setRecorded(snapshot);
        setSheet('recorded');
      }).catch(error => {
+       recordingRef.current = false;
        setRecording(false);
        setWriteError(error instanceof Error ? error.message : STORAGE_FAILURE);
      });
@@ -925,16 +932,20 @@ type Observation = {
      subtitle: `${terminals.length} barangay${terminals.length === 1 ? '' : 's'} on this device`,
      onClose: onClose,
      fill: true,
-     children: [/*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.TextInput, {
-       value: query,
-       onChangeText: setQuery,
-       placeholder: "Search barangay names",
-       placeholderTextColor: _theme.palette.outline,
-       accessibilityLabel: kind === SIDE.DROP ? 'Search destination barangays' : 'Search boarding point barangays',
-       style: styles.search
-     }), /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.FlatList, {
+      children: [/*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.TextInput, {
+        value: query,
+        onChangeText: setQuery,
+        placeholder: "Search barangay names",
+        placeholderTextColor: _theme.palette.outline,
+        accessibilityLabel: kind === SIDE.DROP ? "Search destination barangays" : "Search boarding point barangays",
+        style: styles.search
+      }), /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.FlatList, {
        data: results,
        keyExtractor: (terminal: any) => String(terminal.id),
+       style: styles.sheetList,
+       // A row taps through on the first touch with the keyboard open — the
+       // same rule Add trip's picker uses.
+       keyboardShouldPersistTaps: "handled",
        renderItem: ({
          item
        }: { [key: string]: any }) => {
@@ -1011,9 +1022,7 @@ type Observation = {
      title: "Fare rules",
      subtitle: "As this device has them",
      onClose: onClose,
-     children: /*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_reactNative.ScrollView, {
-       showsVerticalScrollIndicator: false,
-       children: [/*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_componentsBottomSheet.DetailCard, {
+     children: [/*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_componentsBottomSheet.DetailCard, {
          children: [/*#__PURE__*/(0, _reactJsxRuntime.jsx)(_componentsBottomSheet.DetailRow, {
            label: "Minimum fare",
            value: rules ? (0, _libAddTicketFare.formatPeso)(rules.minimumFareCentavos) : '—'
@@ -1047,7 +1056,7 @@ type Observation = {
            children: "2. The billable distance is multiplied by the rate for this road and this fare type, rounded to the cent, and then raised to the minimum fare if it comes out under it."
          }), /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.Text, {
            style: styles.proseText,
-           children: "Student, senior and PWD fares all take the special rate, which is a flat per-kilometre figure rather than a discount off the road\u2019s own rate \u2014 there is no separate expressway price for a discounted passenger. They do not escape the minimum fare: a short discounted hop is still charged the minimum."
+           children: "Student, senior and PWD fares all take the special rate, which is a flat per-kilometre figure rather than a discount off the road\u2019s own rate. The express way carries its own special rate, so a concessionaire pays the flat figure for the road being driven. They do not escape the minimum fare: a short discounted hop is still charged the minimum."
          }), /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.Text, {
            style: styles.proseText,
            children: "The two discount percentages on file are already folded into the stored special rate, and the deluxe rate columns are not used in this calculation at all."
@@ -1055,7 +1064,6 @@ type Observation = {
        }), /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_componentsBottomSheet.Handoff, {
          children: "Fare settings, where all ten of these are edited"
        })]
-     })
    });
  }
 
@@ -1091,9 +1099,7 @@ type Observation = {
          children: "Record another"
        })
      }),
-     children: /*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_reactNative.ScrollView, {
-       showsVerticalScrollIndicator: false,
-       children: [/*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_componentsBottomSheet.DetailCard, {
+     children: [/*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_componentsBottomSheet.DetailCard, {
          children: [/*#__PURE__*/(0, _reactJsxRuntime.jsx)(_componentsBottomSheet.DetailRow, {
            label: "Boarding point",
            value: recorded.board.name,
@@ -1140,7 +1146,6 @@ type Observation = {
          style: styles.proseText,
          children: "The quantity is back to 1 and the route is still filled in, because the next group boards at the same stop."
        })]
-     })
    });
  }
 
@@ -1167,9 +1172,7 @@ type Observation = {
      title: `Ticket #${ticket.id}`,
      subtitle: `Recorded ${(0, _libTripTicketsFormat.formatRowStamp)(ticket.created_at)}`,
      onClose: onClose,
-     children: /*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_reactNative.ScrollView, {
-       showsVerticalScrollIndicator: false,
-       children: [/*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_componentsBottomSheet.DetailCard, {
+     children: [/*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_componentsBottomSheet.DetailCard, {
          children: [/*#__PURE__*/(0, _reactJsxRuntime.jsx)(_componentsBottomSheet.DetailRow, {
            label: "Boarding point",
            value: ticket.origin_location_snapshot,
@@ -1212,7 +1215,6 @@ type Observation = {
        }), /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_componentsBottomSheet.Handoff, {
          children: "Trip tickets, where it sits in the ledger, and the trip total on Trip and Home"
        })]
-     })
    });
  }
 
@@ -1762,16 +1764,22 @@ color: _theme.onAmber.muted,
      color: _theme.palette.onSurfaceVariant,
      marginTop: (0, _theme.space)(3)
    },
-   search: {
-     minHeight: 44,
-     paddingHorizontal: (0, _theme.space)(3),
-     marginBottom: (0, _theme.space)(3),
-     borderRadius: _theme.radius.medium,
-     borderWidth: 1,
-     borderColor: _theme.palette.outlineVariant,
-     color: _theme.palette.onSurface,
-     ..._theme.type.bodyMedium
-   },
+    search: {
+      minHeight: 44,
+      paddingHorizontal: (0, _theme.space)(3),
+      marginBottom: (0, _theme.space)(3),
+      borderRadius: _theme.radius.medium,
+      borderWidth: 1,
+      borderColor: _theme.palette.outlineVariant,
+      color: _theme.palette.onSurface,
+      ..._theme.type.bodyMedium
+    },
+    // The picker list takes the sheet's maxHeight clamp (see BottomSheet):
+    // without the shrink it measures full-content, gets clipped by the sheet
+    // and cannot scroll on Android.
+    sheetList: {
+      flexShrink: 1
+    },
    stopRow: {
      minHeight: 61,
      flexDirection: 'row',

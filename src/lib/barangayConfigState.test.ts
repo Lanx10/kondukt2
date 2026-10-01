@@ -61,6 +61,7 @@ const term = (
   km_marker: km,
   is_active: active,
   municipality_id: munId,
+  kind: 'BARANGAY',
 });
 
 const mun = (id: number, name: string, province: string, active: 0 | 1): MunicipalityRow => ({

@@ -10,6 +10,24 @@
 /** Lifecycle of a trip in the store. */
 export type TripStatusRecord = 'ACTIVE' | 'COMPLETED';
 
+/**
+ * Which of the two registries a stop belongs to.
+ *
+ * One table holds both collections — `terminals` has always been the stop
+ * registry the trip reader, the ticket picker and the Barangay Picker read —
+ * and until now nothing said WHICH module a row came from, so Terminal
+ * Configuration and Barangay Configuration listed the same rows: a screen
+ * bug the driver reported as "the two configurations are displaying the
+ * same". The column is the discriminator, written by the editor that creates
+ * the row and never moved by an edit, so a record stays where it was filed.
+ *
+ * Reads that serve a flow (trip route, ticket stops) still take every stop,
+ * whatever the kind: a route and its boardings are priced off the same km
+ * markers, and splitting them would strand an install whose stops were all
+ * created by one module.
+ */
+export type TerminalKind = 'TERMINAL' | 'BARANGAY';
+
 /** A configured stop. `km_marker` is integer thousandths of a km. */
 export type TerminalRowRecord = {
   id: number;
@@ -18,6 +36,8 @@ export type TerminalRowRecord = {
   is_active: number;
   /** The municipality grouping this stop belongs to; null when unlinked. */
   municipality_id: number | null;
+  /** The registry this stop was filed under — see `TerminalKind`. */
+  kind: TerminalKind;
 };
 
 /**

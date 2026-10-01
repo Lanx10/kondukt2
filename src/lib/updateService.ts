@@ -14,7 +14,9 @@
  *    the running app, never request headers or tokens.
  *
  * What this module deliberately does NOT do: download or install an Android
- * binary. Native releases ship through Google Play; see RELEASE-WORKFLOW.md.
+ * binary. New binaries are distributed as APKs through GitHub Releases by the
+ * primary updater (see `apkUpdateService.ts` / RELEASE-WORKFLOW.md); Google
+ * Play is not used.
  */
 import * as Updates from 'expo-updates';
 import Constants from 'expo-constants';

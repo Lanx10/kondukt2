@@ -30,7 +30,7 @@
  */
 
 /** The version a database carries once it matches the schema below exactly. */
-export const SEEDED_VERSION = 'v5';
+export const SEEDED_VERSION = 'v6';
 
 /**
  * The tables, in creation order: `municipalities` before `terminals`, because
@@ -85,7 +85,8 @@ export const TERMINALS_TABLE_SQL = `CREATE TABLE IF NOT EXISTS terminals (
   name TEXT NOT NULL,
   km_marker INTEGER NOT NULL,
   is_active INTEGER NOT NULL DEFAULT 1,
-  municipality_id INTEGER REFERENCES municipalities(id)
+  municipality_id INTEGER REFERENCES municipalities(id),
+  kind TEXT NOT NULL DEFAULT 'BARANGAY'
 )`;
 
 /**
@@ -177,7 +178,7 @@ export type SchemaColumns = {
  * The statements that bring an existing database to `SEEDED_VERSION`, or an
  * empty list when it is already there.
  *
- * Only the two additive versions are migrated: `v1`/`v2` and an unstamped
+ * Only the additive versions are migrated: `v1`/`v2` and an unstamped
  * database are rebuilt by the caller from `BOOTSTRAP_SQL` (no user data has
  * ever shipped under them). Everything returned here is safe to run on a
  * database that is partly migrated already, which is the state every device
@@ -189,7 +190,7 @@ export function upgradeStatements(input: {
 }): string[] {
   const { seeded, columns } = input;
   if (seeded === SEEDED_VERSION) return [];
-  if (seeded !== 'v3' && seeded !== 'v4') return [];
+  if (seeded !== 'v3' && seeded !== 'v4' && seeded !== 'v5') return [];
 
   const statements: string[] = [];
   if (seeded === 'v3') {
@@ -215,6 +216,26 @@ export function upgradeStatements(input: {
     columns.trips,
   );
   if (road) statements.push(road);
+  // v6: `terminals.kind`, which of the two registries a stop belongs to — the
+  // discriminator that stops Terminal Configuration and Barangay
+  // Configuration listing the same rows.
+  //
+  // The DEFAULT is the one judgement call in the migration, and it is aimed at
+  // the only databases that can carry rows without the column: a release
+  // install never seeds (the demo dataset is `__DEV__`-gated), so every row
+  // such a device already holds was written by Add Barangay. File those as
+  // barangays and they stay where the driver left them; file them as
+  // terminals and the Barangay Configuration list reads empty, which looks
+  // like lost data. A demo database's five seeded stops are written with
+  // `kind` explicitly by the seed, and a demo build that still has rows from
+  // before the column existed can be reseeded by clearing its data.
+  const kind = addColumnStatement(
+    'terminals',
+    'kind',
+    "TEXT NOT NULL DEFAULT 'BARANGAY'",
+    columns.terminals,
+  );
+  if (kind) statements.push(kind);
   statements.push(markSeededStatement());
   return statements;
 }

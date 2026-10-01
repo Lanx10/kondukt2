@@ -1003,3 +1003,48 @@ sets the whole column's top rhythm.
 Verified live: chrome bottom `80`, card top `100`, gap `20px`; card
 `[20,100,367,344]` still solid amber `rgb(255,179,0)`,
 `wrapMargin 20px 20px 0px`. `npx tsc --noEmit` and `npx expo lint` both clean.
+
+## PASS: Home copied home.html's tiles and every card frosted (user-directed)
+
+User request (user-directed): read home.html, copy its design into the real
+Home screen, and make sure the white cards are glass.
+
+SCOPE:
+- `src/theme.ts` — added `glassBlur = 18`, the reference's
+  `backdrop-filter: blur(18px) saturate(180%)` (home.html `.glass`). At
+  `intensity: 0` the BlurView sampled nothing and every panel read as a flat
+  white wash — the tint with no refraction — which is what made the cards
+  look white rather than glass. `saturate` has no RN primitive.
+- `src/components/QuickActionsGrid.tsx` — the tile is now the reference's
+  `.qa-btn`: chip 40px (was 48), corner 16 (`.qa-btn` overrides `.glass`'s
+  28), min height 112 (was 152), no chevron, and the live figure the
+  reference prints under the title (`₱753.36 today`, `3 trips on file`,
+  `Trip #6 running`) instead of the static blurb, which moves into the
+  accessible name exactly as the reference builds it:
+  `"<title>. <blurb>. <value>. <extra>. Opens <screen>."` — `value`, `extra`
+  and `opens` were already computed on the screen and never rendered.
+  Primary chip ink `#E65100` → `primarySolid` per the reference's
+  `tone-primary`. Dropped `compact`/`NARROW_WIDTH`: one ellipsised line has
+  nothing to grow for.
+- `src/screens/HomeScreen.tsx` — tile order copied from the reference
+  (Dashboard, History, Trips, Tickets, Passengers, Settings) with the app's
+  Current Trip kept after Trips; the section-net card (the last opaque
+  `surfaceContainerLow` fill in the file) became `GlassCard` at `glassBlur`
+  with glass ink.
+- `src/components/home/HomeHero.tsx` — frost 18; `.hero-error`'s reference
+  rule `border: none` honoured (the red outline round the card was the
+  app's own); the ghost button's amber `onSecondary` border override
+  dropped — the reference keeps `--outline` there.
+- `src/components/home/LastTripCard.tsx`, `StorageNote.tsx` — frost 18;
+  the link reads `View all in History` (home.html:930), chevron dropped.
+
+NOT CHANGED: the idle hero keeps its three day figures where the reference
+shows none (the app's addition; the separate LAST TRIP card matches the
+reference); tile nouns stay `ticket` where the reference says `fare` —
+app-wide data vocabulary.
+
+Verified live on web: running and idle snapshots — tiles print the live
+figures, a11y names carry blurb/value/extra/opens, LAST TRIP link reads
+"View all in History", every home card refracts the field (no white fills
+remain). `npx tsc --noEmit` clean; `npx expo lint` 0 errors (3 pre-existing
+warnings in untouched lines).

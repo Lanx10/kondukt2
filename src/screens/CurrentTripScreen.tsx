@@ -32,6 +32,7 @@ import {
   type FareRules,
 } from '../lib/addTicketFare';
 import { centavos, formatRowStamp } from '../lib/tripTicketsFormat';
+import { useUpdateGuard } from '../lib/updateGuard';
 
 export type CurrentTripScreenProps = {
   onBack: () => void;
@@ -88,6 +89,9 @@ export function CurrentTripScreen({
   onTripEnded,
 }: CurrentTripScreenProps) {
   const insets = useSafeAreaInsets();
+  // Ending the running trip is a transaction: no update sheet may open over
+  // its confirm, and no restart may land mid-press. See updateGuard.
+  useUpdateGuard('current-trip');
 
   // One load state, one subscription. `currentTripId` keys the ticket
   // observation, so a new active trip re-scopes the list and the previous
@@ -119,7 +123,7 @@ export function CurrentTripScreen({
           const kmByName: Record<string, number> = {};
           for (const terminal of terminals) kmByName[terminal.name] = terminal.km_marker;
           setCtx({
-            rules: fares.fare ? toFareRules(fares.fare, fares.sctex) : null,
+            rules: fares.fare ? toFareRules(fares.fare) : null,
             kmByName,
           });
           const active = board.active;

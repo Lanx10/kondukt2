@@ -4,7 +4,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -151,7 +150,10 @@ export function BarangayConfigScreen({
   useEffect(() => {
     let cancelled = false;
     const run = () =>
-      Promise.all([fetchAllTerminals(), fetchAllMunicipalities()])
+      // The BARANGAY half of the registry, not every stop: the terminal list
+      // is the other module's, and reading both is what made the two
+      // Configuration screens show the same rows.
+      Promise.all([fetchAllTerminals('BARANGAY'), fetchAllMunicipalities()])
         .then(([terminalRows, municipalityRows]) => {
           if (cancelled) return;
           setBarangays(terminalRows);
@@ -226,7 +228,7 @@ export function BarangayConfigScreen({
     ? 'Loading locations'
     : loadError !== null
       ? 'Location configuration unavailable'
-      : `${view.totalBarangays} ${plural(view.totalBarangays, 'barangay', 'barangays')} · ${view.totalMunicipalities} ${plural(view.totalMunicipalities, 'municipality', 'municipalities')}`;
+      : `${plural(view.totalBarangays, 'barangay', 'barangays')} · ${plural(view.totalMunicipalities, 'municipality', 'municipalities')}`;
 
   // The empty branch, resolved from the controls that are actually applied —
   // the scope only counts on the barangays tab, because that is the only tab
@@ -1025,21 +1027,19 @@ function RecordSheet({
         </View>
       }
     >
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <DetailCard>
-          {pairs.map((pair) => (
-            <DetailRow
-              key={pair.label}
-              label={pair.label}
-              value={pair.value}
-              tabular={pair.label !== 'Municipality' && pair.label !== 'Province'}
-            />
-          ))}
-        </DetailCard>
-        <Text style={styles.sheetNote}>
-          The stored values this record reads. Nothing is written from this sheet.
-        </Text>
-      </ScrollView>
+      <DetailCard>
+        {pairs.map((pair) => (
+          <DetailRow
+            key={pair.label}
+            label={pair.label}
+            value={pair.value}
+            tabular={pair.label !== 'Municipality' && pair.label !== 'Province'}
+          />
+        ))}
+      </DetailCard>
+      <Text style={styles.sheetNote}>
+        The stored values this record reads. Nothing is written from this sheet.
+      </Text>
     </Sheet>
   );
 }

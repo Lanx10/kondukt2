@@ -38,7 +38,7 @@ import * as _reactJsxRuntime from 'react/jsx-runtime';
 
  "use strict";
 
-                                                                             /** Below this width the two-column cards need extra height to stay readable. */let NARROW_WIDTH = 360;
+
 
  /** Shown in place of a figure that has no meaning yet. */
  let EMPTY_VALUE = '—';
@@ -121,10 +121,6 @@ type SectionKey = keyof typeof SECTIONS | OpenRoute;
 
  function HomeScreen() {
    let insets = (0, _reactNativeSafeAreaContext.useSafeAreaInsets)();
-   let {
-     width
-   } = (0, _reactNative.useWindowDimensions)();
-   let compact = width < NARROW_WIDTH;
    let now = (0, _libUseNow.useNow)();
    let [open, setOpen] = _react.useState<SectionKey | null>(null);
    // Non-null only while the Tickets section is open. The screen takes the
@@ -371,23 +367,20 @@ type SectionKey = keyof typeof SECTIONS | OpenRoute;
      opens: 'Dashboard',
      value: empty ? `${dash} today` : `${(0, _libTripTicketsFormat.centavos)(today.earnings)} today`,
      extra: empty ? 'Nothing recorded yet' : `${(0, _libHistoryState.plural)(today.tripCount, 'trip')} today · ${(0, _libHistoryState.plural)(today.ticketCount, 'ticket')}`,
-     onPress: () => setOpen('dashboard')
-   },
-   // Resolves the trip to open from the store: active trip first, else the
-   // latest on file. With no trips at all there is nothing to show, so the
-   // action is inert rather than opening a screen built around a missing id.
-   {
-     key: 'tickets',
-     icon: 'ticket',
-     title: 'Tickets',
-     subtitle: 'Fares recorded on a trip',
-     accent: 'secondary',
-     opens: 'Trip Tickets',
-     value: empty ? 'No fares yet' : `${(0, _libHistoryState.plural)(today.ticketCount, 'ticket')} · ${(0, _libTripTicketsFormat.centavos)(today.earnings)}`,
-     extra: empty ? 'Nothing recorded yet' : `Across ${(0, _libHistoryState.plural)(today.tripCount, 'trip')} today`,
-     onPress: openDefaultTickets
-   }, {
-     key: 'trip',
+    onPress: () => setOpen('dashboard')
+  },
+  {
+    key: 'history',
+    icon: 'history',
+    title: 'History',
+    subtitle: 'Past trips and records',
+    accent: 'tertiary',
+    opens: 'History',
+    value: empty ? 'No trips on file' : `${(0, _libHistoryState.plural)(snapshot.totals.tripCount, 'trip')} on file`,
+    extra: empty ? 'Nothing recorded yet' : `Yesterday collected ${(0, _libTripTicketsFormat.centavos)(snapshot.yesterdayEarnings)}`,
+    onPress: () => setOpen('history')
+  }, {
+    key: 'trip',
      icon: 'bus',
      title: 'Trips',
      subtitle: 'Start and manage trips',
@@ -408,9 +401,23 @@ type SectionKey = keyof typeof SECTIONS | OpenRoute;
      opens: 'Current Trip',
      value: snapshot.activeTrip ? 'Running now' : 'No trip running',
      extra: snapshot.activeTrip ? `${(0, _libTripTicketsFormat.centavos)(today.earnings)} collected today` : 'Start one from Trips',
-     onPress: () => setOpen('currentTrip')
-   }, {
-     key: 'passenger',
+    onPress: () => setOpen('currentTrip')
+  },
+  // Resolves the trip to open from the store: active trip first, else the
+  // latest on file. With no trips at all there is nothing to show, so the
+  // action is inert rather than opening a screen built around a missing id.
+  {
+    key: 'tickets',
+    icon: 'ticket',
+    title: 'Tickets',
+    subtitle: 'Fares recorded on a trip',
+    accent: 'secondary',
+    opens: 'Trip Tickets',
+    value: empty ? 'No fares yet' : `${(0, _libHistoryState.plural)(today.ticketCount, 'ticket')} · ${(0, _libTripTicketsFormat.centavos)(today.earnings)}`,
+    extra: empty ? 'Nothing recorded yet' : `Across ${(0, _libHistoryState.plural)(today.tripCount, 'trip')} today`,
+    onPress: openDefaultTickets
+  }, {
+    key: 'passenger',
      icon: 'person',
      title: 'Passengers',
      subtitle: 'Anonymous passenger counts',
@@ -419,18 +426,8 @@ type SectionKey = keyof typeof SECTIONS | OpenRoute;
      value: empty ? 'No passengers yet' : `${(0, _libHistoryState.plural)(today.passengerCount, 'passenger')} today`,
      extra: 'Counts only — no passenger names exist',
      onPress: () => setOpen('passenger')
-   }, {
-     key: 'history',
-     icon: 'history',
-     title: 'History',
-     subtitle: 'Past trips and records',
-     accent: 'tertiary',
-     opens: 'History',
-     value: empty ? 'No trips on file' : `${(0, _libHistoryState.plural)(snapshot.totals.tripCount, 'trip')} on file`,
-     extra: empty ? 'Nothing recorded yet' : `Yesterday collected ${(0, _libTripTicketsFormat.centavos)(snapshot.yesterdayEarnings)}`,
-     onPress: () => setOpen('history')
-   }, {
-     key: 'settings',
+  }, {
+    key: 'settings',
      icon: 'settings',
      title: 'Settings',
      subtitle: 'Appearance and configuration',
@@ -810,14 +807,15 @@ type SectionKey = keyof typeof SECTIONS | OpenRoute;
          },
          children: /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.View, {
            style: styles.readableWidth,
-           children: /*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_reactNative.View, {
-             style: styles.empty,
+         children: /*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_componentsGlassCard.GlassCard, {
+           intensity: _theme.glassBlur,
+           style: styles.empty,
              children: [/*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.View, {
                style: styles.emptyIcon,
                children: /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_icons.Icon, {
-                 name: section.icon,
-                 size: 28,
-                 color: _theme.palette.onSurfaceVariant
+             name: section.icon,
+             size: 28,
+             color: _theme.glass.accentTertiary
                })
              }), /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.Text, {
                style: styles.emptyTitle,
@@ -852,9 +850,8 @@ type SectionKey = keyof typeof SECTIONS | OpenRoute;
            style: styles.sectionHeading,
            accessibilityRole: "header",
            children: "QUICK ACTIONS"
-         }), /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_componentsQuickActionsGrid.QuickActionsGrid, {
-           actions: actions,
-           compact: compact
+         }),         /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_componentsQuickActionsGrid.QuickActionsGrid, {
+           actions: actions
          }), /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_componentsStorageNote.StorageNote, {
            tripCount: snapshot.totals.tripCount,
            ticketCount: snapshot.totals.ticketCount,
@@ -939,10 +936,10 @@ type SectionKey = keyof typeof SECTIONS | OpenRoute;
    empty: {
      marginTop: (0, _theme.space)(6),
      padding: (0, _theme.space)(5),
-     borderRadius: _theme.radius.xlarge,
-     backgroundColor: _theme.palette.surfaceContainerLow,
-     borderWidth: 1,
-     borderColor: _theme.palette.outlineVariant
+     // Glass, like every other panel on the screen: the reference has no
+     // opaque card, so the fill and border go and the card keeps only its
+     // shape over the shared surface.
+     borderRadius: _theme.radius.glass
    },
    emptyIcon: {
      width: 56,
@@ -952,12 +949,12 @@ type SectionKey = keyof typeof SECTIONS | OpenRoute;
    },
    emptyTitle: {
      ..._theme.type.titleMedium,
-     color: _theme.palette.onSurface,
+     color: _theme.glass.onGlass,
      marginTop: (0, _theme.space)(3)
    },
    emptyText: {
      ..._theme.type.bodyMedium,
-     color: _theme.palette.onSurfaceVariant,
+     color: _theme.glass.onGlassVariant,
      marginTop: (0, _theme.space)(2)
    }
  });

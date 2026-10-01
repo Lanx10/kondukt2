@@ -24,6 +24,7 @@ import { tripNumber, tripRoute } from '../data/tripHelpers';
 import { formatElapsed, formatMediumDate, formatShortTime } from '../lib/tripScreenFormat';
 import { distanceKm } from '../lib/tripTicketsFormat';
 import { ROW_STACK_WIDTH } from '../lib/layout';
+import { useUpdateGuard } from '../lib/updateGuard';
 
 /** Caps for the reader, sentence case on screen: the reference's own pairing. */
 const RECENT_LABEL = 'RECENT COMPLETED TRIPS';
@@ -56,6 +57,9 @@ export function TripScreen({ onBack, onOpenTickets, onAddTrip, onViewAllTrips }:
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const stacked = width < ROW_STACK_WIDTH;
+  // Ending the running trip is a transaction: no update sheet may open over
+  // its confirm, and no restart may land mid-press. See updateGuard.
+  useUpdateGuard('trip-management');
 
   type LoadState =
     | { kind: 'loading' }

@@ -1,11 +1,11 @@
-import * as SQLite from 'expo-sqlite';
+import type * as SQLite from 'expo-sqlite';
 import {
   BOOTSTRAP_SQL,
   REBUILT_TABLES,
   SEEDED_VERSION,
   upgradeStatements,
 } from '../lib/storeSchema';
-import { SEED_FARE, SEED_SCTEX } from '../lib/seedData';
+import { SEED_FARE, SEED_SCTEX, buildSeed } from '../lib/seedData';
 
 /**
  * The local SQLite store.
@@ -44,6 +44,21 @@ const DATABASE_NAME = 'kondukt.db';
  * runtime flag would be a knob someone can turn on in the wrong build.
  */
 const DEMO_DATA_ENABLED: boolean = typeof __DEV__ === 'boolean' ? __DEV__ : false;
+
+/**
+ * The native module, loaded on first use rather than at import time.
+ *
+ * Every runtime touch of `expo-sqlite` goes through this memoized loader, so
+ * the module graph itself never pulls the native package — which is what lets
+ * plain `tsx` import this store and run the real `seedIfEmpty` against
+ * `node:sqlite` (the seed-path suite) while Metro bundles the same dynamic
+ * import into the app unchanged.
+ */
+let sqliteModule: typeof import('expo-sqlite') | null = null;
+async function sqlite(): Promise<typeof import('expo-sqlite')> {
+  sqliteModule ??= await import('expo-sqlite');
+  return sqliteModule;
+}
 
 let db: SQLite.SQLiteDatabase | null = null;
 let opening: Promise<SQLite.SQLiteDatabase> | null = null;
@@ -226,6 +241,7 @@ function memoryBackend() {
           ended_at: null,
           distance_km_milli: params[4] as number,
           status: 'ACTIVE' as const,
+          uses_sctex: (params[5] as number) ? 1 : 0,
         };
         state.trips.push(row);
         memory.listeners.forEach((fn) => fn());
@@ -265,6 +281,8 @@ function memoryBackend() {
           km_marker: params[1] as number,
           is_active: (params[2] as 0 | 1) === 1 ? 1 : 0,
           municipality_id: (params[3] as number | null) ?? null,
+          // The bind the SQL statement's fifth placeholder carries.
+          kind: (params[4] as import('./schema').TerminalKind) ?? 'BARANGAY',
         };
         state.terminals.push(row);
         memory.listeners.forEach((fn) => fn());
@@ -348,42 +366,24 @@ async function repairDuplicateTripNumbers(opened: SQLite.SQLiteDatabase) {
   });
 }
 
-/** In-memory mirror of the SQL seed, same relative timestamps. */
+/**
+ * In-memory mirror of the SQL seed — the same `buildSeed` rows, same clock,
+ * so the fallback and the database describe one dataset rather than two that
+ * drift apart.
+ */
 function memorySeed() {
-  const now = Date.now();
-  const startOfToday = new Date(now).setHours(0, 0, 0, 0);
-  const HOUR = 3_600_000;
-  const DAY = 86_400_000;
+  const seed = buildSeed(Date.now());
+  const maxId = (rows: { id: number }[]) =>
+    rows.reduce((max, row) => Math.max(max, row.id), 0) + 1;
   return {
-    trips: [
-      { id: 1, trip_number: '6', origin_location_snapshot: 'Santa Cruz, Olongapo', destination_location_snapshot: 'Caloocan, Kalakhang Maynila', started_at: startOfToday + 6.5 * HOUR, ended_at: null, distance_km_milli: 86_200, status: 'ACTIVE' as const },
-      { id: 2, trip_number: '5', origin_location_snapshot: 'Olongapo, Olongapo', destination_location_snapshot: 'Santa Cruz, Olongapo', started_at: startOfToday + 1 * HOUR, ended_at: startOfToday + 6 * HOUR, distance_km_milli: 12_600, status: 'COMPLETED' as const },
-      { id: 3, trip_number: '4', origin_location_snapshot: 'Santa Cruz, Olongapo', destination_location_snapshot: 'Subic, Subic', started_at: startOfToday - DAY + 2 * HOUR, ended_at: startOfToday - DAY + 9 * HOUR, distance_km_milli: 21_400, status: 'COMPLETED' as const },
-    ],
-    tickets: [
-      { id: 1, trip_id: 1, created_at: startOfToday + 7 * HOUR, origin_location_snapshot: 'Santa Cruz, Olongapo', destination_location_snapshot: 'Caloocan, Kalakhang Maynila', passenger_type: 'REGULAR' as const, passenger_quantity: 2, final_fare_per_passenger: 96_00, total_fare: 192_00 },
-      { id: 2, trip_id: 1, created_at: startOfToday + 7.25 * HOUR, origin_location_snapshot: 'Santa Cruz, Olongapo', destination_location_snapshot: 'Caloocan, Kalakhang Maynila', passenger_type: 'STUDENT' as const, passenger_quantity: 1, final_fare_per_passenger: 76_80, total_fare: 76_80 },
-      { id: 3, trip_id: 1, created_at: startOfToday + 7.5 * HOUR, origin_location_snapshot: 'Santa Cruz, Olongapo', destination_location_snapshot: 'Caloocan, Kalakhang Maynila', passenger_type: 'SENIOR_CITIZEN' as const, passenger_quantity: 1, final_fare_per_passenger: 76_80, total_fare: 76_80 },
-      { id: 4, trip_id: 1, created_at: startOfToday + 8 * HOUR, origin_location_snapshot: 'Santa Cruz, Olongapo', destination_location_snapshot: 'Caloocan, Kalakhang Maynila', passenger_type: 'PWD' as const, passenger_quantity: 1, final_fare_per_passenger: 76_80, total_fare: 76_80 },
-      { id: 5, trip_id: 2, created_at: startOfToday + 3 * HOUR, origin_location_snapshot: 'Olongapo, Olongapo', destination_location_snapshot: 'Santa Cruz, Olongapo', passenger_type: 'REGULAR' as const, passenger_quantity: 2, final_fare_per_passenger: 118_20, total_fare: 236_40 },
-      { id: 6, trip_id: 2, created_at: startOfToday + 4 * HOUR, origin_location_snapshot: 'Olongapo, Olongapo', destination_location_snapshot: 'Santa Cruz, Olongapo', passenger_type: 'SENIOR_CITIZEN' as const, passenger_quantity: 1, final_fare_per_passenger: 94_56, total_fare: 94_56 },
-    ],
-    nextTicketId: 7,
-    nextTripId: 4,
-    nextTerminalId: 6,
-    nextMunicipalityId: 4,
-    municipalities: [
-      { id: 1, name: 'Olongapo', province: 'Zambales', is_active: 1 },
-      { id: 2, name: 'Caloocan', province: 'Metro Manila', is_active: 1 },
-      { id: 3, name: 'Iba', province: 'Zambales', is_active: 1 },
-    ],
-    terminals: [
-      { id: 1, name: 'Santa Cruz, Olongapo', km_marker: 228_000, is_active: 1, municipality_id: 1 },
-      { id: 2, name: 'Caloocan, Kalakhang Maynila', km_marker: 314_200, is_active: 1, municipality_id: 2 },
-      { id: 3, name: 'Olongapo, Olongapo', km_marker: 232_400, is_active: 1, municipality_id: 1 },
-      { id: 4, name: 'Subic, Subic', km_marker: 249_600, is_active: 1, municipality_id: null },
-      { id: 5, name: 'Iba, Zambales', km_marker: 96_800, is_active: 1, municipality_id: 3 },
-    ],
+    trips: seed.trips,
+    tickets: seed.tickets,
+    nextTicketId: maxId(seed.tickets),
+    nextTripId: maxId(seed.trips),
+    nextTerminalId: maxId(seed.terminals),
+    nextMunicipalityId: maxId(seed.municipalities),
+    municipalities: seed.municipalities,
+    terminals: seed.terminals,
   };
 }
 
@@ -400,6 +400,7 @@ async function openHandle(): Promise<SQLite.SQLiteDatabase | null> {
   // installed, `onDatabaseChange` never fires, and every subscriber (the trip
   // board, Home totals, Add ticket's fold) freezes at its last read while the
   // write itself succeeds — the record lands, the screen just never hears of it.
+  const SQLite = await sqlite();
   const native = SQLite.openDatabaseAsync(DATABASE_NAME, { enableChangeListener: true });
   if (!DEMO_DATA_ENABLED) return native;
   // The race that turns a web hang into the memory fallback. The window used
@@ -450,6 +451,7 @@ async function openDatabase() {
       // never leaves the native handle.
       const opened = await openHandle();
       if (!opened) return memoryBackend();
+      console.log('[db] opened handle');
       // Every table first, from the one module that owns the DDL. The fresh
       // seed writes municipalities and terminals, and the fare screens read the
       // fare configuration, so a first open without them failed on its first
@@ -470,7 +472,22 @@ async function openDatabase() {
   return opening;
 }
 
-async function seedIfEmpty(opened: SQLite.SQLiteDatabase) {
+/**
+ * Writes the demo dataset into a freshly bootstrapped database — or, on a
+ * release build, only the version stamp.
+ *
+ * `opts` is the seed-path test's handle on the two inputs it must pin: a
+ * fixed `now` makes every stored timestamp exactly reproducible against
+ * `buildSeed(now)`, and `demo` chooses the insert-or-stamp branch directly
+ * instead of through `__DEV__`. Production calls take neither and behave as
+ * before.
+ */
+export async function seedIfEmpty(
+  opened: SQLite.SQLiteDatabase,
+  opts?: { now?: number; demo?: boolean },
+) {
+  const demo = opts?.demo ?? DEMO_DATA_ENABLED;
+  const nowMs = opts?.now ?? Date.now();
   const seeded = await opened.getFirstAsync<{ value: string }>(
     'SELECT value FROM meta WHERE key = ?',
     'seeded',
@@ -487,18 +504,21 @@ async function seedIfEmpty(opened: SQLite.SQLiteDatabase) {
     // trip_number is what History prints and searches by. One-time cleanup,
     // demo builds only — production never seeds, and the generation rule can
     // no longer collide, so shipped rows are never rewritten.
-    if (DEMO_DATA_ENABLED) await repairDuplicateTripNumbers(opened);
+    if (demo) await repairDuplicateTripNumbers(opened);
     return;
   }
-  if (seeded?.value === 'v3' || seeded?.value === 'v4') {
+  if (seeded?.value === 'v3' || seeded?.value === 'v4' || seeded?.value === 'v5') {
     // Additive, and every statement is planned against the columns the file
     // actually has (`storeSchema.test.ts` runs this plan on a real SQLite).
-    for (const statement of upgradeStatements({
-      seeded: seeded.value,
-      columns: await schemaColumns(opened),
-    })) {
+    const columns = await schemaColumns(opened);
+    console.log('[db] migrate from', seeded.value, JSON.stringify(columns));
+    const plan = upgradeStatements({ seeded: seeded.value, columns });
+    console.log('[db] plan', JSON.stringify(plan));
+    for (const statement of plan) {
       await opened.execAsync(statement);
+      console.log('[db] ran', statement.slice(0, 48));
     }
+    console.log('[db] migrate done');
     return;
   }
 
@@ -515,7 +535,7 @@ async function seedIfEmpty(opened: SQLite.SQLiteDatabase) {
   // `BOOTSTRAP_SQL`, so the current stamp is the whole of its migration and no
   // row is inserted. v1/v2 are left exactly as they are rather than stamped
   // current behind a schema that was never verified.
-  if (!DEMO_DATA_ENABLED) {
+  if (!demo) {
     if (!seeded) {
       await opened.runAsync(
         'INSERT INTO meta (key, value) VALUES (?, ?)',
@@ -537,116 +557,73 @@ async function seedIfEmpty(opened: SQLite.SQLiteDatabase) {
 
   // Relative to load time, not fixed timestamps — the same rule the previous
   // in-memory seed used, so a fresh install always has a live trip in today's
-  // window and records under it.
-  const now = Date.now();
-  const startOfToday = new Date(now).setHours(0, 0, 0, 0);
-  const HOUR = 3_600_000;
-  const DAY = 86_400_000;
+  // window and records under it. `buildSeed` is the whole dataset and the only
+  // one: the in-memory backend hands the same rows to its store, so the two
+  // seeds cannot drift apart (they once did — a 4.4 km route stored as 12.6 km,
+  // fares no configuration on the device could produce).
+  const seed = buildSeed(nowMs);
 
   await opened.withTransactionAsync(async () => {
-    await opened.runAsync(
-      `INSERT INTO trips
-        (trip_number, origin_location_snapshot, destination_location_snapshot, started_at, ended_at, distance_km_milli, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      '6', 'Santa Cruz, Olongapo', 'Caloocan, Kalakhang Maynila', startOfToday + 6.5 * HOUR, null, 86_200, 'ACTIVE',
-    );
-    const activeTrip = await opened.getFirstAsync<{ id: number }>(
-      'SELECT id FROM trips WHERE status = ?',
-      'ACTIVE',
-    );
-    const activeId = activeTrip?.id ?? 1;
-
-    await opened.runAsync(
-      `INSERT INTO trips
-        (trip_number, origin_location_snapshot, destination_location_snapshot, started_at, ended_at, distance_km_milli, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      '5', 'Olongapo, Olongapo', 'Santa Cruz, Olongapo', startOfToday + 1 * HOUR, startOfToday + 6 * HOUR, 12_600, 'COMPLETED',
-    );
-    const completedToday = await opened.getFirstAsync<{ id: number }>(
-      'SELECT id FROM trips WHERE status = ? ORDER BY id DESC',
-      'COMPLETED',
-    );
-    const completedId = completedToday?.id ?? 2;
-
-    await opened.runAsync(
-      `INSERT INTO trips
-        (trip_number, origin_location_snapshot, destination_location_snapshot, started_at, ended_at, distance_km_milli, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      '4', 'Santa Cruz, Olongapo', 'Subic, Subic', startOfToday - DAY + 2 * HOUR, startOfToday - DAY + 9 * HOUR, 21_400, 'COMPLETED',
-    );
-
-    const tickets: [number, string, string, number, string, number, number, number][] = [
-      [activeId, 'Santa Cruz, Olongapo', 'Caloocan, Kalakhang Maynila', startOfToday + 7 * HOUR, 'REGULAR', 2, 96_00, 192_00],
-      [activeId, 'Santa Cruz, Olongapo', 'Caloocan, Kalakhang Maynila', startOfToday + 7.25 * HOUR, 'STUDENT', 1, 76_80, 76_80],
-      [activeId, 'Santa Cruz, Olongapo', 'Caloocan, Kalakhang Maynila', startOfToday + 7.5 * HOUR, 'SENIOR_CITIZEN', 1, 76_80, 76_80],
-      [activeId, 'Santa Cruz, Olongapo', 'Caloocan, Kalakhang Maynila', startOfToday + 8 * HOUR, 'PWD', 1, 76_80, 76_80],
-      [completedId, 'Olongapo, Olongapo', 'Santa Cruz, Olongapo', startOfToday + 3 * HOUR, 'REGULAR', 2, 118_20, 236_40],
-      [completedId, 'Olongapo, Olongapo', 'Santa Cruz, Olongapo', startOfToday + 4 * HOUR, 'SENIOR_CITIZEN', 1, 94_56, 94_56],
-    ];
-    for (const [tripId, origin, destination, createdAt, type, qty, each, total] of tickets) {
+    // Explicit ids from the builder: trips reference municipalities and
+    // terminals, tickets reference trips, and the dense ids are what the
+    // relationships are keyed by.
+    for (const row of seed.municipalities) {
       await opened.runAsync(
-        `INSERT INTO passenger_transactions
-          (trip_id, created_at, origin_location_snapshot, destination_location_snapshot,
-           passenger_type, passenger_quantity, final_fare_per_passenger, total_fare)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        // `created_at` comes first to match the INSERT's column list above; binding
-        // the tuple's own order here put the route string in `created_at` and the
-        // timestamp in the origin snapshot, so every seeded fare fell outside every
-        // time window ("no tickets in this window" under a card showing two).
-        tripId, createdAt, origin, destination, type, qty, each, total,
+        'INSERT INTO municipalities (id, name, province, is_active) VALUES (?, ?, ?, ?)',
+        row.id,
+        row.name,
+        row.province,
+        row.is_active,
       );
     }
-
-    // Terminal KM markers seed from the same story as the trip records: the
-    // Santa Cruz → Caloocan pair produces the 86.200 km the seed trip carries.
-    // Municipalities seed first so the terminal rows can link to them.
-    await opened.runAsync(
-      "INSERT INTO municipalities (name, province, is_active) VALUES (?, ?, 1)",
-      'Olongapo',
-      'Zambales',
-    );
-    await opened.runAsync(
-      "INSERT INTO municipalities (name, province, is_active) VALUES (?, ?, 1)",
-      'Caloocan',
-      'Metro Manila',
-    );
-    await opened.runAsync(
-      "INSERT INTO municipalities (name, province, is_active) VALUES (?, ?, 1)",
-      'Iba',
-      'Zambales',
-    );
-    const munOlongapo = await opened.getFirstAsync<{ id: number }>(
-      'SELECT id FROM municipalities WHERE name = ?',
-      'Olongapo',
-    );
-    const munCaloocan = await opened.getFirstAsync<{ id: number }>(
-      'SELECT id FROM municipalities WHERE name = ?',
-      'Caloocan',
-    );
-    const munIba = await opened.getFirstAsync<{ id: number }>(
-      'SELECT id FROM municipalities WHERE name = ?',
-      'Iba',
-    );
-    await opened.runAsync(
-      'INSERT INTO terminals (name, km_marker, is_active, municipality_id) VALUES (?, ?, 1, ?)',
-      'Santa Cruz, Olongapo', 228_000, munOlongapo?.id ?? null,
-    );
-    await opened.runAsync(
-      'INSERT INTO terminals (name, km_marker, is_active, municipality_id) VALUES (?, ?, 1, ?)',
-      'Caloocan, Kalakhang Maynila', 314_200, munCaloocan?.id ?? null,
-    );
-    await opened.runAsync(
-      'INSERT INTO terminals (name, km_marker, is_active, municipality_id) VALUES (?, ?, 1, ?)',
-      'Olongapo, Olongapo', 232_400, munOlongapo?.id ?? null,
-    );
-    await opened.runAsync(
-      'INSERT INTO terminals (name, km_marker, is_active, municipality_id) VALUES (?, ?, 1, ?)',
-      'Subic, Subic', 249_600, null,
-    );
-    await opened.runAsync(
-      'INSERT INTO terminals (name, km_marker, is_active, municipality_id) VALUES (?, ?, 1, ?)',
-      'Iba, Zambales', 96_800, munIba?.id ?? null,
-    );
+    for (const row of seed.terminals) {
+      await opened.runAsync(
+        'INSERT INTO terminals (id, name, km_marker, is_active, municipality_id, kind) VALUES (?, ?, ?, ?, ?, ?)',
+        row.id,
+        row.name,
+        row.km_marker,
+        row.is_active,
+        row.municipality_id,
+        // The seed's stops are route endpoints, so they are filed as
+        // terminals rather than taking the column default — otherwise the
+        // demo dataset would land in the Barangay Configuration list.
+        row.kind,
+      );
+    }
+    for (const row of seed.trips) {
+      await opened.runAsync(
+        `INSERT INTO trips
+          (id, trip_number, origin_location_snapshot, destination_location_snapshot,
+           started_at, ended_at, distance_km_milli, status, uses_sctex)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        row.id,
+        row.trip_number,
+        row.origin_location_snapshot,
+        row.destination_location_snapshot,
+        row.started_at,
+        row.ended_at,
+        row.distance_km_milli,
+        row.status,
+        row.uses_sctex,
+      );
+    }
+    for (const row of seed.tickets) {
+      await opened.runAsync(
+        `INSERT INTO passenger_transactions
+          (id, trip_id, created_at, origin_location_snapshot, destination_location_snapshot,
+           passenger_type, passenger_quantity, final_fare_per_passenger, total_fare)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        row.id,
+        row.trip_id,
+        row.created_at,
+        row.origin_location_snapshot,
+        row.destination_location_snapshot,
+        row.passenger_type,
+        row.passenger_quantity,
+        row.final_fare_per_passenger,
+        row.total_fare,
+      );
+    }
 
     // The version comes from the module that owns the schema, never a literal
     // written here: stamping a database behind the tables just created is what
@@ -655,7 +632,7 @@ async function seedIfEmpty(opened: SQLite.SQLiteDatabase) {
     // fresh device holds a running trip it cannot record a boarding against —
     // "This device has no fare rules yet" over a ledger of fares — and the
     // seeded amounts on those rows would be explicable by nothing at all.
-    const now = Date.now();
+    const now = nowMs;
     await opened.runAsync(
       `INSERT INTO fare_configuration (
         id, minimum_fare, minimum_distance_milli, rate_per_km, deluxe_rate_per_km,
@@ -745,7 +722,7 @@ export function subscribeToTripWithTickets(
   let cancelled = false;
   let unsubscribe: (() => void) | null = null;
 
-  openDatabase().then((opened) => {
+  openDatabase().then(async (opened) => {
     if (cancelled) return;
     // Combined into one subscription: either table changing means both reads
     // re-run, which is exactly the freshness the screen promises.
@@ -753,6 +730,8 @@ export function subscribeToTripWithTickets(
       memoryListeners.add(onChange);
       unsubscribe = () => memoryListeners.delete(onChange);
     } else {
+      const SQLite = await sqlite();
+      if (cancelled) return;
       const subscription = SQLite.addDatabaseChangeListener(() => onChange());
       unsubscribe = () => subscription.remove();
     }
@@ -825,13 +804,24 @@ function isMunicipalityRowShape(
  * Reads every terminal, active and inactive together — the Terminal
  * Configuration screen's one observation. Unordered in SQL; the view module
  * owns the route-order sort.
+ *
+ * `kind` narrows the read to one of the two registries the table holds, which
+ * is what keeps Terminal Configuration and Barangay Configuration from
+ * listing the same rows. Callers serving a FLOW — the trip's route options,
+ * the ticket's stops — pass nothing and get every stop, exactly as they read
+ * before the column existed: a route and its boardings are priced off the
+ * same km markers, and withholding stops a screen used to offer could strand
+ * an install whose registry was all one kind.
  */
-export async function fetchAllTerminals(): Promise<import('./schema').TerminalRowRecord[]> {
+export async function fetchAllTerminals(
+  kind?: import('./schema').TerminalKind,
+): Promise<import('./schema').TerminalRowRecord[]> {
   const opened = await openDatabase();
   const rows = await opened.getAllAsync<import('./schema').TerminalRowRecord>(
     'SELECT * FROM terminals',
   );
-  return rows.filter(isTerminalRowShape);
+  const shaped = rows.filter(isTerminalRowShape);
+  return kind === undefined ? shaped : shaped.filter((row) => row.kind === kind);
 }
 
 /**
@@ -888,6 +878,15 @@ export type SaveTerminalInput = {
    * passes it — a new stop is linked by construction.
    */
   municipality_id?: number | null;
+  /**
+   * Which registry files a NEW row. Optional for the same reason as the
+   * link: an update never writes it (a record stays under the module that
+   * created it) and an insert that omits it takes the column's default — the
+   * migration's backfill for rows a release install already holds. Both
+   * editors pass theirs, which is what makes the two Configuration screens
+   * list different records.
+   */
+  kind?: import('./schema').TerminalKind;
 };
 
 export type SaveTerminalResult =
@@ -946,11 +945,14 @@ export async function saveTerminal(input: SaveTerminalInput): Promise<SaveTermin
     }
     if (input.id === null) {
       const result = await opened.runAsync(
-        'INSERT INTO terminals (name, km_marker, is_active, municipality_id) VALUES (?, ?, ?, ?)',
+        'INSERT INTO terminals (name, km_marker, is_active, municipality_id, kind) VALUES (?, ?, ?, ?, ?)',
         input.name,
         input.km_marker,
         input.is_active,
         input.municipality_id ?? null,
+        // Bound rather than left to the column default so the statement keeps
+        // one shape (the memory fallback reads its binds positionally).
+        input.kind ?? 'BARANGAY',
       );
       return { kind: 'saved', id: Number(result.lastInsertRowId) };
     }
@@ -1266,13 +1268,14 @@ export async function startTrip(input: StartTripInput): Promise<StartTripResult>
       const insertResult = await opened.runAsync(
         `INSERT INTO trips
           (trip_number, origin_location_snapshot, destination_location_snapshot,
-           started_at, ended_at, distance_km_milli, status)
-         VALUES (?, ?, ?, ?, NULL, ?, 'ACTIVE')`,
+           started_at, ended_at, distance_km_milli, status, uses_sctex)
+         VALUES (?, ?, ?, ?, NULL, ?, 'ACTIVE', ?)`,
         nextNumber,
         origin.name,
         destination.name,
         input.startedAt,
         distance,
+        input.usesSctex ? 1 : 0,
       );
       result = { kind: 'started', tripId: insertResult.lastInsertRowId, tripNumber: nextNumber };
     });
@@ -1346,12 +1349,14 @@ export async function endActiveTrip(tripId: number, endedAt: number): Promise<En
 export function subscribeToTrips(onChange: () => void): () => void {
   let cancelled = false;
   let unsubscribe: (() => void) | null = null;
-  openDatabase().then((opened) => {
+  openDatabase().then(async (opened) => {
     if (cancelled) return;
     if (isMemoryBackend(opened)) {
       memoryListeners.add(onChange);
       unsubscribe = () => memoryListeners.delete(onChange);
     } else {
+      const SQLite = await sqlite();
+      if (cancelled) return;
       const subscription = SQLite.addDatabaseChangeListener(() => onChange());
       unsubscribe = () => subscription.remove();
     }

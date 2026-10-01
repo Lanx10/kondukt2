@@ -125,7 +125,7 @@ export function AddTripScreen({
             // The fare row is created with the schema and filled by Fare
             // settings; a device that never opened them has no rate, which is
             // the reference's `nofares` branch rather than an error.
-            rules: fares.fare ? toFareRules(fares.fare, fares.sctex) : null,
+            rules: fares.fare ? toFareRules(fares.fare) : null,
             nextNumber,
           });
         })
@@ -473,7 +473,7 @@ export function AddTripScreen({
                 <Text style={styles.roadNoteText}>
                   This trip is priced at the expressway rate of {formatRate(rules.expressRatePerKmCentavos)}{' '}
                   per km instead of {formatRate(rules.ratePerKmCentavos)}. Both come from one road
-                  setting on the trip — which the store does not keep yet.
+                  setting on the trip, stored with it so every boarding prices off the road chosen here.
                 </Text>
               </View>
             ) : null}
@@ -889,6 +889,9 @@ function PickerSheet({
           data={results}
           keyExtractor={(terminal) => String(terminal.id)}
           style={styles.pickerList}
+          // A row taps through on the first touch with the keyboard open —
+          // the same rule the full-screen picker uses.
+          keyboardShouldPersistTaps="handled"
           ListFooterComponent={
             <Text style={styles.pickerMore}>
               A terminal with no KM marker cannot be used as either end of a route.
@@ -1250,7 +1253,11 @@ const styles = StyleSheet.create({
     ...type.bodyMedium,
   },
   pickerList: {
-    flex: 1,
+    // NOT `flex: 1`: basis 0 inside the fill body measures the list at zero on
+    // Android and the rows never appear. `flexShrink: 1` with the default
+    // auto basis lets a short list hug its rows and a long one take the
+    // sheet's `maxHeight` clamp, where it scrolls.
+    flexShrink: 1,
     marginTop: space(2),
   },
   pickerEmpty: {
