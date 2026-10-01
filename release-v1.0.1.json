@@ -1,0 +1,11 @@
+{
+  "version": "1.0.1",
+  "versionCode": 3,
+  "minimumVersion": "1.0.0",
+  "apkUrl": "https://github.com/Lanx10/kondukt2/releases/download/v1.0.1/kondukt-1.0.1.apk",
+  "releaseNotes": [
+    "App icon now uses the Kondukt favicon on Android 8 and up (adaptive icon)",
+    "Content clears the byline on every screen"
+  ],
+  "sha256": "7fa9bab2433542fb64a7d9a0f3fdc0b35cdc5a8f481f15ad8a5ab6819d8158e8"
+}
