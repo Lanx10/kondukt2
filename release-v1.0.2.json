@@ -1,0 +1,12 @@
+{
+  "version": "1.0.2",
+  "versionCode": 4,
+  "minimumVersion": "1.0.0",
+  "apkUrl": "https://github.com/Lanx10/kondukt2/releases/download/v1.0.2/kondukt-1.0.2.apk",
+  "releaseNotes": [
+    "Fixes: downloaded updates no longer fail verification",
+    "APK integrity is now checked with a chunked SHA-256 instead of loading the whole 84 MB file into memory",
+    "App icon uses the Kondukt favicon on Android 8 and up"
+  ],
+  "sha256": "66f6cccc87305c548aa273a7e2816c1f8fb26715a2ff5f35143436eceaa01e38"
+}

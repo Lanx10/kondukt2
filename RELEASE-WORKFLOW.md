@@ -61,8 +61,8 @@ cannot express them. All fields are optional except that *some* valid version so
 
 | Concept | Source of truth | Current value |
 |---|---|---|
-| App version (user-facing, compared to release tags) | `expo.version` in `app.json` (`package.json` version matches) | `1.0.1` |
-| Android `versionCode` | `expo.android.versionCode` in `app.json` (`eas.json` has `appVersionSource: local`) | `3` |
+| App version (user-facing, compared to release tags) | `expo.version` in `app.json` (`package.json` version matches) | `1.0.2` |
+| Android `versionCode` | `expo.android.versionCode` in `app.json` (`eas.json` has `appVersionSource: local`) | `4` |
 | Expo `runtimeVersion` | `expo.runtimeVersion.policy: "appVersion"` → resolves to the app version | `1.0.0` |
 | EAS Update channel | `eas.json` build profiles | `production` / `preview` / `development` |
 | Updater configuration | `src/lib/apkUpdateConfig.ts` (`UPDATE_CONFIG`) | owner `Lanx10`, repo `kondukt2`, tag prefix `v`, 6 h auto-check, mandatory allowed |
@@ -167,6 +167,7 @@ the on-demand path for both channels.
 |---|---|
 | `src/lib/apkUpdateConfig.ts` | **Single** updater config: owner, repo, tag prefix, throttle, mandatory switch |
 | `src/lib/apkUpdateState.ts` | Pure rules: semver, release parsing, verdict, phases, throttle, all copy |
+| `src/lib/sha256.ts` | Streaming SHA-256 (chunked); `expo-crypto`'s `digest` needs the whole file in one buffer and an 84 MB APK does not fit |
 | `src/lib/apkUpdateState.test.ts` | Self-check (`npx tsx src/lib/apkUpdateState.test.ts`) |
 | `src/lib/apkUpdateService.ts` | GitHub fetch / download / verify / install, single-flight, trusted-URL gate |
 | `src/lib/ApkUpdateProvider.tsx` | App-wide APK state machine + lifecycle (`useApkUpdates()`) |
