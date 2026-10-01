@@ -22,9 +22,7 @@
  * security-style error and surface the permission sheet then.
  */
 import Constants from 'expo-constants';
-import * as Crypto from 'expo-crypto';
 import { File, Paths } from 'expo-file-system';
-import { readAsStringAsync } from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
 import {
   UPDATE_CONFIG,
@@ -38,6 +36,7 @@ import {
   type ApkErrorKind,
   type ApkRelease,
 } from './apkUpdateState';
+import { createSha256 } from './sha256';
 
 /** A classified update failure, safe to map straight to user copy. */
 export class ApkUpdateError extends Error {
@@ -217,6 +216,37 @@ export function downloadApk(
 
 // ── verify ─────────────────────────────────────────────────────────────────
 
+/** 1 MiB per read: small enough that no single allocation can OOM a phone. */
+const VERIFY_CHUNK_BYTES = 1024 * 1024;
+
+/**
+ * One streaming pass over the file: returns the leading magic bytes and the
+ * SHA-256 of everything read. Never holds more than one chunk in memory, so an
+ * 80 MB APK verifies on a low-end device.
+ */
+function readHeadAndDigest(file: File): { magic: string; sha256: string } {
+  const handle = file.open();
+  const hasher = createSha256();
+  const head = new Uint8Array(4);
+  let headLength = 0;
+  let seen = 0;
+  try {
+    while (seen < file.size) {
+      const chunk = handle.readBytes(Math.min(VERIFY_CHUNK_BYTES, file.size - seen));
+      if (chunk.length === 0) break;
+      for (let i = 0; headLength < head.length && i < chunk.length; i++) head[headLength++] = chunk[i];
+      hasher.update(chunk);
+      seen += chunk.length;
+    }
+  } finally {
+    handle.close();
+  }
+  return {
+    magic: String.fromCharCode(...head.subarray(0, headLength)),
+    sha256: hasher.hex(),
+  };
+}
+
 /**
  * Integrity checks before the installer ever sees the file:
  *  1. the file exists and is non-empty;
@@ -225,6 +255,9 @@ export function downloadApk(
  *  3. it begins with the ZIP/APK local-file magic (`PK`);
  *  4. when the release body manifest carries a SHA-256 checksum, the digest
  *     of the file must match it exactly.
+ *
+ * Steps 3 and 4 share a single chunked read: an APK is tens of megabytes and
+ * never fits in one buffer on a phone.
  *
  * On any failure the file is deleted and an `ApkUpdateError('verify')` is
  * thrown — the caller shows error copy and never launches the installer.
@@ -240,17 +273,10 @@ export async function verifyApk(file: File, release: ApkRelease): Promise<void> 
     if (release.sizeBytes !== null && file.size !== release.sizeBytes) {
       fail(`size ${file.size} != expected ${release.sizeBytes}`);
     }
-    // APK is a ZIP: first bytes must be `PK\x03\x04`. Read only 4 bytes so a
-    // 100 MB APK is not loaded into memory for this check.
-    const head = await readAsStringAsync(file.uri, { position: 0, length: 4 });
-    if (!head.startsWith('PK')) fail('missing ZIP/APK magic');
-    if (release.sha256 !== null) {
-      const buffer = await file.arrayBuffer();
-      const digest = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, buffer);
-      const hex = Array.from(new Uint8Array(digest))
-        .map((byte) => byte.toString(16).padStart(2, '0'))
-        .join('');
-      if (hex !== release.sha256) fail('sha256 mismatch');
+    const { magic, sha256 } = readHeadAndDigest(file);
+    if (!magic.startsWith('PK')) fail('missing ZIP/APK magic');
+    if (release.sha256 !== null && sha256 !== release.sha256) {
+      fail(`sha256 ${sha256} != expected ${release.sha256}`);
     }
     console.info('[apk-update] verify → passed');
   } catch (error) {
