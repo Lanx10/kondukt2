@@ -199,6 +199,17 @@ export const amberSurface = {
   border: '#E8C97A',
 } as const;
 
+/**
+ * The ink for anything filled with `primarySolid` or `tintedGlass.accent`.
+ *
+ * `primarySolid` is `#C2410C` in BOTH palettes and `tintedGlass` is
+ * mode-independent by design, so a control on either fill must not borrow
+ * `palette.onPrimary`: in dark mode that is `#4E2200`, a deep orange that
+ * falls to roughly 2:1 on its own brand step. White is 5.2:1 in both, so a
+ * brand-coloured button reads identically in either mode.
+ */
+export const onPrimarySolid = '#FFFFFF';
+
 /** Systematic 4pt spacing scale. */
 export const space = (units: number) => units * 4;
 

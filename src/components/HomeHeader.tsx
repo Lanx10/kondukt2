@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   AccessibilityInfo,
   Animated,
@@ -8,7 +8,8 @@ import {
   Text,
   View,
 } from 'react-native';
-import { accent, palette, radius, space, type } from '../theme';
+import { radius, space, type, type KonduktTheme } from '../theme';
+import { useKonduktTheme } from '../lib/themeContext';
 
 /**
  * The app's one header: mark, wordmark, and a tagline that states what the app
@@ -24,6 +25,8 @@ import { accent, palette, radius, space, type } from '../theme';
  * the system asks for reduced motion.
  */
 export function HomeHeader({ tagline, tripLabel }: { tagline: string; tripLabel?: string }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <View style={styles.root}>
       {/* The favicon itself, bare — no badge card behind it. */}
@@ -49,6 +52,8 @@ export function HomeHeader({ tagline, tripLabel }: { tagline: string; tripLabel?
 
 /** The live-trip pill, and its pulse. */
 function TripPill({ label }: { label: string }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   // useState, not useRef: an Animated.Value is a value, and reading a ref's
   // `.current` during render is what the compiler lint rule refuses.
   const [pulse] = useState(() => new Animated.Value(1));
@@ -89,7 +94,8 @@ function TripPill({ label }: { label: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
   root: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -112,12 +118,12 @@ const styles = StyleSheet.create({
   // Pull it back so KONDUKT reads as one word again.
   wordmark: {
     ...type.headlineSmall,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     letterSpacing: 0.2,
   },
   tagline: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginTop: 1,
   },
   pill: {
@@ -127,17 +133,17 @@ const styles = StyleSheet.create({
     height: 32,
     paddingHorizontal: space(3),
     borderRadius: radius.full,
-    backgroundColor: accent.secondary.container,
+    backgroundColor: theme.accent.secondary.container,
     flexShrink: 0,
   },
   dot: {
     width: 8,
     height: 8,
     borderRadius: radius.full,
-    backgroundColor: accent.secondary.fg,
+    backgroundColor: theme.accent.secondary.fg,
   },
   pillLabel: {
     ...type.labelSmall,
-    color: accent.secondary.onContainer,
+    color: theme.accent.secondary.onContainer,
   },
 });

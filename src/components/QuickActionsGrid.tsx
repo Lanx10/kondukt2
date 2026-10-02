@@ -1,7 +1,9 @@
+import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { GlassCard } from './GlassCard';
 import { Icon, IconName } from '../icons';
-import { Accent, accent, glass, glassBlur, palette, radius, space, type } from '../theme';
+import { Accent, glassBlur, radius, space, type, type KonduktTheme } from '../theme';
+import { useKonduktTheme } from '../lib/themeContext';
 
 export type QuickAction = {
   key: string;
@@ -35,10 +37,12 @@ export type QuickAction = {
  * stylesheet) and its 112px floor, 40px chip, 14px padding.
  */
 function QuickActionCard({ action }: { action: QuickAction }) {
-  const tone = accent[action.accent];
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const tone = theme.accent[action.accent];
   // The reference's tone-primary chip ink is `--primary-solid`; the M3 role
   // colour (#E65100) sits at 3.6:1 on the container where solid clears 5.2.
-  const chipInk = action.accent === 'primary' ? palette.primarySolid : tone.fg;
+  const chipInk = action.accent === 'primary' ? theme.palette.primarySolid : tone.fg;
   return (
     <GlassCard
       onPress={action.onPress}
@@ -62,6 +66,8 @@ function QuickActionCard({ action }: { action: QuickAction }) {
 }
 
 export function QuickActionsGrid({ actions }: { actions: QuickAction[] }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <View style={styles.grid}>
       {actions.map((action) => (
@@ -73,7 +79,8 @@ export function QuickActionsGrid({ actions }: { actions: QuickAction[] }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
   // 14 + 6 cell padding = 20, so card edges line up with the hero and heading.
   grid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: space(3.5) },
   cell: { width: '50%', padding: space(1.5) },
@@ -91,6 +98,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  title: { ...type.titleMedium, color: glass.onGlass, marginTop: space(2.5) },
-  value: { ...type.bodySmall, color: glass.onGlassVariant },
+  title: { ...type.titleMedium, color: theme.glass.onGlass, marginTop: space(2.5) },
+  value: { ...type.bodySmall, color: theme.glass.onGlassVariant },
 });

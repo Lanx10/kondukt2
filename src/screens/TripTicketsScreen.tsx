@@ -7,14 +7,15 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SectionChrome } from '../components/SectionChrome';
 import { SectionHeader } from '../components/SectionHeader';
 import { LocalStorageCard } from '../components/LocalStorageCard';
 import { GlassCard } from '../components/GlassCard';
 import { Skeleton } from '../components/SummaryDisclosure';
 import { Icon } from '../icons';
-import { accent, cardShadow, onAmber, palette, radius, space, type } from '../theme';
+import { cardShadow, onAmber, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
+import { useKonduktTheme } from '../lib/themeContext';
 import {
   fetchTripWithTickets,
   subscribeToTripWithTickets,
@@ -90,6 +91,8 @@ export function TripTicketsScreen({
   tripId,
   readOnly = false,
 }: TripTicketsScreenProps) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const stackedRows = width < ROW_STACK_WIDTH;
@@ -168,7 +171,7 @@ export function TripTicketsScreen({
       <ScreenChrome onBack={onBack} title="Trip tickets" subtitle="Records unreadable" insets={insets}>
         <View style={styles.gutter}>
           <GlassCard
-            tint={palette.errorContainer}
+            tint={theme.palette.errorContainer}
             style={styles.heroCard}
             accessible
             accessibilityRole="alert"
@@ -346,6 +349,8 @@ function TripHero({
   canRecord: boolean;
   onRecord: () => void;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const trip = state.trip;
   const active = trip.status === 'ACTIVE';
   const detail = [
@@ -403,7 +408,7 @@ function TripHero({
             accessibilityHint="Opens the fare sheet for this trip"
             style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}
           >
-            <Icon name="ticket" size={18} color="#FFFFFF" />
+            <Icon name="ticket" size={18} color={onPrimarySolid} />
             <Text style={styles.primaryActionLabel}>Record a fare</Text>
           </Pressable>
         </View>
@@ -426,6 +431,8 @@ function TripHero({
 
 /** One figure in the hero's row: the value, then its label. */
 function HeroFigure({ label, value, solid }: { label: string; value: string; solid: boolean }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <View style={styles.heroFigure}>
       <Text style={[styles.heroFigureValue, solid && styles.heroFigureValueSolid]}>
@@ -443,6 +450,8 @@ function HeroFigure({ label, value, solid }: { label: string; value: string; sol
  * one applies — plus that reading every ticket still works.
  */
 function GateNote({ state, readOnly }: { state: TripTicketsUiState; readOnly: boolean }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const trip = state.trip;
   const closed = trip.status !== 'ACTIVE';
   const stamp =
@@ -471,7 +480,7 @@ function GateNote({ state, readOnly }: { state: TripTicketsUiState; readOnly: bo
       accessibilityLabel={`${closed ? 'This trip is closed' : 'New fares are refused here'}. ${body}`}
     >
       <View style={styles.gateChip}>
-        <Icon name="lock" size={18} color={accent.tertiary.onContainer} />
+        <Icon name="lock" size={18} color={theme.accent.tertiary.onContainer} />
       </View>
       <View style={styles.gateBody}>
         <Text style={styles.gateTitle}>
@@ -498,6 +507,8 @@ function LedgerRow({
   stacked: boolean;
   onPress: () => void;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const label =
     `${formatRowStamp(row.createdAt)}, ${formatDate(new Date(row.createdAt))}. ` +
     `${passengerTypeLabel(row.passengerType)}, ${plural(row.passengerQuantity, 'passenger')} ` +
@@ -566,18 +577,20 @@ function LedgerRow({
  * on the tertiary one — never amber, which is reserved for a running trip.
  */
 function CategoryChip({ type }: { type: TicketRowRecord['passenger_type'] }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const discounted = type !== 'REGULAR';
   return (
     <View
       style={[
         styles.chip,
-        { backgroundColor: discounted ? accent.tertiary.container : accent.primary.container },
+        { backgroundColor: discounted ? theme.accent.tertiary.container : theme.accent.primary.container },
       ]}
     >
       <Text
         style={[
           styles.chipLabel,
-          { color: discounted ? accent.tertiary.onContainer : accent.primary.onContainer },
+          { color: discounted ? theme.accent.tertiary.onContainer : theme.accent.primary.onContainer },
         ]}
       >
         {passengerTypeLabel(type)}
@@ -588,6 +601,8 @@ function CategoryChip({ type }: { type: TicketRowRecord['passenger_type'] }) {
 
 /** The storage footer, under every branch. */
 function StorageFooter() {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <View style={styles.storageSlot}>
       <LocalStorageCard />
@@ -596,7 +611,8 @@ function StorageFooter() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
   pressed: { opacity: 0.88 },
 
   // The reference's chrome margin: the card takes its top air from the
@@ -607,9 +623,11 @@ const styles = StyleSheet.create({
   heroCard: { padding: space(5) },
   // The one solid card in the app: amber, no rim, no tint, no sheen.
   heroSolid: {
-    backgroundColor: palette.secondary,
+    backgroundColor: theme.palette.secondary,
     borderRadius: radius.glass,
     ...cardShadow,
+    // Only the shadow's colour follows the mode — the geometry is the card's.
+    shadowColor: theme.glass.shadow,
   },
   heroEyebrow: {
     flexDirection: 'row',
@@ -617,7 +635,7 @@ const styles = StyleSheet.create({
     gap: space(2),
     flexWrap: 'wrap',
   },
-  heroEyebrowText: { ...type.labelSmall, color: palette.onSurfaceVariant },
+  heroEyebrowText: { ...type.labelSmall, color: theme.palette.onSurfaceVariant },
   heroEyebrowTextSolid: { color: onAmber.detail },
   heroPill: {
     height: 24,
@@ -625,32 +643,32 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: palette.secondaryContainer,
+    backgroundColor: theme.palette.secondaryContainer,
   },
-  heroPillSolid: { backgroundColor: palette.onSecondary },
-  heroPillText: { ...type.labelSmall, color: palette.onSecondaryContainer },
-  heroPillTextSolid: { color: palette.secondary },
+  heroPillSolid: { backgroundColor: theme.palette.onSecondary },
+  heroPillText: { ...type.labelSmall, color: theme.palette.onSecondaryContainer },
+  heroPillTextSolid: { color: theme.palette.secondary },
   heroRoute: {
     ...type.headlineSmall,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     marginTop: space(1.5),
   },
   heroRouteSolid: { color: onAmber.primary },
   heroDetail: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginTop: space(1),
     fontVariant: ['tabular-nums'],
   },
   heroDetailSolid: { color: onAmber.muted },
   heroLead: {
     ...type.displaySmall,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     marginTop: space(3.5),
     fontVariant: ['tabular-nums'],
   },
   heroLeadSolid: { color: onAmber.primary },
-  heroLeadCap: { ...type.labelSmall, color: palette.onSurfaceVariant, marginTop: space(0.5) },
+  heroLeadCap: { ...type.labelSmall, color: theme.palette.onSurfaceVariant, marginTop: space(0.5) },
   heroLeadCapSolid: { color: onAmber.detail },
   heroFigures: {
     flexDirection: 'row',
@@ -658,18 +676,18 @@ const styles = StyleSheet.create({
     marginTop: space(3.5),
     paddingTop: space(3.5),
     borderTopWidth: 1,
-    borderTopColor: palette.outline,
+    borderTopColor: theme.palette.outline,
   },
   heroFiguresSolid: { borderTopColor: 'rgba(61, 46, 0, 0.7)' },
   heroFigure: { minWidth: 0 },
   heroFigureValue: {
     ...type.titleMedium,
     fontFamily: 'Poppins_700Bold',
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     fontVariant: ['tabular-nums'],
   },
   heroFigureValueSolid: { color: onAmber.primary },
-  heroFigureLabel: { ...type.labelSmall, color: palette.onSurfaceVariant, marginTop: space(0.5) },
+  heroFigureLabel: { ...type.labelSmall, color: theme.palette.onSurfaceVariant, marginTop: space(0.5) },
   heroFigureLabelSolid: { color: onAmber.detail },
 
   // ── buttons: one primary, one quiet ──
@@ -683,9 +701,9 @@ const styles = StyleSheet.create({
     gap: space(2),
     paddingHorizontal: space(5),
     borderRadius: radius.full,
-    backgroundColor: palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
   },
-  primaryActionLabel: { ...type.labelLarge, color: '#FFFFFF' },
+  primaryActionLabel: { ...type.labelLarge, color: onPrimarySolid },
   quietAction: {
     flex: 1,
     minHeight: 48,
@@ -694,9 +712,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(5),
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: palette.outline,
+    borderColor: theme.palette.outline,
   },
-  quietActionLabel: { ...type.labelLarge, color: palette.onSurface },
+  quietActionLabel: { ...type.labelLarge, color: theme.palette.onSurface },
 
   // ── the gate note ──
   gate: {
@@ -714,17 +732,17 @@ const styles = StyleSheet.create({
     borderRadius: radius.medium,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: accent.tertiary.container,
+    backgroundColor: theme.accent.tertiary.container,
     flexShrink: 0,
   },
   gateBody: { flex: 1 },
-  gateTitle: { ...type.labelSmall, color: palette.onSurface },
-  gateText: { ...type.bodySmall, color: palette.onSurfaceVariant, marginTop: space(1) },
+  gateTitle: { ...type.labelSmall, color: theme.palette.onSurface },
+  gateText: { ...type.bodySmall, color: theme.palette.onSurfaceVariant, marginTop: space(1) },
 
   // ── ledger ──
   capLine: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginHorizontal: space(5),
     marginTop: space(2.5),
   },
@@ -733,8 +751,8 @@ const styles = StyleSheet.create({
     marginTop: space(3),
     padding: space(5),
   },
-  stateHeading: { ...type.titleMedium, color: palette.onSurface },
-  emptyText: { ...type.bodySmall, color: palette.onSurfaceVariant, marginTop: space(1.5) },
+  stateHeading: { ...type.titleMedium, color: theme.palette.onSurface },
+  emptyText: { ...type.bodySmall, color: theme.palette.onSurfaceVariant, marginTop: space(1.5) },
 
   ledgerPressable: {},
   ledgerCard: {
@@ -748,19 +766,19 @@ const styles = StyleSheet.create({
   ledgerHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   // Fixed, not content-sized: the measured widest time/date the column holds.
   timeBlock: { width: 74 },
-  ledgerTime: { ...type.titleMedium, color: palette.onSurface, fontVariant: ['tabular-nums'] },
-  ledgerDate: { ...type.bodySmall, color: palette.onSurfaceVariant, marginTop: space(0.5) },
+  ledgerTime: { ...type.titleMedium, color: theme.palette.onSurface, fontVariant: ['tabular-nums'] },
+  ledgerDate: { ...type.bodySmall, color: theme.palette.onSurfaceVariant, marginTop: space(0.5) },
   ledgerBody: { flex: 1, minWidth: 0 },
-  ledgerSub: { ...type.bodySmall, color: palette.onSurfaceVariant, marginTop: space(1) },
+  ledgerSub: { ...type.bodySmall, color: theme.palette.onSurfaceVariant, marginTop: space(1) },
   tagRow: { flexDirection: 'row', alignItems: 'center', gap: space(2), flexWrap: 'wrap' },
   fareCol: { alignItems: 'flex-end', gap: space(1) },
   fareValueEmphasis: {
     ...type.titleMedium,
     fontFamily: 'Poppins_700Bold',
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     fontVariant: ['tabular-nums'],
   },
-  ticketNo: { ...type.bodySmall, color: palette.onSurfaceVariant },
+  ticketNo: { ...type.bodySmall, color: theme.palette.onSurfaceVariant },
 
   chip: {
     minHeight: 26,
@@ -783,7 +801,7 @@ const styles = StyleSheet.create({
     marginTop: space(4),
     paddingTop: space(3.5),
     borderTopWidth: 1,
-    borderTopColor: palette.outline,
+    borderTopColor: theme.palette.outline,
   },
   skFig: { flex: 1 },
   skBtn: { borderRadius: radius.full, marginTop: space(4) },
@@ -793,14 +811,14 @@ const styles = StyleSheet.create({
     borderRadius: radius.large,
   },
 
-  errorEyebrow: { ...type.labelSmall, color: palette.error },
-  stateText: { ...type.bodyMedium, color: palette.onSurfaceVariant, marginTop: space(1) },
+  errorEyebrow: { ...type.labelSmall, color: theme.palette.error },
+  stateText: { ...type.bodyMedium, color: theme.palette.onSurfaceVariant, marginTop: space(1) },
 
   // ── footer ──
   storageSlot: { marginTop: space(4) },
   footnote: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     textAlign: 'center',
     paddingTop: space(4),
     paddingBottom: space(1),

@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { StyleSheet, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { Icon } from '../icons';
-import { palette, radius, space, type } from '../theme';
+import { radius, space, type, type KonduktTheme } from '../theme';
+import { useKonduktTheme } from '../lib/themeContext';
 
 /**
  * The standard scrim and bottom sheet, shared by the screens that end in one.
@@ -38,6 +39,8 @@ export function Sheet({
   /** Overrides the default `at-${kind}-close` for a screen with its own convention. */
   closeTestID?: string;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.scrim} onPress={onClose}>
@@ -57,7 +60,7 @@ export function Sheet({
               accessibilityLabel={`Close ${title}`}
               style={({ pressed }) => [styles.sheetClose, pressed && styles.pressed]}
             >
-              <Icon name="close" size={18} color={palette.onSurface} />
+              <Icon name="close" size={18} color={theme.palette.onSurface} />
             </Pressable>
           </View>
           <View style={[styles.sheetBody, fill && styles.sheetBodyFill]}>
@@ -98,6 +101,8 @@ export function DetailRow({
   value: ReactNode;
   tabular?: boolean;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <View style={styles.detailRow}>
       <Text style={styles.detailLabel}>{label}</Text>
@@ -120,6 +125,8 @@ export function Handoff({
   children: string | string[];
   testID?: string;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const text = Array.isArray(children) ? children.join(' ') : children;
   return (
     <View
@@ -135,21 +142,24 @@ export function Handoff({
 
 /** A group of `DetailRow`s, the sheet-level card they sit in. */
 export function DetailCard({ children }: { children: ReactNode }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return <View style={styles.detailCard}>{children}</View>;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
   pressed: { opacity: 0.88 },
   scrim: {
     flex: 1,
-    backgroundColor: palette.scrim,
+    backgroundColor: theme.palette.scrim,
     justifyContent: 'flex-end',
   },
   sheet: {
     // The body below carries minHeight 0 and flexShrink, which is what lets a
     // long list scroll inside the sheet instead of pushing it past the screen.
     maxHeight: '86%',
-    backgroundColor: palette.surfaceContainerLowest,
+    backgroundColor: theme.palette.surfaceContainerLowest,
     borderTopLeftRadius: radius.glass,
     borderTopRightRadius: radius.glass,
     paddingHorizontal: space(5),
@@ -160,7 +170,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: radius.full,
-    backgroundColor: palette.outlineVariant,
+    backgroundColor: theme.palette.outlineVariant,
     alignSelf: 'center',
     marginBottom: space(3),
   },
@@ -175,11 +185,11 @@ const styles = StyleSheet.create({
   },
   sheetTitle: {
     ...type.headlineSmall,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
   },
   sheetSubtitle: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginTop: space(1),
   },
   sheetClose: {
@@ -188,7 +198,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.full,
-    backgroundColor: palette.surfaceContainer,
+    backgroundColor: theme.palette.surfaceContainer,
   },
   sheetBody: {
     marginTop: space(4),
@@ -221,7 +231,7 @@ const styles = StyleSheet.create({
   detailCard: {
     paddingVertical: space(2),
     borderRadius: radius.large,
-    backgroundColor: palette.surfaceContainerLow,
+    backgroundColor: theme.palette.surfaceContainerLow,
   },
   detailRow: {
     flexDirection: 'row',
@@ -233,11 +243,11 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
   },
   detailValue: {
     ...type.bodySmall,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     flexShrink: 1,
     textAlign: 'right',
   },
@@ -251,11 +261,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.medium,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: palette.outlineVariant,
-    backgroundColor: palette.surfaceContainerLow,
+    borderColor: theme.palette.outlineVariant,
+    backgroundColor: theme.palette.surfaceContainerLow,
   },
   handoffText: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
   },
 });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   AccessibilityInfo,
   Animated,
@@ -14,7 +14,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SectionChrome } from '../components/SectionChrome';
 import { GlassCard } from '../components/GlassCard';
 import { Icon } from '../icons';
-import { accent, glass, palette, radius, space, type } from '../theme';
+import { onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
+import { useKonduktTheme } from '../lib/themeContext';
 import {
   fetchTripWithTickets,
   subscribeToTripWithTickets,
@@ -79,6 +80,8 @@ export function TicketHistoryScreen({
   onSearchRange,
   onOpenTicket,
 }: TicketHistoryScreenProps) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
 
   // The loading branch is honest by construction: `load` starts at loading
@@ -212,6 +215,8 @@ function TicketCard({
   tripNumber: string;
   onPress: () => void;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   // The label reads the whole stamp (clock and date); the card's meta line
   // prints the clock only — the reference keeps the date for the ear.
   const label = ticketRowAnnouncement(row, centavos, formatReceiptStamp, tripNumber);
@@ -219,7 +224,7 @@ function TicketCard({
   return (
     // The reference's structure: an invisible <a> carries the semantics, and
     // the glass card inside it carries the material — tint, rim, shadow and
-    // the pressed wash — exactly as `.tk-link > .glass.tk-card` does.
+    // the pressed wash — exactly as `.tk-link > .theme.glass.tk-card` does.
     <Pressable
       onPress={onPress}
       accessible
@@ -231,7 +236,7 @@ function TicketCard({
       {({ pressed }) => (
         <GlassCard style={[styles.tkCard, pressed && styles.tkCardPressed]}>
           <View style={styles.tkIcon}>
-            <Icon name="ticket" size={22} color={palette.primarySolid} />
+            <Icon name="ticket" size={22} color={theme.palette.primarySolid} />
           </View>
           <View style={styles.tkMid}>
             <Text style={styles.tkTitle}>
@@ -245,7 +250,7 @@ function TicketCard({
             <Text style={styles.tkFareAmount}>{centavos(row.totalFare)}</Text>
             <Text style={styles.tkFareType}>{fareWord(row.passengerType)}</Text>
           </View>
-          <Icon name="chevron" size={18} color={palette.outline} />
+          <Icon name="chevron" size={18} color={theme.palette.outline} />
         </GlassCard>
       )}
     </Pressable>
@@ -254,6 +259,8 @@ function TicketCard({
 
 /** The cards' own shape while the read is in flight — the book's proportions. */
 function LoadingList() {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   // The reference's .sk sweep: the same ink breathing between its own two
   // stops (.05 → .09) on the same 1.4s beat, parked when the system asks for
   // reduced motion — which is what the reference's media query does too.
@@ -296,7 +303,10 @@ function LoadingList() {
 
   const ink = shimmer.interpolate({
     inputRange: [0, 1],
-    outputRange: ['rgba(0, 0, 0, 0.05)', 'rgba(0, 0, 0, 0.09)'],
+    outputRange:
+      theme.mode === 'dark'
+        ? ['rgba(255, 255, 255, 0.06)', 'rgba(255, 255, 255, 0.12)']
+        : ['rgba(0, 0, 0, 0.05)', 'rgba(0, 0, 0, 0.09)'],
   });
   const block = (extra: StyleProp<ViewStyle>) => (
     <Animated.View
@@ -329,6 +339,8 @@ function LoadingList() {
  * the read is safe, so it is the one action worth offering.
  */
 function ErrorState({ onRetry }: { onRetry: () => void }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const body =
     'The tickets on this device did not answer, so no card on this screen can be shown. Nothing was lost — they are still in the local store, and Retry reads them again.';
   return (
@@ -350,7 +362,7 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
         accessibilityLabel="Retry"
         style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
       >
-        <Icon name="history" size={18} color="#FFFFFF" />
+        <Icon name="history" size={18} color={onPrimarySolid} />
         <Text style={styles.primaryBtnLabel}>Retry</Text>
       </Pressable>
     </View>
@@ -371,6 +383,8 @@ function EmptyState({
   tripNumber: string;
   onSearchRange: () => void;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const body = `Trip ${trip ? `#${tripNumber}` : ''} has not sold a ticket yet. A ticket appears here the moment one is issued, with the fare it was bought for.`;
   return (
     <View
@@ -390,7 +404,7 @@ function EmptyState({
         accessibilityLabel="Search a date range"
         style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
       >
-        <Icon name="calendar" size={18} color="#FFFFFF" />
+        <Icon name="calendar" size={18} color={onPrimarySolid} />
         <Text style={styles.primaryBtnLabel}>Search a date range</Text>
       </Pressable>
     </View>
@@ -412,6 +426,8 @@ function StorageFooter({
   store: { fares: number; trips: number } | null;
   totals: TicketHistoryTotals | null;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const text =
     load.kind === 'loading'
       ? 'Reading the local store…'
@@ -430,7 +446,7 @@ function StorageFooter({
       accessible
       accessibilityLabel={`Local storage note. ${text}`}
     >
-      <Icon name="database" size={18} color={glass.onGlassVariant} />
+      <Icon name="database" size={18} color={theme.glass.onGlassVariant} />
       {/* The emphasised figures are the numbers the line is actually about —
           trip sold, store holds — at the reference's bold ink. */}
       <Text style={styles.storageText}>
@@ -451,7 +467,8 @@ function StorageFooter({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
   column: {
     width: '100%',
     maxWidth: 720,
@@ -463,8 +480,8 @@ const styles = StyleSheet.create({
 
   // ── The lede ──────────────────────────────────────────────────────────────
   lede: { marginBottom: 14 },
-  eyebrow: { ...type.labelSmall, color: glass.onGlassVariant },
-  ledeText: { ...type.bodyMedium, color: glass.onGlassVariant, marginTop: 4 },
+  eyebrow: { ...type.labelSmall, color: theme.glass.onGlassVariant },
+  ledeText: { ...type.bodyMedium, color: theme.glass.onGlassVariant, marginTop: 4 },
 
   // ── The ticket cards ──────────────────────────────────────────────────────
   tkList: { gap: space(2.5) },
@@ -480,33 +497,38 @@ const styles = StyleSheet.create({
   },
   // Hover/active deepen the surface, never the ink — pressed is the phone's
   // half of the same move.
-  tkCardPressed: { backgroundColor: 'rgba(255, 255, 255, 0.86)' },
+  tkCardPressed: {
+    backgroundColor: theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.10)' : 'rgba(255, 255, 255, 0.86)',
+  },
   tkIcon: {
     width: 40,
     height: 40,
     borderRadius: radius.medium,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: accent.primary.container,
+    backgroundColor: theme.accent.primary.container,
   },
   tkMid: { flex: 1, minWidth: 0 },
   // The route is a snapshot pair, so it wraps rather than truncates.
-  tkTitle: { ...type.titleMedium, color: glass.onGlass },
-  tkMeta: { ...type.bodySmall, color: glass.onGlassVariant, marginTop: 2 },
+  tkTitle: { ...type.titleMedium, color: theme.glass.onGlass },
+  tkMeta: { ...type.bodySmall, color: theme.glass.onGlassVariant, marginTop: 2 },
   tkFare: { alignItems: 'flex-end' },
   // The one orange thing on a card, and it is the dark orange: #C2410C is
   // 5.0:1 on the glass field, while #E65100 is 3.7:1 and fails AA.
   tkFareAmount: {
     ...type.titleMedium,
-    color: palette.primarySolid,
+    color: theme.palette.primarySolid,
     fontVariant: ['tabular-nums'],
   },
-  tkFareType: { ...type.bodySmall, color: glass.onGlassVariant },
+  tkFareType: { ...type.bodySmall, color: theme.glass.onGlassVariant },
 
   // ── Skeletons ─────────────────────────────────────────────────────────────
   // The reference's .sk ink is a translucent black on the glass, not a solid
-  // surface swatch — the card underneath has to keep reading as glass.
-  skeleton: { borderRadius: 8, backgroundColor: 'rgba(0, 0, 0, 0.05)' },
+  // surface swatch — the card underneath has to keep reading as theme.glass.
+  skeleton: {
+    borderRadius: 8,
+    backgroundColor: theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.05)',
+  },
   // 40×40 at the icon box's radius — never the icon box's own container fill.
   skIcon: { width: 40, height: 40, borderRadius: radius.medium },
   skTitle: { width: '74%', height: 15 },
@@ -520,16 +542,16 @@ const styles = StyleSheet.create({
     padding: space(5),
     borderRadius: radius.xlarge,
     borderWidth: 1,
-    borderColor: palette.outlineVariant,
-    backgroundColor: 'rgba(255, 255, 255, 0.55)',
+    borderColor: theme.palette.outlineVariant,
+    backgroundColor: theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.55)',
   },
   stateError: {
-    borderColor: palette.error,
-    backgroundColor: palette.errorContainer,
+    borderColor: theme.palette.error,
+    backgroundColor: theme.palette.errorContainer,
   },
-  stateTitle: { ...type.headlineSmall, color: glass.onGlass },
-  stateBody: { ...type.bodyMedium, color: glass.onGlassVariant, marginTop: space(2) },
-  stateBodyError: { color: palette.onErrorContainer },
+  stateTitle: { ...type.headlineSmall, color: theme.glass.onGlass },
+  stateBody: { ...type.bodyMedium, color: theme.glass.onGlassVariant, marginTop: space(2) },
+  stateBodyError: { color: theme.palette.onErrorContainer },
 
   primaryBtn: {
     flexDirection: 'row',
@@ -538,12 +560,11 @@ const styles = StyleSheet.create({
     gap: space(2),
     minHeight: 48,
     paddingHorizontal: space(5),
-    marginTop: 14,
-    // The reference draws this one r16, not the full pill the receipt wears.
-    borderRadius: radius.large,
-    backgroundColor: palette.primarySolid,
+    marginTop: 14,  // The reference draws this one r16, not the full pill the receipt wears.
+  borderRadius: radius.large,
+    backgroundColor: theme.palette.primarySolid,
   },
-  primaryBtnLabel: { ...type.labelLarge, color: '#FFFFFF' },
+  primaryBtnLabel: { ...type.labelLarge, color: onPrimarySolid },
 
   // ── Storage footer ────────────────────────────────────────────────────────
   storage: {
@@ -554,6 +575,6 @@ const styles = StyleSheet.create({
     paddingVertical: space(3),
     paddingHorizontal: space(5),
   },
-  storageText: { ...type.bodySmall, color: glass.onGlassVariant, flex: 1 },
-  storageStrong: { fontFamily: 'Poppins_700Bold', color: glass.onGlass },
+  storageText: { ...type.bodySmall, color: theme.glass.onGlassVariant, flex: 1 },
+  storageStrong: { fontFamily: 'Poppins_700Bold', color: theme.glass.onGlass },
 });

@@ -1,5 +1,7 @@
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { glass, glassBlur, palette, space, type } from '../../theme';
+import { glassBlur, space, type, type KonduktTheme } from '../../theme';
+import { useKonduktTheme } from '../../lib/themeContext';
 import { GlassCard } from '../GlassCard';
 import type { LastCompletedTrip } from '../../data/historyStore';
 import { formatShortTime } from '../../lib/tripScreenFormat';
@@ -24,6 +26,8 @@ export function LastTripCard({
   trip: LastCompletedTrip;
   onOpenHistory: () => void;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const route = `${trip.origin_location_snapshot} → ${trip.destination_location_snapshot}`;
   const summary =
     `Ended ${formatShortTime(trip.ended_at)} · ${plural(trip.ticket_count, 'fare')} · ` +
@@ -65,13 +69,14 @@ export function LastTripCard({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
   root: {
     marginTop: space(5),
   },
   label: {
     ...type.labelSmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginBottom: space(2.5),
     marginHorizontal: space(5),
   },
@@ -89,11 +94,11 @@ const styles = StyleSheet.create({
   },
   route: {
     ...type.titleMedium,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
   },
   sub: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginTop: space(0.5),
   },
   side: {
@@ -103,7 +108,7 @@ const styles = StyleSheet.create({
   },
   total: {
     ...type.titleMedium,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     fontVariant: ['tabular-nums'],
   },
   link: {
@@ -112,10 +117,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space(1),
   },
-  // 4.5:1, not `palette.primary`'s 3.79:1 — see SectionHeader.actionLabel.
+  // 4.5:1, not `theme.palette.primary`'s 3.79:1 — see SectionHeader.actionLabel.
   linkLabel: {
     ...type.labelSmall,
-    color: glass.accentPrimary,
+    color: theme.glass.accentPrimary,
   },
   pressed: {
     opacity: 0.7,

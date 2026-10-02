@@ -1,6 +1,8 @@
+import { useMemo } from 'react';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Icon } from '../icons';
-import { glass, glassBlur, palette, space, type } from '../theme';
+import { glassBlur, space, type, type KonduktTheme } from '../theme';
+import { useKonduktTheme } from '../lib/themeContext';
 import { GlassCard } from './GlassCard';
 
 /** "1 trip" / "3 trips" — the note's counts, and the footnote's. */
@@ -27,6 +29,8 @@ export function StorageNote({
   dayCount: number;
   style?: StyleProp<ViewStyle>;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const summary =
     `${plural(tripCount, 'trip')} and ${plural(ticketCount, 'fare')} across ` +
     `${plural(dayCount, 'day')}, all saved on this device. No network is used.`;
@@ -39,7 +43,7 @@ export function StorageNote({
         accessible
         accessibilityLabel={summary}
       >
-        <Icon name="database" size={18} color={glass.accentTertiary} />
+        <Icon name="database" size={18} color={theme.glass.accentTertiary} />
         <Text style={styles.text}>
           <Text style={styles.strong}>{plural(tripCount, 'trip')}</Text> and{' '}
           <Text style={styles.strong}>{plural(ticketCount, 'fare')}</Text> across{' '}
@@ -52,7 +56,8 @@ export function StorageNote({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
   root: {
     marginTop: space(5),
   },
@@ -67,18 +72,18 @@ const styles = StyleSheet.create({
   },
   text: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     flex: 1,
   },
   strong: {
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     fontFamily: 'Poppins_600SemiBold',
   },
   // `padding: 16px 0 4px` — the reference keeps 4px under the last line so the
   // footnote does not sit flush on the home indicator.
   footnote: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     textAlign: 'center',
     paddingTop: space(4),
     paddingBottom: space(1),

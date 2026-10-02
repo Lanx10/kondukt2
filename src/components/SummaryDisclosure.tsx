@@ -1,7 +1,8 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Icon, type IconName } from '../icons';
-import { accent, glass, palette, radius, space, type, type Accent } from '../theme';
+import { radius, space, type, type Accent, type KonduktTheme } from '../theme';
+import { useKonduktTheme } from '../lib/themeContext';
 import { GlassCard } from './GlassCard';
 
 /** One figure in the summary detail: a tone chip, a label, a value. */
@@ -51,6 +52,8 @@ export function SummaryDisclosure({
    *  keeps the flat row chip. One card, two tile skins. */
   glassTiles?: boolean;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const [open, setOpen] = useState(false);
   const max = Math.max(1, ...bars.map((bar) => bar.count));
 
@@ -68,7 +71,7 @@ export function SummaryDisclosure({
             style={({ pressed }) => [styles.link, pressed && styles.pressed]}
           >
             <Text style={styles.linkLabel}>{open ? 'Hide details' : 'Show details'}</Text>
-            <Icon name="chevronDown" size={16} color={glass.accentPrimary} />
+            <Icon name="chevronDown" size={16} color={theme.glass.accentPrimary} />
           </Pressable>
         </View>
 
@@ -87,9 +90,9 @@ export function SummaryDisclosure({
                 const body = (
                   <>
                     <View
-                      style={[styles.statChip, { backgroundColor: accent[stat.tone].container }]}
+                      style={[styles.statChip, { backgroundColor: theme.accent[stat.tone].container }]}
                     >
-                      <Icon name={stat.icon} size={20} color={accent[stat.tone].fg} />
+                      <Icon name={stat.icon} size={20} color={theme.accent[stat.tone].fg} />
                     </View>
                     <View style={styles.statText}>
                       <Text style={styles.statLabel}>{stat.label}</Text>
@@ -164,10 +167,13 @@ export function Skeleton({
   height: number;
   style?: StyleProp<ViewStyle>;
 }): ReactNode {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return <View style={[styles.skeleton, { height }, style]} />;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
   root: {
     marginTop: space(3),
     marginHorizontal: space(5),
@@ -183,7 +189,7 @@ const styles = StyleSheet.create({
   },
   headLabel: {
     ...type.labelSmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     flex: 1,
   },
   link: {
@@ -192,11 +198,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space(1),
   },
-  // `glass.accentPrimary` (#8F3A00), not `palette.primary` (#E65100 = 3.79:1):
+  // `theme.glass.accentPrimary` (#8F3A00), not `theme.palette.primary` (#E65100 = 3.79:1):
   // an 11px disclosure link is normal text and owes 4.5:1.
   linkLabel: {
     ...type.labelSmall,
-    color: glass.accentPrimary,
+    color: theme.glass.accentPrimary,
   },
   pressed: {
     opacity: 0.88,
@@ -206,17 +212,17 @@ const styles = StyleSheet.create({
   },
   caption: {
     ...type.labelSmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
   },
   total: {
     ...type.displaySmall,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     marginTop: space(0.5),
     fontVariant: ['tabular-nums'],
   },
   meta: {
     ...type.bodyMedium,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginTop: space(1.5),
   },
   detail: {
@@ -240,10 +246,10 @@ const styles = StyleSheet.create({
     paddingVertical: space(3),
     paddingHorizontal: space(3.5),
     borderRadius: radius.medium,
-    backgroundColor: palette.surfaceContainerLow,
+    backgroundColor: theme.palette.surfaceContainerLow,
   },
   // History's tile: a glass card with the icon above the label and value,
-  // stacked — the reference's `.glass.stat-tile` column.
+  // stacked — the reference's `.theme.glass.stat-tile` column.
   statTileStacked: {
     width: '48%',
     flexGrow: 1,
@@ -264,22 +270,22 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     ...type.labelSmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
   },
   statValue: {
     ...type.titleMedium,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     fontVariant: ['tabular-nums'],
   },
   breakdown: {
     marginTop: space(4),
     paddingTop: space(3.5),
     borderTopWidth: 1,
-    borderTopColor: palette.outline,
+    borderTopColor: theme.palette.outline,
   },
   breakdownTitle: {
     ...type.labelSmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginBottom: space(2.5),
   },
   barRow: {
@@ -292,30 +298,30 @@ const styles = StyleSheet.create({
   },
   barLabel: {
     ...type.bodySmall,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     width: 120,
   },
   barTrack: {
     flex: 1,
     height: 8,
     borderRadius: radius.full,
-    backgroundColor: palette.surfaceContainer,
+    backgroundColor: theme.palette.surfaceContainer,
     overflow: 'hidden',
   },
   barFill: {
     height: '100%',
     borderRadius: radius.full,
-    backgroundColor: palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
   },
   barCount: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     width: 36,
     textAlign: 'right',
   },
   skeleton: {
     borderRadius: radius.medium,
-    backgroundColor: 'rgba(120, 130, 150, 0.14)',
+    backgroundColor: theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.10)' : 'rgba(120, 130, 150, 0.14)',
   },
   skeletonHero: {
     marginTop: space(2.5),

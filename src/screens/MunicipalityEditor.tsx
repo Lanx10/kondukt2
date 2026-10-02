@@ -14,7 +14,8 @@ import { SectionChrome } from '../components/SectionChrome';
 import { GlassBackdrop } from '../components/GlassBackdrop';
 import { GlassCard } from '../components/GlassCard';
 import { Icon } from '../icons';
-import { accent, glass, maxContentWidth, palette, radius, space, type } from '../theme';
+import { maxContentWidth, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
+import { useKonduktTheme } from '../lib/themeContext';
 import {
   countMunicipalitiesInProvince,
   fetchMunicipalityById,
@@ -82,6 +83,8 @@ type LoadState =
  * value, because navigating shows a save that did not happen.
  */
 export function MunicipalityEditor({ onBack, id = null }: MunicipalityEditorProps) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const chrome = municipalityEditorChrome(id);
 
@@ -278,7 +281,7 @@ export function MunicipalityEditor({ onBack, id = null }: MunicipalityEditorProp
                     ]}
                   >
                     <View style={styles.fieldIcon}>
-                      <Icon name="municipality" size={18} color={accent.tertiary.onContainer} />
+                      <Icon name="municipality" size={18} color={theme.accent.tertiary.onContainer} />
                     </View>
                     <View style={styles.fieldBody}>
                       <Text style={styles.fieldLabel}>Municipality</Text>
@@ -290,7 +293,7 @@ export function MunicipalityEditor({ onBack, id = null }: MunicipalityEditorProp
                         // ENTER submits from either input — this screen's one commit.
                         onSubmitEditing={onSave}
                         placeholder="e.g. San Jose"
-                        placeholderTextColor={palette.outline}
+                        placeholderTextColor={theme.palette.outline}
                         maxLength={60}
                         autoComplete="off"
                         autoCorrect={false}
@@ -314,7 +317,7 @@ export function MunicipalityEditor({ onBack, id = null }: MunicipalityEditorProp
                     ]}
                   >
                     <View style={styles.fieldIcon}>
-                      <Icon name="pin" size={18} color={accent.tertiary.onContainer} />
+                      <Icon name="pin" size={18} color={theme.accent.tertiary.onContainer} />
                     </View>
                     <View style={styles.fieldBody}>
                       <Text style={styles.fieldLabel}>Province</Text>
@@ -325,7 +328,7 @@ export function MunicipalityEditor({ onBack, id = null }: MunicipalityEditorProp
                         onChangeText={(text) => editField('province', text)}
                         onSubmitEditing={onSave}
                         placeholder="e.g. Bulacan"
-                        placeholderTextColor={palette.outline}
+                        placeholderTextColor={theme.palette.outline}
                         maxLength={60}
                         autoComplete="off"
                         autoCorrect={false}
@@ -415,7 +418,7 @@ export function MunicipalityEditor({ onBack, id = null }: MunicipalityEditorProp
               accessible
               accessibilityLabel="Offline storage. The record is saved on this device and works offline."
             >
-              <Icon name="lock" size={18} color={glass.onGlassVariant} />
+              <Icon name="lock" size={18} color={theme.glass.onGlassVariant} />
               <View style={styles.noteLockBody}>
                 <Text style={styles.noteLockLabel}>OFFLINE STORAGE</Text>
                 <Text style={styles.noteLockText}>
@@ -430,10 +433,11 @@ export function MunicipalityEditor({ onBack, id = null }: MunicipalityEditorProp
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
   flex: { flex: 1 },
   pressed: { opacity: 0.88 },
-  screen: { flex: 1, backgroundColor: glass.backdrop },
+  screen: { flex: 1, backgroundColor: theme.glass.backdrop },
 
   // ONE column, ONE gutter — the same inset the registry above it uses.
   column: {
@@ -451,10 +455,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(4),
     borderRadius: radius.large,
     borderWidth: 1,
-    borderColor: palette.outlineVariant,
-    backgroundColor: 'rgba(255,255,255,0.5)',
+    borderColor: theme.palette.outlineVariant,
+    backgroundColor: theme.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.5)',
   },
-  cautionText: { ...type.bodySmall, color: glass.onGlassVariant },
+  cautionText: { ...type.bodySmall, color: theme.glass.onGlassVariant },
 
   // ── the form card ──
   formSection: { marginTop: space(5) },
@@ -471,31 +475,31 @@ const styles = StyleSheet.create({
     paddingVertical: space(2),
     paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: palette.outline,
+    borderColor: theme.palette.outline,
     borderRadius: radius.large,
-    backgroundColor: palette.surface,
+    backgroundColor: theme.palette.surface,
   },
   // Focus changes the border's colour only — never a width change that
   // would reflow the field under the caret.
-  fieldFocused: { borderColor: palette.primary },
-  fieldInvalid: { borderColor: palette.error },
+  fieldFocused: { borderColor: theme.palette.primary },
+  fieldInvalid: { borderColor: theme.palette.error },
   fieldIcon: {
     width: 36,
     height: 36,
     borderRadius: radius.small,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: accent.tertiary.container,
+    backgroundColor: theme.accent.tertiary.container,
   },
   fieldBody: { flex: 1, minWidth: 0 },
-  fieldLabel: { ...type.bodySmall, color: palette.onSurfaceVariant },
+  fieldLabel: { ...type.bodySmall, color: theme.palette.onSurfaceVariant },
   fieldInput: {
     flex: 1,
     minWidth: 0,
     padding: 0,
     ...type.bodyMedium,
     fontFamily: 'Poppins_600SemiBold',
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     // The wrapper carries the focus ring, exactly as the prototype's
     // `input { outline: none }` does — one ring, never two.
     outlineWidth: 0,
@@ -510,14 +514,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.large,
-    backgroundColor: palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
   },
   saveBusy: { opacity: 0.65 },
-  saveLabel: { ...type.labelLarge, color: palette.onPrimary, letterSpacing: 0.8 },
+  saveLabel: { ...type.labelLarge, color: onPrimarySolid, letterSpacing: 0.8 },
 
   // ── the edit half's read states ──
-  stateTitle: { ...type.titleMedium, color: palette.onSurface },
-  stateBody: { ...type.bodySmall, color: glass.onGlassVariant, marginTop: space(2) },
+  stateTitle: { ...type.titleMedium, color: theme.palette.onSurface },
+  stateBody: { ...type.bodySmall, color: theme.glass.onGlassVariant, marginTop: space(2) },
   stateRetry: {
     marginTop: space(4),
     minHeight: 44,
@@ -525,14 +529,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.large,
     borderWidth: 1,
-    borderColor: palette.outline,
+    borderColor: theme.palette.outline,
   },
-  stateRetryLabel: { ...type.labelLarge, color: palette.onSurface },
+  stateRetryLabel: { ...type.labelLarge, color: theme.palette.onSurface },
 
   // ── the caption, 10 below the card — `.range-caption`'s own margin ──
   hint: {
     ...type.bodySmall,
-    color: glass.onGlassVariant,
+    color: theme.glass.onGlassVariant,
     marginTop: 10,
   },
 
@@ -546,6 +550,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(5),
   },
   noteLockBody: { flex: 1 },
-  noteLockLabel: { ...type.labelSmall, color: glass.onGlassVariant },
-  noteLockText: { ...type.bodySmall, color: glass.onGlassVariant, marginTop: space(1) },
+  noteLockLabel: { ...type.labelSmall, color: theme.glass.onGlassVariant },
+  noteLockText: { ...type.bodySmall, color: theme.glass.onGlassVariant, marginTop: space(1) },
 });

@@ -1,6 +1,8 @@
+import { useMemo } from 'react';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Icon, type IconName } from '../icons';
-import { accent, palette, radius, space, type } from '../theme';
+import { radius, space, type, type KonduktTheme } from '../theme';
+import { useKonduktTheme } from '../lib/themeContext';
 import { GlassCard } from './GlassCard';
 
 /**
@@ -31,11 +33,13 @@ export function LocalStorageCard({
   tone?: 'tertiary' | 'muted';
   style?: StyleProp<ViewStyle>;
 }) {
-  const iconColor = tone === 'muted' ? palette.onSurfaceVariant : accent.tertiary.fg;
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const iconColor = tone === 'muted' ? theme.palette.onSurfaceVariant : theme.accent.tertiary.fg;
   const containerColor =
-    tone === 'muted' ? palette.surfaceContainer : accent.tertiary.container;
+    tone === 'muted' ? theme.palette.surfaceContainer : theme.accent.tertiary.container;
   const labelColor =
-    tone === 'muted' ? palette.onSurfaceVariant : accent.tertiary.onContainer;
+    tone === 'muted' ? theme.palette.onSurfaceVariant : theme.accent.tertiary.onContainer;
 
   return (
     <GlassCard
@@ -54,7 +58,8 @@ export function LocalStorageCard({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
   root: {
     flexDirection: 'row',
     // Top-aligned with the reference's note and with `StorageNote`: the chip
@@ -80,5 +85,5 @@ const styles = StyleSheet.create({
   },
   body: { flex: 1 },
   title: { ...type.labelSmall },
-  text: { ...type.bodySmall, color: palette.onSurfaceVariant, marginTop: space(1) },
+  text: { ...type.bodySmall, color: theme.palette.onSurfaceVariant, marginTop: space(1) },
 });

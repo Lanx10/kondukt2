@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react';
+import { useMemo, ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon, type IconName } from '../../icons';
-import { cardShadow, glassBlur, palette, radius, space, tintedGlass, type } from '../../theme';
+import { cardShadow, glassBlur, radius, space, tintedGlass, type, type KonduktTheme } from '../../theme';
+import { useKonduktTheme } from '../../lib/themeContext';
 import { GlassCard } from '../GlassCard';
 import { Skeleton } from '../SummaryDisclosure';
 
@@ -45,6 +46,8 @@ export function HomeHero({
   actions?: HeroAction[];
   titleSuffix?: string;
 }) {
+const { theme } = useKonduktTheme();
+const styles = useMemo(() => makeStyles(theme), [theme]);
   const running = state === 'running';
   const failed = state === 'error';
 
@@ -169,7 +172,8 @@ export function HomeHero({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
   root: {
     marginTop: space(2),
     marginHorizontal: space(5),
@@ -183,12 +187,12 @@ const styles = StyleSheet.create({
   cardError: {
     // The reference's `.hero-error` sets `border: none` — the pale red fill
     // and the red eyebrow carry the state, not an outline around the card.
-    backgroundColor: palette.errorContainer,
+    backgroundColor: theme.palette.errorContainer,
   },
   // Solid amber, the only yellow in the app. `cardShadow` rather than a second
   // shadow: the same numbers as every other panel, so it sits at the same depth.
   cardRunning: {
-    backgroundColor: palette.secondary,
+    backgroundColor: theme.palette.secondary,
     borderRadius: radius.glass,
     ...cardShadow,
   },
@@ -200,55 +204,55 @@ const styles = StyleSheet.create({
   },
   eyebrow: {
     ...type.labelSmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
   },
   eyebrowError: {
-    color: palette.error,
+    color: theme.palette.error,
   },
   chip: {
     minHeight: 24,
     paddingHorizontal: 10,
     justifyContent: 'center',
     borderRadius: radius.full,
-    backgroundColor: palette.surfaceContainer,
+    backgroundColor: theme.palette.surfaceContainer,
   },
   // Dark ground, amber type on the amber card: 7.4:1, where the pale secondary
   // container sits at 1.6:1 and the status would go with it.
   chipRunning: {
-    backgroundColor: palette.onSecondary,
+    backgroundColor: theme.palette.onSecondary,
   },
   chipLabel: {
     ...type.labelSmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
   },
   chipLabelRunning: {
-    color: palette.secondary,
+    color: theme.palette.secondary,
   },
   title: {
     ...type.headlineSmall,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     marginTop: space(1.5),
   },
   titleError: {
-    color: palette.error,
+    color: theme.palette.error,
   },
   titleRunning: {
-    color: palette.onSecondary,
+    color: theme.palette.onSecondary,
   },
   titleSuffix: {
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
   },
   when: {
     ...type.bodyMedium,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginTop: space(0.5),
   },
   whenRunning: {
-    color: palette.onSecondary,
+    color: theme.palette.onSecondary,
   },
   body: {
     ...type.bodyMedium,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginTop: space(2),
   },
   figures: {
@@ -257,10 +261,10 @@ const styles = StyleSheet.create({
     marginTop: space(3.5),
     paddingTop: space(3.5),
     borderTopWidth: 1,
-    // The outline step, which reads correctly on glass. On the amber card a
+    // The outline step, which reads correctly on theme.glass. On the amber card a
     // grey rule looks like dirt, so `figureRunning` swaps in a hair over the
     // fill's own dark tone — see `figures` on the running card below.
-    borderTopColor: palette.outline,
+    borderTopColor: theme.palette.outline,
   },
   figuresRunning: {
     borderTopColor: 'rgba(61, 46, 0, 0.25)',
@@ -270,19 +274,19 @@ const styles = StyleSheet.create({
   },
   figureValue: {
     ...type.titleMedium,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     fontVariant: ['tabular-nums'],
   },
   figureValueRunning: {
-    color: palette.onSecondary,
+    color: theme.palette.onSecondary,
   },
   figureLabel: {
     ...type.labelSmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginTop: 1,
   },
   figureLabelRunning: {
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
   },
   actions: {
     flexDirection: 'row',
@@ -306,17 +310,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     // The reference keeps `--outline` here even on the amber card; the darker
     // onSecondary border this used to swap in was the app's own invention.
-    borderColor: palette.outline,
+    borderColor: theme.palette.outline,
   },
   actionLabel: {
     ...type.labelLarge,
     color: '#FFFFFF',
   },
   actionLabelGhost: {
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
   },
   actionLabelRunning: {
-    color: palette.onSecondary,
+    color: theme.palette.onSecondary,
   },
   skeletonTitle: {
     marginTop: space(3),

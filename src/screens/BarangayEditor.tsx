@@ -16,7 +16,8 @@ import { GlassBackdrop } from '../components/GlassBackdrop';
 import { GlassCard } from '../components/GlassCard';
 import { Sheet } from '../components/BottomSheet';
 import { Icon } from '../icons';
-import { accent, glass, maxContentWidth, palette, radius, space, type } from '../theme';
+import { maxContentWidth, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
+import { useKonduktTheme } from '../lib/themeContext';
 import {
   fetchAllMunicipalities,
   fetchAllTerminals,
@@ -86,6 +87,8 @@ const SUBTITLE = 'Registers a stop and its KM marker';
  * one `sheetOpen`, so the expanded state cannot drift.
  */
 export function BarangayEditor({ id, onBack }: BarangayEditorProps) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
 
   // The mode derives from the param, never from state: a route reuse cannot
@@ -327,7 +330,7 @@ export function BarangayEditor({ id, onBack }: BarangayEditorProps) {
       return (
         <View style={styles.centerBlock}>
           <View style={styles.loadingCard} accessibilityLiveRegion="polite">
-            <ActivityIndicator size={24} color={palette.primary} />
+            <ActivityIndicator size={24} color={theme.palette.primary} />
             <Text style={styles.centerTitle}>Loading barangay</Text>
             <Text style={styles.centerText}>Reading offline location data.</Text>
           </View>
@@ -401,7 +404,7 @@ export function BarangayEditor({ id, onBack }: BarangayEditorProps) {
                   ]}
                 >
                   <View style={styles.fieldIcon}>
-                    <Icon name="barangay" size={18} color={accent.tertiary.onContainer} />
+                    <Icon name="barangay" size={18} color={theme.accent.tertiary.onContainer} />
                   </View>
                   <View style={styles.fieldBody}>
                     <Text style={styles.fieldLabel}>Barangay</Text>
@@ -413,7 +416,7 @@ export function BarangayEditor({ id, onBack }: BarangayEditorProps) {
                       // ENTER submits from either input — this screen's one commit.
                       onSubmitEditing={onSave}
                       placeholder="e.g. Bagong"
-                      placeholderTextColor={palette.outline}
+                      placeholderTextColor={theme.palette.outline}
                       maxLength={60}
                       autoComplete="off"
                       autoCorrect={false}
@@ -450,7 +453,7 @@ export function BarangayEditor({ id, onBack }: BarangayEditorProps) {
                   ]}
                 >
                   <View style={styles.fieldIcon}>
-                    <Icon name="pin" size={18} color={accent.tertiary.onContainer} />
+                    <Icon name="pin" size={18} color={theme.accent.tertiary.onContainer} />
                   </View>
                   <View style={styles.fieldBody}>
                     <Text style={styles.fieldLabel}>Municipality</Text>
@@ -464,7 +467,7 @@ export function BarangayEditor({ id, onBack }: BarangayEditorProps) {
                       {muniValue}
                     </Text>
                   </View>
-                  <Icon name="chevronDown" size={18} color={palette.onSurfaceVariant} />
+                  <Icon name="chevronDown" size={18} color={theme.palette.onSurfaceVariant} />
                 </Pressable>
                 {state.muniError !== null ? (
                   <Text style={styles.errorText} accessibilityLiveRegion="polite">
@@ -482,7 +485,7 @@ export function BarangayEditor({ id, onBack }: BarangayEditorProps) {
                   ]}
                 >
                   <View style={styles.fieldIcon}>
-                    <Icon name="route" size={18} color={accent.tertiary.onContainer} />
+                    <Icon name="route" size={18} color={theme.accent.tertiary.onContainer} />
                   </View>
                   <View style={styles.fieldBody}>
                     <Text style={styles.fieldLabel}>Registered KM</Text>
@@ -495,7 +498,7 @@ export function BarangayEditor({ id, onBack }: BarangayEditorProps) {
                         onSubmitEditing={onSave}
                         keyboardType="decimal-pad"
                         placeholder="0.0"
-                        placeholderTextColor={palette.outline}
+                        placeholderTextColor={theme.palette.outline}
                         autoComplete="off"
                         autoCorrect={false}
                         editable={!state.isSaving}
@@ -556,7 +559,7 @@ export function BarangayEditor({ id, onBack }: BarangayEditorProps) {
           accessible
           accessibilityLabel="Offline storage. The record is saved on this device and works offline."
         >
-          <Icon name="lock" size={18} color={glass.onGlassVariant} />
+          <Icon name="lock" size={18} color={theme.glass.onGlassVariant} />
           <View style={styles.noteLockBody}>
             <Text style={styles.noteLockLabel}>OFFLINE STORAGE</Text>
             <Text style={styles.noteLockText}>
@@ -657,7 +660,7 @@ export function BarangayEditor({ id, onBack }: BarangayEditorProps) {
                   <Icon
                     name="check"
                     size={18}
-                    color={current ? palette.onPrimaryContainer : palette.onSurfaceVariant}
+                    color={current ? theme.palette.onPrimaryContainer : theme.palette.onSurfaceVariant}
                   />
                 </Pressable>
               );
@@ -669,10 +672,11 @@ export function BarangayEditor({ id, onBack }: BarangayEditorProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
   flex: { flex: 1 },
   pressed: { opacity: 0.88 },
-  screen: { flex: 1, backgroundColor: glass.backdrop },
+  screen: { flex: 1, backgroundColor: theme.glass.backdrop },
 
   // ONE column, ONE gutter — the same inset the registry above it uses.
   column: {
@@ -690,10 +694,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(4),
     borderRadius: radius.large,
     borderWidth: 1,
-    borderColor: palette.outlineVariant,
-    backgroundColor: 'rgba(255,255,255,0.5)',
+    borderColor: theme.palette.outlineVariant,
+    backgroundColor: theme.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.5)',
   },
-  cautionText: { ...type.bodySmall, color: glass.onGlassVariant },
+  cautionText: { ...type.bodySmall, color: theme.glass.onGlassVariant },
 
   // ── the form card ──
   formSection: { marginTop: space(5) },
@@ -711,42 +715,42 @@ const styles = StyleSheet.create({
     paddingVertical: space(2),
     paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: palette.outline,
+    borderColor: theme.palette.outline,
     borderRadius: radius.large,
-    backgroundColor: palette.surface,
+    backgroundColor: theme.palette.surface,
   },
   // Focus changes the border's colour only — the prototype's focus ring is
   // a colour swap plus a shadow, never a width change that would reflow the
   // field under the caret.
-  fieldFocused: { borderColor: palette.primary },
-  fieldInvalid: { borderColor: palette.error },
+  fieldFocused: { borderColor: theme.palette.primary },
+  fieldInvalid: { borderColor: theme.palette.error },
   fieldIcon: {
     width: 36,
     height: 36,
     borderRadius: radius.small,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: accent.tertiary.container,
+    backgroundColor: theme.accent.tertiary.container,
   },
   fieldBody: { flex: 1, minWidth: 0 },
-  fieldLabel: { ...type.bodySmall, color: palette.onSurfaceVariant },
+  fieldLabel: { ...type.bodySmall, color: theme.palette.onSurfaceVariant },
   fieldInput: {
     flex: 1,
     minWidth: 0,
     padding: 0,
     ...type.bodyMedium,
     fontFamily: 'Poppins_600SemiBold',
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     // The wrapper carries the focus ring, exactly as the prototype's
     // `input { outline: none }` does — one ring, never two.
     outlineWidth: 0,
   },
-  fieldValue: { ...type.bodyMedium, fontFamily: 'Poppins_600SemiBold', color: palette.onSurface },
+  fieldValue: { ...type.bodyMedium, fontFamily: 'Poppins_600SemiBold', color: theme.palette.onSurface },
   // "Choose a municipality" reads as the absence of a choice, not a value.
   fieldValueEmpty: {
     fontFamily: 'Poppins_400Regular',
     fontWeight: '500',
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
   },
   kmLine: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
   kmInput: {
@@ -755,11 +759,11 @@ const styles = StyleSheet.create({
     padding: 0,
     ...type.bodyMedium,
     fontFamily: 'Poppins_600SemiBold',
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     outlineWidth: 0,
   },
-  kmUnit: { ...type.bodyMedium, fontFamily: 'Poppins_600SemiBold', color: palette.onSurfaceVariant },
-  errorText: { ...type.bodySmall, color: palette.error },
+  kmUnit: { ...type.bodyMedium, fontFamily: 'Poppins_600SemiBold', color: theme.palette.onSurfaceVariant },
+  errorText: { ...type.bodySmall, color: theme.palette.error },
 
   // ── the one commit ──
   save: {
@@ -768,15 +772,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.large,
-    backgroundColor: palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
   },
   saveBusy: { opacity: 0.65 },
-  saveLabel: { ...type.labelLarge, color: palette.onPrimary, letterSpacing: 0.8 },
+  saveLabel: { ...type.labelLarge, color: onPrimarySolid, letterSpacing: 0.8 },
 
   // ── the hint, 20 below the card ──
   hint: {
     ...type.bodySmall,
-    color: glass.onGlassVariant,
+    color: theme.glass.onGlassVariant,
     marginTop: space(5),
   },
 
@@ -790,8 +794,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(5),
   },
   noteLockBody: { flex: 1 },
-  noteLockLabel: { ...type.labelSmall, color: glass.onGlassVariant },
-  noteLockText: { ...type.bodySmall, color: glass.onGlassVariant, marginTop: space(1) },
+  noteLockLabel: { ...type.labelSmall, color: theme.glass.onGlassVariant },
+  noteLockText: { ...type.bodySmall, color: theme.glass.onGlassVariant, marginTop: space(1) },
 
   // ── the municipality sheet: the registry's own pick rows ──
   // The scroll takes the sheet's maxHeight clamp (see BottomSheet): without
@@ -807,24 +811,24 @@ const styles = StyleSheet.create({
     paddingVertical: space(2),
     paddingHorizontal: space(3),
     borderWidth: 1,
-    borderColor: palette.outline,
+    borderColor: theme.palette.outline,
     borderRadius: radius.large,
-    backgroundColor: palette.surface,
+    backgroundColor: theme.palette.surface,
   },
   // 2px on the applied row and one less padding, so choosing a row does
   // not resize the list under the finger.
   pickRowCurrent: {
     borderWidth: 2,
-    borderColor: palette.primarySolid,
-    backgroundColor: palette.primaryContainer,
+    borderColor: theme.palette.primarySolid,
+    backgroundColor: theme.palette.primaryContainer,
     paddingVertical: 7,
     paddingHorizontal: 11,
   },
   pickBody: { flex: 1, minWidth: 0 },
-  pickName: { ...type.bodyMedium, color: palette.onSurface },
-  pickNameCurrent: { color: palette.onPrimaryContainer },
-  pickSub: { ...type.bodySmall, color: palette.onSurfaceVariant, marginTop: 2 },
-  pickSubCurrent: { color: palette.onPrimaryContainer, opacity: 0.85 },
+  pickName: { ...type.bodyMedium, color: theme.palette.onSurface },
+  pickNameCurrent: { color: theme.palette.onPrimaryContainer },
+  pickSub: { ...type.bodySmall, color: theme.palette.onSurfaceVariant, marginTop: 2 },
+  pickSubCurrent: { color: theme.palette.onPrimaryContainer, opacity: 0.85 },
 
   // ── body-owned states: they replace the form entirely ──
   centerBlock: {
@@ -838,24 +842,24 @@ const styles = StyleSheet.create({
     padding: space(4),
     gap: space(3),
     borderRadius: radius.medium,
-    backgroundColor: palette.surfaceContainerLow,
+    backgroundColor: theme.palette.surfaceContainerLow,
   },
   failureCard: {
     padding: space(4),
     borderRadius: radius.medium,
-    backgroundColor: palette.surfaceContainerLow,
+    backgroundColor: theme.palette.surfaceContainerLow,
   },
-  notFoundText: { ...type.titleMedium, color: palette.error, textAlign: 'center' },
-  centerTitle: { ...type.titleMedium, color: palette.onSurface },
-  centerText: { ...type.bodyMedium, color: palette.onSurfaceVariant, textAlign: 'center' },
+  notFoundText: { ...type.titleMedium, color: theme.palette.error, textAlign: 'center' },
+  centerTitle: { ...type.titleMedium, color: theme.palette.onSurface },
+  centerText: { ...type.bodyMedium, color: theme.palette.onSurfaceVariant, textAlign: 'center' },
   goBackButton: {
     minHeight: 56,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: space(3),
     borderRadius: radius.large,
-    backgroundColor: accent.primary.container,
+    backgroundColor: theme.accent.primary.container,
     paddingHorizontal: space(6),
   },
-  goBackLabel: { ...type.labelLarge, color: accent.primary.onContainer, letterSpacing: 0.8 },
+  goBackLabel: { ...type.labelLarge, color: theme.accent.primary.onContainer, letterSpacing: 0.8 },
 });

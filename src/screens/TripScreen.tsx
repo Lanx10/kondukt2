@@ -7,12 +7,13 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SectionChrome } from '../components/SectionChrome';
 import { LocalStorageCard } from '../components/LocalStorageCard';
 import { GlassCard } from '../components/GlassCard';
 import { Icon } from '../icons';
-import { accent, glass, palette, radius, space, type } from '../theme';
+import { radius, space, type, type KonduktTheme } from '../theme';
+import { useKonduktTheme } from '../lib/themeContext';
 import {
   endActiveTrip,
   fetchTripBoard,
@@ -51,6 +52,8 @@ export type TripScreenProps = {
  * the screen lost focus.
  */
 export function TripScreen({ onBack, onOpenTickets, onAddTrip, onViewAllTrips }: TripScreenProps) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const stacked = width < ROW_STACK_WIDTH;
@@ -126,7 +129,7 @@ export function TripScreen({ onBack, onOpenTickets, onAddTrip, onViewAllTrips }:
             style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}
           >
             <Text style={styles.primaryActionLabel}>Retry</Text>
-            <Icon name="history" size={16} color={palette.onPrimary} />
+            <Icon name="history" size={16} color={theme.palette.onPrimary} />
           </Pressable>
         </View>
       </SectionChrome>
@@ -167,7 +170,7 @@ export function TripScreen({ onBack, onOpenTickets, onAddTrip, onViewAllTrips }:
                   style={({ pressed }) => [styles.viewAll, pressed && styles.pressed]}
                 >
                   <Text style={styles.viewAllLabel}>View all trips</Text>
-                  <Icon name="chevron" size={14} color={glass.accentPrimary} />
+                  <Icon name="chevron" size={14} color={theme.glass.accentPrimary} />
                 </Pressable>
               </View>
             ) : null}
@@ -194,6 +197,8 @@ export function TripScreen({ onBack, onOpenTickets, onAddTrip, onViewAllTrips }:
 
 /** The running trip: number, route, distance, start, live elapsed, status. */
 function ActiveTripCard({ trip }: { trip: TripRowRecord }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   // One-second ticker, mounted with the screen and torn down with it. The
   // keepalive is non-zero — a zero holdoff froze the elapsed clock whenever
   // the screen lost focus and let it stutter on return.
@@ -249,6 +254,8 @@ function ActiveTripActions({
   trip: TripRowRecord;
   onOpenTickets: (tripId: number) => void;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <View style={styles.gutter}>
       <Pressable
@@ -257,7 +264,7 @@ function ActiveTripActions({
         accessibilityLabel={`Record a ticket on trip number ${tripNumber(trip)}`}
         style={({ pressed }) => [styles.actionButton, styles.recordButton, pressed && styles.pressed]}
       >
-        <Icon name="ticket" size={20} color={palette.onSecondary} />
+        <Icon name="ticket" size={20} color={theme.palette.onSecondary} />
         <Text style={[styles.actionLabel, styles.recordLabel]}>Record ticket</Text>
       </Pressable>
       <EndTripButton trip={trip} />
@@ -273,6 +280,8 @@ function ActiveTripActions({
  * retry, guarded so a discovery that the trip is gone stops the loop.
  */
 function EndTripButton({ trip }: { trip: TripRowRecord }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const [pending, setPending] = useState(false);
   const [failure, setFailure] = useState<Extract<EndTripResult, 'noActiveTrip' | 'failed'> | null>(null);
 
@@ -299,7 +308,7 @@ function EndTripButton({ trip }: { trip: TripRowRecord }) {
         accessibilityLabel={`End trip number ${tripNumber(trip)}. It moves to the completed list.`}
         style={({ pressed }) => [styles.actionButton, styles.endButton, pressed && styles.pressed]}
       >
-        <Icon name="bus" size={20} color={palette.onError} />
+        <Icon name="bus" size={20} color={theme.palette.onError} />
         <Text style={[styles.actionLabel, styles.endLabel]}>End trip</Text>
       </Pressable>
 
@@ -349,6 +358,8 @@ function EndTripDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   if (!visible) return null;
   return (
     <View style={styles.dialogScrim}>
@@ -385,6 +396,8 @@ function EndTripDialog({
 
 /** Empty current-trip state, in the Home empty-card language. */
 function EmptyCurrentTrip() {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <View style={styles.gutter}>
       <GlassCard style={styles.card}>
@@ -401,6 +414,8 @@ function EmptyCurrentTrip() {
 
 /** The add-trip action, only ever shown when no trip is running. */
 function AddTripCard({ onPress }: { onPress: () => void }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <GlassCard style={styles.gutter}>
       <Pressable
@@ -410,14 +425,14 @@ function AddTripCard({ onPress }: { onPress: () => void }) {
         accessibilityHint="Opens the start-trip flow"
         style={({ pressed }) => [styles.addTrip, pressed && styles.cardPressed]}
       >
-        <View style={[styles.addTripIcon, { backgroundColor: accent.primary.container }]}>
-          <Icon name="bus" size={24} color={accent.primary.fg} />
+        <View style={[styles.addTripIcon, { backgroundColor: theme.accent.primary.container }]}>
+          <Icon name="bus" size={24} color={theme.accent.primary.fg} />
         </View>
         <View style={styles.addTripBody}>
           <Text style={styles.addTripTitle}>Add new trip</Text>
           <Text style={styles.addTripText}>Start a new bus trip and set the route.</Text>
         </View>
-        <Icon name="chevron" size={18} color={palette.outline} />
+        <Icon name="chevron" size={18} color={theme.palette.outline} />
       </Pressable>
     </GlassCard>
   );
@@ -433,6 +448,8 @@ function CompletedTripRow({
   stacked: boolean;
   onPress: () => void;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const label =
     `${tripRoute(trip)}. Completed. ` +
     `Started ${formatShortTime(trip.started_at)}` +
@@ -451,7 +468,7 @@ function CompletedTripRow({
       >
         <GlassCard style={[styles.historyCard, stacked && styles.historyCardStacked]}>
           <View style={styles.historyIcon}>
-            <Icon name="bus" size={20} color={accent.tertiary.fg} />
+            <Icon name="bus" size={20} color={theme.accent.tertiary.fg} />
           </View>
           <View style={styles.historyBody}>
             <Text style={styles.historyRoute} numberOfLines={2}>
@@ -466,21 +483,22 @@ function CompletedTripRow({
               {trip.ended_at !== null ? ` · Ended ${formatShortTime(trip.ended_at)}` : ''}
             </Text>
           </View>
-          <Icon name="chevron" size={18} color={palette.outline} />
+          <Icon name="chevron" size={18} color={theme.palette.outline} />
         </GlassCard>
       </Pressable>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
   screen: { flex: 1 },
   gutter: { marginHorizontal: space(5), marginTop: space(3) },
   pressed: { opacity: 0.88 },
 
   sectionHeading: {
     ...type.labelSmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginTop: space(5),
     marginBottom: space(1),
     marginHorizontal: space(5),
@@ -488,7 +506,7 @@ const styles = StyleSheet.create({
 
   card: { padding: space(5) },
   cardActive: {
-    backgroundColor: palette.secondary,
+    backgroundColor: theme.palette.secondary,
     borderRadius: radius.glass,
     shadowColor: 'rgba(90, 106, 130, 0.16)',
     shadowOpacity: 1,
@@ -496,7 +514,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 4,
   },
-  cardPressed: { backgroundColor: 'rgba(255, 255, 255, 0.72)' },
+  cardPressed: { backgroundColor: theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.72)' },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -505,31 +523,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(2),
     paddingVertical: space(1),
     borderRadius: radius.full,
-    backgroundColor: palette.onSecondary,
+    backgroundColor: theme.palette.onSecondary,
   },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: palette.secondary },
-  pillLabel: { ...type.labelSmall, color: palette.secondary, letterSpacing: 0.6 },
-  activeRoute: { ...type.titleMedium, color: palette.onSurface, marginTop: space(2) },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.palette.secondary },
+  pillLabel: { ...type.labelSmall, color: theme.palette.secondary, letterSpacing: 0.6 },
+  activeRoute: { ...type.titleMedium, color: theme.palette.onSurface, marginTop: space(2) },
   activeMeta: {
     ...type.bodyMedium,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginTop: space(1),
     fontVariant: ['tabular-nums'],
   },
 
   timesRow: { flexDirection: 'row', gap: space(6), marginTop: space(3) },
   timeBlock: {},
-  timeLabel: { ...type.labelSmall, color: palette.onSurfaceVariant },
+  timeLabel: { ...type.labelSmall, color: theme.palette.onSurfaceVariant },
   timeValue: {
     ...type.titleMedium,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     marginTop: space(0.5),
     fontVariant: ['tabular-nums'],
   },
-  timeDate: { ...type.bodySmall, color: palette.onSurfaceVariant, fontVariant: ['tabular-nums'] },
+  timeDate: { ...type.bodySmall, color: theme.palette.onSurfaceVariant, fontVariant: ['tabular-nums'] },
   elapsedValue: {
     ...type.titleMedium,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     marginTop: space(0.5),
     fontVariant: ['tabular-nums'],
   },
@@ -545,19 +563,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(5),
   },
   actionLabel: { ...type.labelLarge },
-  recordButton: { backgroundColor: palette.secondary },
-  recordLabel: { ...type.labelLarge, color: palette.onSecondary },
-  endButton: { backgroundColor: palette.error },
-  endLabel: { ...type.labelLarge, color: palette.onError },
+  recordButton: { backgroundColor: theme.palette.secondary },
+  recordLabel: { ...type.labelLarge, color: theme.palette.onSecondary },
+  endButton: { backgroundColor: theme.palette.error },
+  endLabel: { ...type.labelLarge, color: theme.palette.onError },
 
   failureNote: { marginTop: space(2), padding: space(3) },
-  failureText: { ...type.bodySmall, color: palette.onSurfaceVariant },
+  failureText: { ...type.bodySmall, color: theme.palette.onSurfaceVariant },
   textAction: { minHeight: 48, justifyContent: 'center' },
-  textActionLabel: { ...type.labelLarge, color: glass.accentPrimary },
+  textActionLabel: { ...type.labelLarge, color: theme.glass.accentPrimary },
 
   dialogScrim: {
     flex: 1,
-    backgroundColor: palette.scrim,
+    backgroundColor: theme.palette.scrim,
     alignItems: 'center',
     justifyContent: 'center',
     padding: space(6),
@@ -567,8 +585,8 @@ const styles = StyleSheet.create({
     maxWidth: 340,
     padding: space(5),
   },
-  dialogTitle: { ...type.titleMedium, color: palette.onSurface },
-  dialogText: { ...type.bodyMedium, color: palette.onSurfaceVariant, marginTop: space(2) },
+  dialogTitle: { ...type.titleMedium, color: theme.palette.onSurface },
+  dialogText: { ...type.bodyMedium, color: theme.palette.onSurfaceVariant, marginTop: space(2) },
   dialogActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
@@ -576,18 +594,18 @@ const styles = StyleSheet.create({
     marginTop: space(4),
   },
   dialogCancel: { minHeight: 48, justifyContent: 'center', paddingHorizontal: space(3) },
-  dialogCancelLabel: { ...type.labelLarge, color: palette.onSurfaceVariant },
+  dialogCancelLabel: { ...type.labelLarge, color: theme.palette.onSurfaceVariant },
   dialogConfirm: {
     minHeight: 48,
     justifyContent: 'center',
     paddingHorizontal: space(4),
     borderRadius: radius.large,
-    backgroundColor: palette.error,
+    backgroundColor: theme.palette.error,
   },
-  dialogConfirmLabel: { ...type.labelLarge, color: palette.onError },
+  dialogConfirmLabel: { ...type.labelLarge, color: theme.palette.onError },
 
-  emptyHeading: { ...type.titleMedium, color: palette.onSurface },
-  emptyText: { ...type.bodyMedium, color: palette.onSurfaceVariant, marginTop: space(1) },
+  emptyHeading: { ...type.titleMedium, color: theme.palette.onSurface },
+  emptyText: { ...type.bodyMedium, color: theme.palette.onSurfaceVariant, marginTop: space(1) },
 
   addTrip: {
     flexDirection: 'row',
@@ -604,8 +622,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   addTripBody: { flex: 1 },
-  addTripTitle: { ...type.titleMedium, color: palette.onSurface },
-  addTripText: { ...type.bodySmall, color: palette.onSurfaceVariant, marginTop: space(1) },
+  addTripTitle: { ...type.titleMedium, color: theme.palette.onSurface },
+  addTripText: { ...type.bodySmall, color: theme.palette.onSurfaceVariant, marginTop: space(1) },
 
   historyHeader: {
     flexDirection: 'row',
@@ -616,8 +634,8 @@ const styles = StyleSheet.create({
   },
   historyHeading: { marginTop: 0, marginBottom: 0, flex: 1 },
   viewAll: { flexDirection: 'row', alignItems: 'center', gap: space(1), minHeight: 48 },
-  // 4.5:1, not `palette.primary`'s 3.79:1 — see SectionHeader.actionLabel.
-  viewAllLabel: { ...type.labelSmall, color: glass.accentPrimary },
+  // 4.5:1, not `theme.palette.primary`'s 3.79:1 — see SectionHeader.actionLabel.
+  viewAllLabel: { ...type.labelSmall, color: theme.glass.accentPrimary },
 
   historyCard: {
     padding: space(4),
@@ -632,19 +650,19 @@ const styles = StyleSheet.create({
     borderRadius: radius.medium,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: accent.tertiary.container,
+    backgroundColor: theme.accent.tertiary.container,
   },
   historyBody: { flex: 1 },
-  historyRoute: { ...type.bodyMedium, color: palette.onSurface },
+  historyRoute: { ...type.bodyMedium, color: theme.palette.onSurface },
   historyMeta: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginTop: space(1),
     fontVariant: ['tabular-nums'],
   },
   historyTimes: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginTop: space(0.5),
     fontVariant: ['tabular-nums'],
   },
@@ -654,13 +672,13 @@ const styles = StyleSheet.create({
     marginTop: space(4),
     padding: space(5),
     borderRadius: radius.xlarge,
-    backgroundColor: palette.surfaceContainerLow,
+    backgroundColor: theme.palette.surfaceContainerLow,
     borderWidth: 1,
-    borderColor: palette.outlineVariant,
+    borderColor: theme.palette.outlineVariant,
   },
-  errorSlot: { borderColor: palette.error, backgroundColor: palette.errorContainer },
-  stateHeading: { ...type.titleMedium, color: palette.onSurface },
-  stateText: { ...type.bodyMedium, color: palette.onSurfaceVariant, marginTop: space(2) },
+  errorSlot: { borderColor: theme.palette.error, backgroundColor: theme.palette.errorContainer },
+  stateHeading: { ...type.titleMedium, color: theme.palette.onSurface },
+  stateText: { ...type.bodyMedium, color: theme.palette.onSurfaceVariant, marginTop: space(2) },
 
   primaryAction: {
     marginTop: space(3),
@@ -671,9 +689,9 @@ const styles = StyleSheet.create({
     gap: space(2),
     paddingHorizontal: space(5),
     borderRadius: radius.large,
-    backgroundColor: accent.primary.container,
+    backgroundColor: theme.accent.primary.container,
   },
-  primaryActionLabel: { ...type.labelLarge, color: accent.primary.onContainer },
+  primaryActionLabel: { ...type.labelLarge, color: theme.accent.primary.onContainer },
 
   storageSlot: { marginTop: space(4) },
 });

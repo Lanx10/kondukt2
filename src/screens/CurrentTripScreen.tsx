@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DetailCard, DetailRow, Handoff, Sheet } from '../components/BottomSheet';
 import { GlassCard } from '../components/GlassCard';
 import { SectionChrome } from '../components/SectionChrome';
 import { Icon } from '../icons';
-import { cardShadow, onAmber, palette, radius, space, type } from '../theme';
+import { cardShadow, onAmber, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
+import { useKonduktTheme } from '../lib/themeContext';
 import {
   endActiveTrip,
   fetchAllTerminals,
@@ -88,6 +89,8 @@ export function CurrentTripScreen({
   onRecordFare,
   onTripEnded,
 }: CurrentTripScreenProps) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   // Ending the running trip is a transaction: no update sheet may open over
   // its confirm, and no restart may land mid-press. See updateGuard.
@@ -338,7 +341,7 @@ const legOf = (origin: string, destination: string): number | null => {
       {state.kind === 'empty' ? (
         <GlassCard style={styles.card} testID="ct-empty">
           <View style={styles.stIcon}>
-            <Icon name="bus" size={28} color={palette.onTertiaryContainer} />
+            <Icon name="bus" size={28} color={theme.palette.onTertiaryContainer} />
           </View>
           <Text style={[styles.stateTitle, styles.stateTitleSpaced]} accessibilityRole="header">
             No active trip
@@ -499,7 +502,7 @@ const legOf = (origin: string, destination: string): number | null => {
 
   const footer = (
     <GlassCard style={styles.storageCard} testID="ct-storage">
-      <Icon name="database" size={18} color={palette.onSurfaceVariant} />
+      <Icon name="database" size={18} color={theme.palette.onSurfaceVariant} />
       <Text style={styles.storageNote}>{storageFooter}</Text>
     </GlassCard>
   );
@@ -677,6 +680,8 @@ const legOf = (origin: string, destination: string): number | null => {
 
 /** One ruled row on the RUNNING card. */
 function RunRow({ k, v, last = false }: { k: string; v: string; last?: boolean }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <View style={[styles.detailRow, last && styles.detailRowLast]}>
       <Text style={styles.detailKey}>{k}</Text>
@@ -700,6 +705,8 @@ function BoardingRow({
   note: string | null;
   testID: string;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const readable = readablePassengerType(ticket.passenger_type);
   const route = `${ticket.origin_location_snapshot} → ${ticket.destination_location_snapshot}`;
   const label = `${formatRowStamp(ticket.created_at)} ${route}. ${ticket.passenger_quantity} ${readable} passengers, ${centavos(ticket.total_fare)}${note ? `, ${note}` : ''}.`;
@@ -739,7 +746,8 @@ function BoardingRow({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
   screen: { flex: 1 },
   column: {
     width: '100%',
@@ -761,11 +769,11 @@ const styles = StyleSheet.create({
     padding: space(3),
     borderRadius: radius.medium,
   },
-  bannerInfo: { backgroundColor: palette.tertiaryContainer },
-  bannerError: { backgroundColor: palette.errorContainer },
+  bannerInfo: { backgroundColor: theme.palette.tertiaryContainer },
+  bannerError: { backgroundColor: theme.palette.errorContainer },
   bannerText: { ...type.bodySmall, flex: 1 },
-  bannerTextInfo: { color: palette.onTertiaryContainer },
-  bannerTextError: { color: palette.onErrorContainer },
+  bannerTextInfo: { color: theme.palette.onTertiaryContainer },
+  bannerTextError: { color: theme.palette.onErrorContainer },
   bannerDismiss: { ...type.labelSmall },
 
   card: {
@@ -779,7 +787,7 @@ const styles = StyleSheet.create({
   // the figure, a rule, then two rows.
   skeleton: {
     borderRadius: radius.small,
-    backgroundColor: palette.surfaceContainer,
+    backgroundColor: theme.palette.surfaceContainer,
   },
   skLabel: { height: 13, width: '30%' },
   skBig: { height: 34, width: '56%', marginTop: space(3) },
@@ -788,13 +796,15 @@ const styles = StyleSheet.create({
   skBlock2: { height: 60, marginTop: space(3) },
 
   errorCard: {
-    backgroundColor: palette.error,
+    backgroundColor: theme.palette.error,
     borderWidth: 1,
-    borderColor: palette.error,
+    borderColor: theme.palette.error,
     ...cardShadow,
+    // Only the shadow's colour follows the mode — the geometry is the card's.
+    shadowColor: theme.glass.shadow,
   },
-  errorTitle: { ...type.titleMedium, color: palette.onError },
-  errorBody: { ...type.bodySmall, color: palette.onError, marginTop: space(2) },
+  errorTitle: { ...type.titleMedium, color: theme.palette.onError },
+  errorBody: { ...type.bodySmall, color: theme.palette.onError, marginTop: space(2) },
   retryButton: {
     minHeight: 48,
     alignItems: 'center',
@@ -802,10 +812,10 @@ const styles = StyleSheet.create({
     marginTop: space(4),
     borderRadius: radius.large,
     borderWidth: 1,
-    borderColor: palette.outline,
-    backgroundColor: palette.surfaceContainerLowest,
+    borderColor: theme.palette.outline,
+    backgroundColor: theme.palette.surfaceContainerLowest,
   },
-  retryLabel: { ...type.labelLarge, color: palette.onSurface },
+  retryLabel: { ...type.labelLarge, color: theme.palette.onSurface },
 
   stIcon: {
     width: 48,
@@ -813,11 +823,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.medium,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: palette.tertiaryContainer,
+    backgroundColor: theme.palette.tertiaryContainer,
   },
-  stateTitle: { ...type.titleMedium, color: palette.onSurface },
+  stateTitle: { ...type.titleMedium, color: theme.palette.onSurface },
   stateTitleSpaced: { marginTop: space(4) },
-  stateBody: { ...type.bodySmall, color: palette.onSurfaceVariant, marginTop: space(2) },
+  stateBody: { ...type.bodySmall, color: theme.palette.onSurfaceVariant, marginTop: space(2) },
 
   solidButton: {
     minHeight: 48,
@@ -825,11 +835,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: space(4),
     borderRadius: radius.large,
-    backgroundColor: palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
   },
-  solidButtonLabel: { ...type.labelLarge, color: '#FFFFFF' },
+  solidButtonLabel: { ...type.labelLarge, color: onPrimarySolid },
   sheetAction: { marginTop: space(4) },
-  hint: { ...type.bodySmall, color: palette.onSurfaceVariant, marginTop: space(3) },
+  hint: { ...type.bodySmall, color: theme.palette.onSurfaceVariant, marginTop: space(3) },
 
   // The RUNNING card: a solid amber surface, not glass — the reference paints
   // the one card the whole run hangs off in the fare accent.
@@ -838,11 +848,13 @@ const styles = StyleSheet.create({
     marginTop: space(5),
     padding: space(5),
     borderRadius: radius.glass,
-    backgroundColor: palette.secondary,
+    backgroundColor: theme.palette.secondary,
     borderWidth: 1,
     borderColor: 'rgba(61, 46, 0, 0.26)',
     overflow: 'hidden',
     ...cardShadow,
+    // Only the shadow's colour follows the mode — the geometry is the card's.
+    shadowColor: theme.glass.shadow,
   },
   runTop: {
     flexDirection: 'row',
@@ -857,24 +869,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(2.5),
     paddingVertical: 3,
     borderRadius: radius.full,
-    backgroundColor: palette.onSecondary,
+    backgroundColor: theme.palette.onSecondary,
   },
   stDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: palette.secondary,
+    backgroundColor: theme.palette.secondary,
   },
-  stPillText: { ...type.labelSmall, color: palette.secondary },
+  stPillText: { ...type.labelSmall, color: theme.palette.secondary },
   flag: {
     paddingHorizontal: 9,
     paddingVertical: 3,
     borderRadius: radius.full,
-    backgroundColor: '#F3DCAA',
+    backgroundColor: theme.palette.secondaryContainer,
   },
   flagText: {
     ...type.labelSmall,
-    color: palette.onSecondaryContainer,
+    color: theme.palette.onSecondaryContainer,
     fontWeight: '700',
     letterSpacing: 0.4,
   },
@@ -945,10 +957,10 @@ const styles = StyleSheet.create({
     marginHorizontal: space(5),
     marginTop: space(5),
   },
-  secTitle: { ...type.labelSmall, color: palette.onSurfaceVariant },
+  secTitle: { ...type.labelSmall, color: theme.palette.onSurfaceVariant },
   secCount: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     fontVariant: ['tabular-nums'],
   },
 
@@ -966,9 +978,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: space(3),
   },
-  tkTime: { ...type.bodySmall, color: palette.onSurfaceVariant },
-  tkFare: { ...type.titleMedium, color: palette.onSurface },
-  tkRoute: { ...type.titleMedium, color: palette.onSurface, marginTop: space(1) },
+  tkTime: { ...type.bodySmall, color: theme.palette.onSurfaceVariant },
+  tkFare: { ...type.titleMedium, color: theme.palette.onSurface },
+  tkRoute: { ...type.titleMedium, color: theme.palette.onSurface, marginTop: space(1) },
   tkMeta: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -978,7 +990,7 @@ const styles = StyleSheet.create({
   },
   tkMetaText: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginRight: space(1),
   },
   cat: {
@@ -987,11 +999,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     marginRight: space(1),
   },
-  catRegular: { backgroundColor: palette.primaryContainer },
-  catDiscount: { backgroundColor: palette.tertiaryContainer },
+  catRegular: { backgroundColor: theme.palette.primaryContainer },
+  catDiscount: { backgroundColor: theme.palette.tertiaryContainer },
   catLabel: { ...type.labelSmall },
-  catRegularLabel: { color: palette.onPrimaryContainer },
-  catDiscountLabel: { color: palette.onTertiaryContainer },
+  catRegularLabel: { color: theme.palette.onPrimaryContainer },
+  catDiscountLabel: { color: theme.palette.onTertiaryContainer },
 
   // STORAGE
   storageCard: {
@@ -1003,7 +1015,7 @@ const styles = StyleSheet.create({
     paddingVertical: space(3),
     paddingHorizontal: space(5),
   },
-  storageNote: { ...type.bodySmall, color: palette.onSurfaceVariant, flex: 1 },
+  storageNote: { ...type.bodySmall, color: theme.palette.onSurfaceVariant, flex: 1 },
 
   // ACTION BAR
   actionBar: {
@@ -1015,16 +1027,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.large,
-    backgroundColor: palette.error,
+    backgroundColor: theme.palette.error,
   },
   // The disabled branch drops the fill rather than fading it — opacity blends
   // toward the page and takes the white label under AA with it.
-  endButtonDisabled: { backgroundColor: palette.surfaceContainer },
-  endLabel: { ...type.labelLarge, color: palette.onError },
-  endLabelDisabled: { color: palette.onSurfaceVariant },
+  endButtonDisabled: { backgroundColor: theme.palette.surfaceContainer },
+  endLabel: { ...type.labelLarge, color: theme.palette.onError },
+  endLabelDisabled: { color: theme.palette.onSurfaceVariant },
   endCount: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     textAlign: 'center',
     marginTop: space(2),
   },
@@ -1042,15 +1054,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: space(3),
   },
-  ghostActionLabel: { ...type.labelLarge, color: palette.onSurfaceVariant },
+  ghostActionLabel: { ...type.labelLarge, color: theme.palette.onSurfaceVariant },
   destructiveAction: {
     minHeight: 48,
     justifyContent: 'center',
     paddingHorizontal: space(5),
     borderRadius: radius.large,
-    backgroundColor: palette.error,
+    backgroundColor: theme.palette.error,
   },
-  destructiveActionDisabled: { backgroundColor: palette.surfaceContainer },
-  destructiveLabel: { ...type.labelLarge, color: palette.onError },
-  destructiveLabelDisabled: { color: palette.onSurfaceVariant },
+  destructiveActionDisabled: { backgroundColor: theme.palette.surfaceContainer },
+  destructiveLabel: { ...type.labelLarge, color: theme.palette.onError },
+  destructiveLabelDisabled: { color: theme.palette.onSurfaceVariant },
 });

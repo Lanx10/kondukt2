@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '../../icons';
-import { palette, radius, space, tintedGlass, type } from '../../theme';
+import { onPrimarySolid, radius, space, tintedGlass, type, type KonduktTheme } from '../../theme';
+import { useKonduktTheme } from '../../lib/themeContext';
 import { GlassCard } from '../GlassCard';
 import { MONTH_NAMES, WEEKDAY_INITIALS } from '../../lib/calendar';
 import { formatDateLong, startOfDay } from '../../lib/format';
@@ -28,6 +29,8 @@ export function RangeCalendarModal({
   onCancel: () => void;
   onApply: (start: number, end: number) => void;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   // Re-seeded from today on every open, with the same render-time reset
   // DatePickerModal uses: the component stays mounted under the Modal, so plain
   // useState would reopen on whichever month the user last browsed.
@@ -104,7 +107,7 @@ export function RangeCalendarModal({
                   hitSlop={12}
                   style={({ pressed }) => [styles.stepperButton, pressed && styles.pressed]}
                 >
-                  <Icon name="chevronLeft" size={20} color={palette.onSurfaceVariant} />
+                  <Icon name="chevronLeft" size={20} color={theme.palette.onSurfaceVariant} />
                 </Pressable>
                 <Text style={styles.month} accessibilityRole="header">
                   {MONTH_NAMES[viewed.getMonth()]} {viewed.getFullYear()}
@@ -116,7 +119,7 @@ export function RangeCalendarModal({
                   hitSlop={12}
                   style={({ pressed }) => [styles.stepperButton, pressed && styles.pressed]}
                 >
-                  <Icon name="chevron" size={20} color={palette.onSurfaceVariant} />
+                  <Icon name="chevron" size={20} color={theme.palette.onSurfaceVariant} />
                 </Pressable>
               </View>
 
@@ -222,10 +225,11 @@ export function RangeCalendarModal({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
   scrim: {
     flex: 1,
-    backgroundColor: palette.scrim,
+    backgroundColor: theme.palette.scrim,
     alignItems: 'center',
     justifyContent: 'center',
     padding: space(6),
@@ -254,7 +258,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: radius.full,
-    backgroundColor: palette.outlineVariant,
+    backgroundColor: theme.palette.outlineVariant,
     alignSelf: 'center',
     marginBottom: space(3),
   },
@@ -264,7 +268,7 @@ const styles = StyleSheet.create({
   },
   month: {
     ...type.titleMedium,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     flex: 1,
     textAlign: 'center',
   },
@@ -282,7 +286,7 @@ const styles = StyleSheet.create({
   },
   weekday: {
     ...type.labelSmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     width: `${100 / 7}%`,
     textAlign: 'center',
   },
@@ -303,40 +307,40 @@ const styles = StyleSheet.create({
   },
   dayLabel: {
     ...type.bodyMedium,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     fontVariant: ['tabular-nums'],
   },
   dayOutside: {
     color: 'transparent',
   },
   dayFuture: {
-    color: palette.outlineVariant,
+    color: theme.palette.outlineVariant,
   },
   // The span between the two picked days: a contiguous band, so a two-week
   // range reads as one selection rather than two highlighted days.
   dayBetween: {
-    backgroundColor: palette.primaryContainer,
+    backgroundColor: theme.palette.primaryContainer,
     borderRadius: 0,
   },
   dayBetweenLabel: {
-    color: palette.onPrimaryContainer,
+    color: theme.palette.onPrimaryContainer,
   },
   dayEdge: {
-    backgroundColor: palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
   },
   dayEdgeLabel: {
-    color: palette.onPrimary,
+    color: onPrimarySolid,
     fontFamily: 'Poppins_700Bold',
   },
   selection: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginTop: space(3),
   },
   // `minHeight` reserves one line whether or not there is a message.
   error: {
     ...type.bodySmall,
-    color: palette.error,
+    color: theme.palette.error,
     marginTop: space(2.5),
     minHeight: 18,
   },
@@ -352,11 +356,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: palette.outline,
+    borderColor: theme.palette.outline,
   },
   ghostLabel: {
     ...type.labelLarge,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
   },
   solid: {
     flex: 1,
@@ -365,10 +369,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.full,
   },
-  solidLabel: {
-    ...type.labelLarge,
-    color: '#FFFFFF',
-  },
+  solidLabel: { ...type.labelLarge, color: onPrimarySolid },
   pressed: {
     opacity: 0.6,
   },

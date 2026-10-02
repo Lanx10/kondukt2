@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SectionChrome } from '../components/SectionChrome';
 import { GlassCard } from '../components/GlassCard';
 import { Icon } from '../icons';
-import { cardShadow, glass, onAmber, palette, radius, space, type } from '../theme';
+import { cardShadow, onAmber, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
+import { useKonduktTheme } from '../lib/themeContext';
 import { fetchTripWithTickets, subscribeToTripWithTickets } from '../data/tripTicketsStore';
 import { fetchHistorySummary } from '../data/historyStore';
 import { tripNumber } from '../data/tripHelpers';
@@ -66,6 +67,8 @@ const stamp = formatReceiptStamp;
 const FIG_STACK = 300;
 
 export function TicketDetailScreen({ tripId, ticketId, backLabel, onBack }: TicketDetailScreenProps) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
 
   // Honest loading by construction: `load` starts at loading and only a
@@ -277,6 +280,8 @@ function ReceiptSection({
   trip: TripRowRecord | null;
   stackFigures: boolean;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const live = trip?.status === 'ACTIVE';
   const distance = trip ? distanceLabel(trip.distance_km_milli) : 'Distance not recorded';
   // The two ink sets. On amber: the `onAmber` ramp, the only text colours
@@ -290,10 +295,10 @@ function ReceiptSection({
         soft: AMBER_INK.detail,
       }
     : {
-        eyebrow: GLASS_INK.variant,
-        route: GLASS_INK.on,
-        meta: GLASS_INK.variant,
-        soft: GLASS_INK.variant,
+        eyebrow: { color: theme.glass.onGlassVariant },
+        route: { color: theme.glass.onGlass },
+        meta: { color: theme.glass.onGlassVariant },
+        soft: { color: theme.glass.onGlassVariant },
       };
 
   const body = (
@@ -318,7 +323,7 @@ function ReceiptSection({
         <Icon
           name="arrowRight"
           size={18}
-          color={live ? onAmber.faint : glass.onGlassVariant}
+          color={live ? onAmber.faint : theme.glass.onGlassVariant}
         />
         <Text style={[styles.routeText, ink.route]}>{ticket.destination_location_snapshot}</Text>
       </View>
@@ -385,6 +390,8 @@ function ReceiptSection({
 }
 
 function Figure({ label, value, amber }: { label: string; value: string; amber: boolean }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <View style={styles.figure}>
       <Text style={[styles.figureValue, amber ? AMBER_INK.primary : null]}>{value}</Text>
@@ -399,6 +406,8 @@ function Figure({ label, value, amber }: { label: string; value: string; amber: 
  * the last — the divider that makes two lists read as records, not prose.
  */
 function FactRow({ label, value, divider = true }: { label: string; value: string; divider?: boolean }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <View style={[styles.factRow, divider && styles.factRowDivider]}>
       <Text style={styles.factKey}>{label}</Text>
@@ -424,6 +433,8 @@ function StateCard({
   onBack: () => void;
   backTestID: string;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const error = tone === 'error';
   const content = (
     <>
@@ -438,7 +449,7 @@ function StateCard({
         accessibilityLabel={backLabel}
         style={({ pressed }) => [styles.solidButton, pressed && styles.pressed]}
       >
-        <Icon name="history" size={18} color="#FFFFFF" />
+        <Icon name="history" size={18} color={onPrimarySolid} />
         <Text style={styles.solidButtonLabel}>{backLabel}</Text>
       </Pressable>
     </>
@@ -476,6 +487,8 @@ function StateCard({
 
 /** Skeleton inside a glass card — the shape of the receipt is already known. */
 function LoadingState() {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <View style={styles.block}>
       <GlassCard
@@ -494,6 +507,8 @@ function LoadingState() {
 }
 
 function StorageFooter({ state, counts }: { state: 'ready' | 'loading' | 'error'; counts?: Counts }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const text =
     state === 'ready' && counts
       ? `One of ${counts.fares} fares recorded on this device, in a store of ${counts.trips} trips. Nothing is sent anywhere.`
@@ -507,7 +522,7 @@ function StorageFooter({ state, counts }: { state: 'ready' | 'loading' | 'error'
       accessible
       accessibilityLabel={`Local storage note. ${text}`}
     >
-      <Icon name="database" size={18} color={glass.accentTertiary} />
+      <Icon name="database" size={18} color={theme.glass.accentTertiary} />
       {/* The counts are emphasised exactly as the reference emphasises them —
           bold ink on the two numbers the privacy line is actually about. */}
       <Text style={styles.footerText}>
@@ -533,16 +548,11 @@ const AMBER_INK = {
   faint: { color: onAmber.faint },
 } as const;
 
-/** The glass ink pair — measured against the tinted panel, not the page. */
-const GLASS_INK = {
-  on: { color: glass.onGlass },
-  variant: { color: glass.onGlassVariant },
-} as const;
-
 const READ_ONLY_COPY =
   'A fare is written once, at the moment it is taken, and this store keeps no way to change or cancel it afterwards. So nothing on the recorded row is editable here.';
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
   column: {
     width: '100%',
     maxWidth: 720,
@@ -557,20 +567,22 @@ const styles = StyleSheet.create({
   block: { gap: space(3) },
   pressed: { opacity: 0.88 },
 
-  sectionTitle: { ...type.labelSmall, color: glass.onGlassVariant },
-  cardNote: { ...type.bodySmall, color: glass.onGlassVariant, padding: space(3) },
+  sectionTitle: { ...type.labelSmall, color: theme.glass.onGlassVariant },
+  cardNote: { ...type.bodySmall, color: theme.glass.onGlassVariant, padding: space(3) },
 
   // ── Receipt ──────────────────────────────────────────────────────────────
   // No uniform gap: every child carries the reference's own margin so the
   // card's internal beats are copied verbatim.
   receipt: { padding: space(5), gap: 0 },
   receiptAmber: {
-    backgroundColor: palette.secondary,
+    backgroundColor: theme.palette.secondary,
     // No border, no rim: the amber card is a flat solid, never glass — but it
     // keeps the 28px shape and the panel depth of the card it replaces.
     borderWidth: 0,
     borderRadius: radius.glass,
     ...cardShadow,
+    // Only the shadow's colour follows the mode — the geometry is the card's.
+    shadowColor: theme.glass.shadow,
   },
   eyebrowRow: {
     flexDirection: 'row',
@@ -578,7 +590,7 @@ const styles = StyleSheet.create({
     gap: space(2),
     flexWrap: 'wrap',
   },
-  eyebrow: { ...type.labelSmall, color: glass.onGlassVariant },
+  eyebrow: { ...type.labelSmall, color: theme.glass.onGlassVariant },
   ticketPill: {
     height: 24,
     paddingHorizontal: space(2.5),
@@ -588,10 +600,10 @@ const styles = StyleSheet.create({
   // On amber the pill inverts: the fill is the amber's own on-colour and the
   // text is the amber itself — a dark chip punched out of the card, exactly
   // as the reference draws it.
-  ticketPillAmber: { backgroundColor: palette.onSecondary },
-  ticketPillClosed: { backgroundColor: palette.secondaryContainer },
-  ticketPillText: { ...type.labelSmall, color: palette.onSecondaryContainer },
-  ticketPillTextAmber: { color: palette.secondary },
+  ticketPillAmber: { backgroundColor: theme.palette.onSecondary },
+  ticketPillClosed: { backgroundColor: theme.palette.secondaryContainer },
+  ticketPillText: { ...type.labelSmall, color: theme.palette.onSecondaryContainer },
+  ticketPillTextAmber: { color: theme.palette.secondary },
 
   receiptRoute: {
     flexDirection: 'row',
@@ -600,34 +612,34 @@ const styles = StyleSheet.create({
     gap: space(2),
     marginTop: space(3),
   },
-  routeText: { ...type.headlineSmall, color: glass.onGlass },
+  routeText: { ...type.headlineSmall, color: theme.glass.onGlass },
   receiptMeta: {
     ...type.bodySmall,
-    color: glass.onGlassVariant,
+    color: theme.glass.onGlassVariant,
     fontVariant: ['tabular-nums'],
     marginTop: space(1),
   },
 
   leadFigure: {
     ...type.displaySmall,
-    color: glass.onGlass,
+    color: theme.glass.onGlass,
     fontVariant: ['tabular-nums'],
     marginTop: space(3.5),
   },
-  leadCaption: { ...type.labelSmall, color: glass.onGlassVariant, marginTop: space(0.5) },
+  leadCaption: { ...type.labelSmall, color: theme.glass.onGlassVariant, marginTop: space(0.5) },
 
   figures: { flexDirection: 'row', gap: space(3), marginTop: space(3.5) },
   // Below the reference's 300 the three figures drop to one column rather
   // than crush into unreadable fractions of the row.
   figuresStacked: { flexDirection: 'column' },
   figure: { flex: 1, gap: 2 },
-  figureValue: { ...type.titleMedium, color: glass.onGlass, fontVariant: ['tabular-nums'] },
-  figureLabel: { ...type.labelSmall, color: glass.onGlassVariant },
+  figureValue: { ...type.titleMedium, color: theme.glass.onGlass, fontVariant: ['tabular-nums'] },
+  figureLabel: { ...type.labelSmall, color: theme.glass.onGlassVariant },
 
   // The structural hairline, above the figures: a warm ink of the fill on
   // amber, the outline on glass — never the neutral that reads as dirt.
   heroRule: { height: 1, marginTop: space(4) },
-  heroRuleClosed: { backgroundColor: palette.outline },
+  heroRuleClosed: { backgroundColor: theme.palette.outline },
   heroRuleAmber: { backgroundColor: 'rgba(61, 46, 0, 0.7)' },
 
   // ── The dashed note (both of them) ───────────────────────────────────────
@@ -639,21 +651,21 @@ const styles = StyleSheet.create({
     borderRadius: radius.large,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: palette.outline,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    borderColor: theme.palette.outline,
+    backgroundColor: theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.07)' : 'rgba(255, 255, 255, 0.5)',
     gap: 0,
   },
   noteInReceipt: { marginTop: space(3) },
-  noteTitle: { ...type.labelSmall, color: glass.onGlass, marginBottom: 4 },
+  noteTitle: { ...type.labelSmall, color: theme.glass.onGlass, marginBottom: 4 },
   heroMath: {
     fontFamily: 'Poppins_700Bold',
     fontSize: 16,
     lineHeight: 24,
-    color: glass.onGlass,
+    color: theme.glass.onGlass,
     fontVariant: ['tabular-nums'],
     marginBottom: space(2),
   },
-  noteBody: { ...type.bodySmall, color: glass.onGlassVariant },
+  noteBody: { ...type.bodySmall, color: theme.glass.onGlassVariant },
 
   amberNoteTitle: { color: onAmber.detail },
   amberMath: { color: onAmber.primary },
@@ -668,17 +680,17 @@ const styles = StyleSheet.create({
     gap: space(4),
     paddingVertical: 11,
   },
-  factRowDivider: { borderBottomWidth: 1, borderBottomColor: palette.outline },
+  factRowDivider: { borderBottomWidth: 1, borderBottomColor: theme.palette.outline },
   factKey: {
     ...type.bodyMedium,
-    color: glass.onGlassVariant,
+    color: theme.glass.onGlassVariant,
     flexShrink: 0,
   },
   factValue: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 14,
     lineHeight: 21,
-    color: glass.onGlass,
+    color: theme.glass.onGlass,
     flex: 1,
     textAlign: 'right',
   },
@@ -690,11 +702,11 @@ const styles = StyleSheet.create({
     padding: space(5),
     gap: space(2),
     borderRadius: radius.glass,
-    backgroundColor: palette.errorContainer,
+    backgroundColor: theme.palette.errorContainer,
   },
-  stateTitle: { ...type.headlineSmall, color: glass.onGlass },
-  stateTitleError: { color: palette.error },
-  stateBody: { ...type.bodyMedium, color: glass.onGlassVariant },
+  stateTitle: { ...type.headlineSmall, color: theme.glass.onGlass },
+  stateTitleError: { color: theme.palette.error },
+  stateBody: { ...type.bodyMedium, color: theme.glass.onGlassVariant },
 
   solidButton: {
     minHeight: 48,
@@ -706,16 +718,16 @@ const styles = StyleSheet.create({
     // A pill, exactly as the reference draws the recovery — not a rounded
     // rectangle borrowing its corners.
     borderRadius: radius.full,
-    backgroundColor: palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
     alignSelf: 'flex-start',
     marginTop: 6,
   },
-  solidButtonLabel: { ...type.labelLarge, color: '#FFFFFF' },
+  solidButtonLabel: { ...type.labelLarge, color: onPrimarySolid },
 
   // The reference's four skeleton bars — the receipt's own proportions.
   // ponytail: the shimmer loop is skipped (static bars, same shapes); add an
   // Animated opacity sweep if the wait ever reads as a hang.
-  skeleton: { borderRadius: radius.small, backgroundColor: palette.surfaceContainer },
+  skeleton: { borderRadius: radius.small, backgroundColor: theme.palette.surfaceContainer },
   skeletonTitle: { height: 11, width: '34%', borderRadius: 6 },
   skeletonRoute: { height: 22, width: '66%', marginTop: 14 },
   skeletonMeta: { height: 34, width: '48%', marginTop: space(5) },
@@ -731,9 +743,9 @@ const styles = StyleSheet.create({
   },
   footerText: {
     ...type.bodySmall,
-    color: glass.onGlassVariant,
+    color: theme.glass.onGlassVariant,
     flex: 1,
     fontVariant: ['tabular-nums'],
   },
-  footerStrong: { fontFamily: 'Poppins_700Bold', color: glass.onGlass },
+  footerStrong: { fontFamily: 'Poppins_700Bold', color: theme.glass.onGlass },
 });

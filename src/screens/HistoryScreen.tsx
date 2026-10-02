@@ -24,7 +24,8 @@ import { StorageNote } from '../components/StorageNote';
 import { CategoryChip, LedgerRow } from '../components/LedgerRow';
 import { RangeCalendarModal } from '../components/history/RangeCalendarModal';
 import { Icon, type IconName } from '../icons';
-import { accent, glass, maxContentWidth, palette, radius, space, type } from '../theme';
+import { maxContentWidth, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
+import { useKonduktTheme } from '../lib/themeContext';
 import {
   fetchDailyEarnings,
   fetchHistorySummary,
@@ -135,7 +136,7 @@ type OffsetsByTab = Record<HistoryTab, number>;
  * The interface follows the reference's History prototype: the shared period
  * control (Day/Week/Month segments, a stepper, a calendar for hand-picked
  * ranges — no chip wall of presets, no free-text dates), the summary
- * disclosure, the ledger rows, and the storage note, all on glass.
+ * disclosure, the ledger rows, and the storage note, all on theme.glass.
  *
  * Two scoping rules, kept separate because they are different fields: trips
  * scope by when they started, tickets by when the fare was taken. The trips
@@ -143,6 +144,8 @@ type OffsetsByTab = Record<HistoryTab, number>;
  * the *ticket* window, not merely those inside the trip's own start day.
  */
 export function HistoryScreen({ onBack, onOpenTrip, operationMessage }: HistoryScreenProps) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const now = useNow();
@@ -532,7 +535,7 @@ export function HistoryScreen({ onBack, onOpenTrip, operationMessage }: HistoryS
       {load.kind === 'error' ? (
         // The reference's error state: its state card on error-container ink —
         // glass with the error tint, not an opaque panel.
-        <GlassCard tint={palette.errorContainer} style={styles.errorCard}>
+        <GlassCard tint={theme.palette.errorContainer} style={styles.errorCard}>
           <Text style={styles.errorHeading} accessibilityRole="header">
             Records could not be read
           </Text>
@@ -559,9 +562,9 @@ export function HistoryScreen({ onBack, onOpenTrip, operationMessage }: HistoryS
                   accessibilityLabel="Dismiss notification"
                   style={({ pressed }) => [styles.noticeBanner, pressed && styles.pressed]}
                 >
-                  <Icon name="database" size={16} color={accent.tertiary.onContainer} />
+                  <Icon name="database" size={16} color={theme.accent.tertiary.onContainer} />
                   <Text style={styles.noticeText}>{notice}</Text>
-                  <Icon name="close" size={14} color={accent.tertiary.onContainer} />
+                  <Icon name="close" size={14} color={theme.accent.tertiary.onContainer} />
                 </Pressable>
               ) : null}
 
@@ -623,7 +626,7 @@ export function HistoryScreen({ onBack, onOpenTrip, operationMessage }: HistoryS
                       <Icon
                         name={TAB_ICONS[entry.tab]}
                         size={16}
-                        color={selected ? '#FFFFFF' : palette.onSurfaceVariant}
+                        color={selected ? onPrimarySolid : theme.palette.onSurfaceVariant}
                       />
                       <Text style={[styles.tabLabel, selected && styles.tabLabelSelected]}>
                         {entry.label}
@@ -636,12 +639,12 @@ export function HistoryScreen({ onBack, onOpenTrip, operationMessage }: HistoryS
               {/* Search, scoped to the selected tab. Trips and tickets search
                   in SQL; earnings filters the daily labels after grouping. */}
               <View style={styles.searchField}>
-                <Icon name="search" size={18} color={palette.outline} />
+                <Icon name="search" size={18} color={theme.palette.outline} />
                 <TextInput
                   value={searchQuery}
                   onChangeText={updateSearch}
                   placeholder={SEARCH_PLACEHOLDERS[tab]}
-                  placeholderTextColor={palette.outline}
+                  placeholderTextColor={theme.palette.outline}
                   accessibilityLabel={SEARCH_PLACEHOLDERS[tab]}
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -656,7 +659,7 @@ export function HistoryScreen({ onBack, onOpenTrip, operationMessage }: HistoryS
                     hitSlop={8}
                     style={styles.searchClear}
                   >
-                    <Icon name="close" size={16} color={palette.onSurfaceVariant} />
+                    <Icon name="close" size={16} color={theme.palette.onSurfaceVariant} />
                   </Pressable>
                 ) : null}
               </View>
@@ -686,7 +689,7 @@ export function HistoryScreen({ onBack, onOpenTrip, operationMessage }: HistoryS
                         ]}
                       >
                         {selected ? (
-                          <Icon name="check" size={14} color="#FFFFFF" />
+                          <Icon name="check" size={14} color={onPrimarySolid} />
                         ) : null}
                         <Text
                           style={[
@@ -723,7 +726,7 @@ export function HistoryScreen({ onBack, onOpenTrip, operationMessage }: HistoryS
                         ]}
                       >
                         {selected ? (
-                          <Icon name="check" size={14} color="#FFFFFF" />
+                          <Icon name="check" size={14} color={onPrimarySolid} />
                         ) : null}
                         <Text
                           style={[
@@ -862,7 +865,7 @@ export function HistoryScreen({ onBack, onOpenTrip, operationMessage }: HistoryS
                   accessibilityLabel="Show today"
                   style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}
                 >
-                  <Icon name="calendar" size={16} color="#FFFFFF" />
+                  <Icon name="calendar" size={16} color={onPrimarySolid} />
                   <Text style={styles.primaryActionLabel}>Show today</Text>
                 </Pressable>
               </GlassCard>
@@ -926,6 +929,8 @@ export function HistoryScreen({ onBack, onOpenTrip, operationMessage }: HistoryS
 
 /** One day-group head: the reference's slim yellow bar over each day's rows. */
 function DayHead({ heading, count }: { heading: string; count: string }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <View
       style={styles.dayHead}
@@ -939,7 +944,8 @@ function DayHead({ heading, count }: { heading: string; count: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
   pressed: { opacity: 0.88 },
 
   noticeBanner: {
@@ -950,9 +956,9 @@ const styles = StyleSheet.create({
     marginHorizontal: space(5),
     padding: space(3),
     borderRadius: radius.medium,
-    backgroundColor: accent.tertiary.container,
+    backgroundColor: theme.accent.tertiary.container,
   },
-  noticeText: { ...type.bodySmall, color: accent.tertiary.onContainer, flex: 1 },
+  noticeText: { ...type.bodySmall, color: theme.accent.tertiary.onContainer, flex: 1 },
 
   // The reference's ledger card: one glass surface holding the tab track, the
   // search and the filter rail.
@@ -971,8 +977,8 @@ const styles = StyleSheet.create({
     padding: space(1),
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: palette.outlineVariant,
-    backgroundColor: glass.tint,
+    borderColor: theme.palette.outlineVariant,
+    backgroundColor: theme.glass.tint,
   },
   tab: {
     flex: 1,
@@ -984,16 +990,16 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
   },
   tabSelected: {
-    backgroundColor: palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
   },
   tabLabel: {
     ...type.bodyMedium,
     fontSize: 14,
     fontFamily: 'Poppins_600SemiBold',
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
   },
   tabLabelSelected: {
-    color: '#FFFFFF',
+    color: onPrimarySolid,
     fontFamily: 'Poppins_700Bold',
   },
 
@@ -1005,10 +1011,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(3),
     borderRadius: radius.medium,
     borderWidth: 1,
-    borderColor: palette.outlineVariant,
-    backgroundColor: glass.tint,
+    borderColor: theme.palette.outlineVariant,
+    backgroundColor: theme.glass.tint,
   },
-  searchInput: { flex: 1, color: palette.onSurface, ...type.bodyMedium },
+  searchInput: { flex: 1, color: theme.palette.onSurface, ...type.bodyMedium },
   searchClear: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
 
   // The reference's chips: outline pills, the pressed one on the primary
@@ -1023,8 +1029,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(3.5),
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: palette.outlineVariant,
-    backgroundColor: glass.tint,
+    borderColor: theme.palette.outlineVariant,
+    backgroundColor: theme.glass.tint,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1033,21 +1039,24 @@ const styles = StyleSheet.create({
   // The reference's `.chip.sel`: solid primary with the check and the label
   // knocked out in white — the pressed filter is the only filled chip.
   filterChipSelected: {
-    backgroundColor: palette.primarySolid,
-    borderColor: palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
+    borderColor: theme.palette.primarySolid,
   },
   filterChipLabel: {
     ...type.bodySmall,
     fontSize: 13,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
   },
   filterChipLabelSelected: {
-    color: palette.onPrimaryContainer,
+    // `primarySolid` again: `onPrimaryContainer` is #4E2200, which sits at
+    // ~2.8:1 on this fill in LIGHT mode already — the chip's own label was
+    // failing AA before dark mode existed.
+    color: onPrimarySolid,
     fontFamily: 'Poppins_600SemiBold',
   },
   qty: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
   },
 
   loadingBlock: {
@@ -1057,7 +1066,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     textAlign: 'center',
   },
   skeletonRow: {
@@ -1076,16 +1085,16 @@ const styles = StyleSheet.create({
     paddingVertical: space(3),
     paddingHorizontal: space(4),
     borderRadius: radius.glass,
-    backgroundColor: palette.secondary,
+    backgroundColor: theme.palette.secondary,
   },
   dayHeadLabel: {
     ...type.labelSmall,
-    color: palette.onSecondary,
+    color: theme.palette.onSecondary,
     fontFamily: 'Poppins_700Bold',
   },
   dayHeadCount: {
     ...type.bodySmall,
-    color: palette.onSecondary,
+    color: theme.palette.onSecondary,
     fontFamily: 'Poppins_700Bold',
     fontVariant: ['tabular-nums'],
   },
@@ -1099,12 +1108,12 @@ const styles = StyleSheet.create({
   },
   stateHeading: {
     ...type.titleMedium,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     textAlign: 'center',
   },
   stateText: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginTop: space(1.5),
     textAlign: 'center',
   },
@@ -1116,7 +1125,7 @@ const styles = StyleSheet.create({
   },
   errorHeading: {
     ...type.titleMedium,
-    color: palette.error,
+    color: theme.palette.error,
     textAlign: 'center',
   },
   // The reference's `.primary-btn`: solid primary, 16px corners, icon and
@@ -1126,13 +1135,13 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingHorizontal: space(5),
     borderRadius: radius.large,
-    backgroundColor: palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
     flexDirection: 'row',
     gap: space(2),
     alignItems: 'center',
     justifyContent: 'center',
   },
-  primaryActionLabel: { ...type.labelLarge, color: '#FFFFFF' },
+  primaryActionLabel: { ...type.labelLarge, color: onPrimarySolid },
 
   loadMoreWrap: { alignItems: 'center', marginTop: space(4) },
   // The reference's ghost button: outline pill, on-surface ink.
@@ -1141,11 +1150,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(5),
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: palette.outline,
+    borderColor: theme.palette.outline,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  loadMoreLabel: { ...type.labelLarge, color: palette.onSurface },
+  loadMoreLabel: { ...type.labelLarge, color: theme.palette.onSurface },
 
   storageSlot: { marginHorizontal: space(5) },
 
