@@ -61,8 +61,8 @@ cannot express them. All fields are optional except that *some* valid version so
 
 | Concept | Source of truth | Current value |
 |---|---|---|
-| App version (user-facing, compared to release tags) | `expo.version` in `app.json` (`package.json` version matches) | `1.0.3` |
-| Android `versionCode` | `expo.android.versionCode` in `app.json` (`eas.json` has `appVersionSource: local`) | `5` |
+| App version (user-facing, compared to release tags) | `expo.version` in `app.json` (`package.json` version matches) | `1.0.4` |
+| Android `versionCode` | `expo.android.versionCode` in `app.json` (`eas.json` has `appVersionSource: local`) | `6` |
 | Expo `runtimeVersion` | `expo.runtimeVersion` — a **stable custom string**, deliberately *not* the app version | `1.0.2` |
 | EAS Update channel | `eas.json` build profiles | `production` / `preview` / `development` |
 | Updater configuration | `src/lib/apkUpdateConfig.ts` (`UPDATE_CONFIG`) | owner `Lanx10`, repo `kondukt2`, tag prefix `v`, 6 h auto-check, mandatory allowed |
@@ -202,7 +202,9 @@ produced it.
 | `src/lib/UpdateProvider.tsx` | OTA state machine (`useUpdates()`) |
 | `src/lib/updateGuard.ts` | Workflow guard shared by both channels |
 | `src/lib/preferences.ts` | Persists each channel's last-check timestamp |
-| `src/screens/SettingsScreen.tsx` | Both update cards + their sheets |
+| `src/screens/SettingsScreen.tsx` | Both update cards (each with its Version button) |
+| `src/components/UpdateSheets.tsx` | Every update sheet — update available, install permission, and the two version sheets. Rendered by **both** Home and Settings, so the two surfaces cannot drift |
+| `src/screens/HomeScreen.tsx` | Renders the update sheets, so a release surfaces without a trip into Settings |
 | `app.json` | version / versionCode / `REQUEST_INSTALL_PACKAGES` |
 
 ## Troubleshooting
