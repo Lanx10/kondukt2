@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View } from 'react-native';
@@ -10,7 +10,7 @@ import {
 } from '@expo-google-fonts/poppins';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { GlassBackdrop } from './src/components/GlassBackdrop';
-import { palette, space, type } from './src/theme';
+import { getTheme, space, type, type KonduktTheme } from './src/theme';
 import { loadThemeMode } from './src/lib/preferences';
 import { installWebScrollGuards } from './src/lib/webScroll';
 import { KonduktThemeProvider, useKonduktTheme } from './src/lib/themeContext';
@@ -47,7 +47,11 @@ export default function App() {
   }, []);
 
   if (!fontsLoaded || themeMode === null) {
-    return <View style={{ flex: 1, backgroundColor: palette.background }} />;
+    // `getTheme` rather than the light `palette.background` this used to read:
+    // App sits ABOVE the provider, so it cannot use the hook, but it already
+    // holds the persisted mode — a dark-mode user was getting a white flash on
+    // every cold start, for as long as the fonts took to load.
+    return <View style={{ flex: 1, backgroundColor: getTheme(themeMode ?? 'light').palette.background }} />;
   }
 
   return (
@@ -78,7 +82,7 @@ function Root() {
     // The field lives here, once, behind every screen: the reference pins it to
     // the frame so the panels slide over it. A screen that painted its own copy
     // inside its scroll container dragged the gradient along with the content.
-    <View style={[styles.root, { backgroundColor: theme.glass.backdrop }]}>
+    <View style={[baseStyles.root, { backgroundColor: theme.glass.backdrop }]}>
       <GlassBackdrop />
       <HomeScreen />
       {/* Last in the frame, so it sits over every screen; sheets are Modals
@@ -93,6 +97,7 @@ function Root() {
 function AppCredit() {
   const insets = useSafeAreaInsets();
   const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <View
       pointerEvents="none"
@@ -100,7 +105,7 @@ function AppCredit() {
       accessibilityRole="text"
       accessibilityLabel="Developed by Lanx | Laurence Gongora"
       style={[
-        styles.credit,
+        baseStyles.credit,
         // The same field the frame behind the screens paints: content scrolls
         // under the line instead of tangling with it.
         { backgroundColor: theme.glass.backdrop, paddingBottom: insets.bottom + space(1.5) },
@@ -111,7 +116,11 @@ function AppCredit() {
   );
 }
 
-const styles = StyleSheet.create({
+/**
+ * Geometry only — no colour tokens, so these stay module-level and neither
+ * `App` nor `Root` has to build a stylesheet it does not need.
+ */
+const baseStyles = StyleSheet.create({
   root: { flex: 1 },
   credit: {
     position: 'absolute',
@@ -122,9 +131,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(4),
     paddingTop: space(1),
   },
-  creditText: {
-    ...type.bodySmall,
-    color: palette.onSurfaceVariant,
-    textAlign: 'center',
-  },
 });
+
+/**
+ * The byline's own text colour, built from the theme.
+ *
+ * The bar's BACKGROUND was already theme-aware while its TEXT read the light
+ * `palette` at module scope, so in Dark mode this pinned line rendered as dark
+ * grey on the dark backdrop — 1.93:1, on every screen in the app, because the
+ * credit sits outside the screen's own chrome. The split is the whole bug: half
+ * the component followed the mode and half did not.
+ */
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
+    creditText: {
+      ...type.bodySmall,
+      color: theme.palette.onSurfaceVariant,
+      textAlign: 'center',
+    },
+  });
