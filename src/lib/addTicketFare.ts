@@ -59,6 +59,42 @@ export function takesSpecialRate(type: PassengerType): boolean {
   return type !== 'REGULAR';
 }
 
+/**
+ * The discount a concessionaire is given when the fare is the **minimum fare**.
+ *
+ * Inside the minimum distance the fare is one flat peso figure, not a distance
+ * times a rate, so the special peso-per-km rate has nothing to multiply: a
+ * student, senior or PWD passenger inside the minimum was charged the full
+ * minimum fare — the one distance where the concession was worth nothing at
+ * all. The concession is therefore taken off the minimum as a percentage
+ * instead, and **only** there. Past the minimum distance the special peso per km
+ * meters the leg exactly as it always has, because that is where a rate per km
+ * is a real number to apply.
+ *
+ * A constant rather than a stored column, and deliberately so. The fare table
+ * does carry two percentage columns, `deluxe_discount_bp` and
+ * `sctex_discount_bp`, but they are absent from the Fare Configuration form and
+ * from every save (see `fareStore.ts`), so they are written as `0` on a fresh
+ * device and never edited on any device. Reading them would discount every
+ * concessionaire by 0%, which is the bug this rule replaces.
+ */
+export const MINIMUM_FARE_DISCOUNT_PERCENT = 20;
+
+/**
+ * `centavos` less `percent`, on integers.
+ *
+ * The multiplication and the division both stay whole numbers, so a minimum
+ * fare of ₱50.00 at 20% off is exactly ₱40.00 on every device rather than
+ * ₱39.999999 on one with a different FPU. The fraction is floored, never
+ * rounded up: the whole-peso rounding that follows in `priceTicket` is the one
+ * place this codebase decides which way a fraction goes, and a discount that
+ * rounded up would be the app's only place charging a peso it did not owe.
+ */
+function percentOff(centavos: number, percent: number): number {
+  if (percent <= 0) return centavos;
+  return Math.floor((centavos * (100 - percent)) / 100);
+}
+
 // ── The rules ───────────────────────────────────────────────────────────────
 
 /** The stored fare configuration in the units the calculator reads. */
@@ -132,6 +168,13 @@ export type FareBreakdown = {
   totalCentavos: number;
   distanceFloorApplied: boolean;
   fareFloorApplied: boolean;
+  /**
+   * The percentage taken off the minimum fare for this passenger — 0 whenever
+   * the special per-km rate is what actually priced the fare. The fare card
+   * prints it so a discounted minimum is explicable on the screen rather than
+   * only in this file.
+   */
+  minimumDiscountPercent: number;
 };
 
 export type PriceInput = {
@@ -145,10 +188,13 @@ export type PriceInput = {
 /**
  * The one function the fare card runs.
  *
- * Two cases, one boundary, then one rounding rule: at or under the minimum
- * distance the fare is the flat minimum fare; past it the fare is distance ×
- * rate; and whatever either branch produced is rounded to the whole peso,
- * `.5`–`.9` up and `.4`–`.0` down.
+ * Two cases, one boundary, one discount, then one rounding rule: at or under the
+ * minimum distance the fare is the flat minimum fare — less
+ * `MINIMUM_FARE_DISCOUNT_PERCENT` when the passenger takes the special rate,
+ * because a per-km rate cannot price a flat amount; past the minimum distance
+ * the fare is distance × the passenger's own rate and nothing is taken off it;
+ * and whatever any of those produced is rounded to the whole peso, `.5`–`.9` up
+ * and `.4`–`.0` down.
  *
  * The distance ÷ 1000 divides half-up, and then the fare itself is a **whole
  * peso**: the leftover fraction decides the direction — `.5` to `.9` rounds
@@ -192,7 +238,18 @@ export function priceTicket(input: PriceInput): FareBreakdown | null {
   const distanceFloorApplied = input.distanceMilli <= rules.minimumDistanceMilli;
   const billableMilli = distanceFloorApplied ? rules.minimumDistanceMilli : input.distanceMilli;
   const rawCentavos = Math.floor((rateCentavos * billableMilli + 500) / 1000);
-  const baseCentavos = distanceFloorApplied ? rules.minimumFareCentavos : rawCentavos;
+  // Two rules meet here. Inside the minimum distance the fare is the flat
+  // minimum fare, and a concessionaire on that fare is a percentage off it —
+  // NOT the special rate times the distance. The minimum is a peso amount with
+  // no distance attached, so a rate per km cannot price it; treating it as one
+  // is exactly how a PWD passenger inside the minimum ended up paying the full
+  // minimum. Past the minimum distance nothing is taken off: the special peso
+  // per km already is the discounted price and meters the whole leg.
+  const minimumDiscountPercent =
+    distanceFloorApplied && discount ? MINIMUM_FARE_DISCOUNT_PERCENT : 0;
+  const baseCentavos = distanceFloorApplied
+    ? percentOff(rules.minimumFareCentavos, minimumDiscountPercent)
+    : rawCentavos;
   // Whole pesos on the way out, and the fraction decides which way: `.5`–`.9`
   // up, `.4`–`.0` down. Integer, so the direction never depends on the FPU.
   const perPassengerCentavos = Math.floor((baseCentavos + 50) / 100) * 100;
@@ -209,6 +266,7 @@ export function priceTicket(input: PriceInput): FareBreakdown | null {
     totalCentavos: perPassengerCentavos * quantity,
     distanceFloorApplied,
     fareFloorApplied,
+    minimumDiscountPercent,
   };
 }
 
@@ -234,6 +292,16 @@ export function minimumNotes(breakdown: FareBreakdown, rules: FareRules): string
         `${formatKm(rules.minimumDistanceMilli)} minimum distance, so the ` +
         `${formatPeso(rules.minimumFareCentavos)} minimum fare is charged.`,
     );
+    // A second line only when the discount actually moved the number. It says
+    // why the per-km rate is absent, because the fare card still shows that rate
+    // and a driver reading ₱40.00 against a listed ₱1.00/km is owed the reason.
+    if (breakdown.minimumDiscountPercent > 0) {
+      notes.push(
+        `Less ${breakdown.minimumDiscountPercent}% for this passenger type, so ` +
+          `${formatPeso(breakdown.perPassengerCentavos)} per passenger. The special peso per km ` +
+          'does not apply inside the minimum fare: the minimum is a flat amount, not a distance.',
+      );
+    }
   }
   return notes;
 }

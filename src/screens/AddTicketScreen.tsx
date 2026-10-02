@@ -863,7 +863,10 @@ type Observation = {
          }), /*#__PURE__*/(0, _reactJsxRuntime.jsx)(FareRow, {
            label: breakdown.rateLabel,
            value: (0, _libAddTicketFare.formatRate)(breakdown.rateCentavos)
-         }), /*#__PURE__*/(0, _reactJsxRuntime.jsx)(FareRow, {
+         }), breakdown.minimumDiscountPercent > 0 ? /*#__PURE__*/(0, _reactJsxRuntime.jsx)(FareRow, {
+           label: "Minimum fare discount",
+           value: `-${breakdown.minimumDiscountPercent}%`
+         }) : null, /*#__PURE__*/(0, _reactJsxRuntime.jsx)(FareRow, {
            label: "Fare per passenger",
            value: (0, _libAddTicketFare.formatPeso)(breakdown.perPassengerCentavos)
          }), /*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_reactNative.View, {

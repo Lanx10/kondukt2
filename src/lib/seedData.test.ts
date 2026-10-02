@@ -1,4 +1,4 @@
-import { priceTicket } from './addTicketFare';
+import { priceTicket, takesSpecialRate, MINIMUM_FARE_DISCOUNT_PERCENT } from './addTicketFare';
 import {
   SEED_TERMINALS,
   buildSeed,
@@ -97,18 +97,43 @@ check(
   ),
   true,
 );
+// Inside the minimum distance the fare is the flat minimum fare. Past it
+// the fare is distance × rate with no floor, so with these seeded rates a
+// mid-length leg can price under the minimum fare — that is the rule, not a
+// missing lift.
+//
+// The one passenger who is not the minimum fare is a concessionaire: inside the
+// minimum they are a percentage off it, because the minimum is a flat peso
+// amount and a special rate per km has nothing to multiply. The expectation is
+// spelled out here rather than re-derived from the calculator, because this
+// check is about the dataset agreeing with a stated number.
+const withinMinimum = seed.tickets.filter((ticket) => {
+  const trip = seed.trips.find((candidate) => candidate.id === ticket.trip_id)!;
+  return trip.distance_km_milli <= rules.minimumDistanceMilli;
+});
+// The whole-peso rounding the calculator applies on the way out, repeated here
+// so this expectation is independent of it.
+const discountedMinimumFare =
+  Math.floor(
+    (Math.floor((rules.minimumFareCentavos * (100 - MINIMUM_FARE_DISCOUNT_PERCENT)) / 100) + 50) / 100,
+  ) * 100;
 check(
-  // Inside the minimum distance the fare is the flat minimum fare. Past it
-  // the fare is distance × rate with no floor, so with these seeded rates a
-  // mid-length leg can price under the minimum fare — that is the rule, not a
-  // missing lift.
-  'a ticket inside the minimum distance charges exactly the minimum fare',
-  seed.tickets
-    .filter((ticket) => {
-      const trip = seed.trips.find((candidate) => candidate.id === ticket.trip_id)!;
-      return trip.distance_km_milli <= rules.minimumDistanceMilli;
-    })
+  'a Regular ticket inside the minimum distance charges exactly the minimum fare',
+  withinMinimum
+    .filter((ticket) => !takesSpecialRate(ticket.passenger_type))
     .every((ticket) => ticket.final_fare_per_passenger === rules.minimumFareCentavos),
+  true,
+);
+check(
+  'a concessionaire inside the minimum distance is charged the minimum less the discount',
+  withinMinimum
+    .filter((ticket) => takesSpecialRate(ticket.passenger_type))
+    .every((ticket) => ticket.final_fare_per_passenger === discountedMinimumFare),
+  true,
+);
+check(
+  'the two inside the minimum distance are genuinely different fares',
+  discountedMinimumFare !== rules.minimumFareCentavos,
   true,
 );
 // The two the calculator's arithmetic actually decides, by name.
