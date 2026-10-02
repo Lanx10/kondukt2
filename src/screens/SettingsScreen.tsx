@@ -246,38 +246,40 @@ function UpdateCard({
           ? `Last checked ${updates.lastCheckLabel}`
           : 'No update check yet on this install.'}
       </Text>
-      <Pressable
-        onPress={ready ? updates.applyReady : updates.checkNow}
-        disabled={updates.busy}
-        accessibilityRole="button"
-        accessibilityLabel={ready ? 'Restart to apply the downloaded update' : 'Check for updates'}
-        accessibilityState={{ disabled: updates.busy, busy: updates.busy }}
-        testID="update-check"
-        style={({ pressed }) => [
-          styles.primaryBtn,
-          updates.busy && styles.primaryBtnDisabled,
-          pressed && !updates.busy && styles.pressed,
-        ]}
-      >
-        <Text style={styles.primaryBtnLabel}>
-          {updates.busy
-            ? updates.phase === 'downloading'
-              ? 'Downloading…'
-              : 'Checking…'
-            : ready
-              ? 'Restart to Update'
-              : 'Check for Updates'}
-        </Text>
-      </Pressable>
-      <Pressable
-        onPress={() => setVersionOpen(true)}
-        accessibilityRole="button"
-        accessibilityLabel="Show version information"
-        testID="update-version"
-        style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
-      >
-        <Text style={styles.secondaryBtnLabel}>Version</Text>
-      </Pressable>
+      <View style={styles.updateActions}>
+        <Pressable
+          onPress={ready ? updates.applyReady : updates.checkNow}
+          disabled={updates.busy}
+          accessibilityRole="button"
+          accessibilityLabel={ready ? 'Restart to apply the downloaded update' : 'Check for updates'}
+          accessibilityState={{ disabled: updates.busy, busy: updates.busy }}
+          testID="update-check"
+          style={({ pressed }) => [
+            styles.primaryBtn,
+            updates.busy && styles.primaryBtnDisabled,
+            pressed && !updates.busy && styles.pressed,
+          ]}
+        >
+          <Text numberOfLines={1} style={styles.primaryBtnLabel}>
+            {updates.busy
+              ? updates.phase === 'downloading'
+                ? 'Downloading…'
+                : 'Checking…'
+              : ready
+                ? 'Restart to Update'
+                : 'Check for Updates'}
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => setVersionOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Show version information"
+          testID="update-version"
+          style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
+        >
+          <Text numberOfLines={1} style={styles.secondaryBtnLabel}>Version</Text>
+        </Pressable>
+      </View>
       {versionOpen ? (
         <UpdateVersionSheet
           updates={updates}
@@ -348,30 +350,32 @@ function ApkUpdateCard({
           ? `Last checked ${apk.lastCheckLabel}`
           : 'No update check yet on this install.'}
       </Text>
-      <Pressable
-        onPress={action}
-        disabled={apk.busy}
-        accessibilityRole="button"
-        accessibilityLabel={a11y}
-        accessibilityState={{ disabled: apk.busy, busy: apk.busy }}
-        testID="apk-update-check"
-        style={({ pressed }) => [
-          styles.primaryBtn,
-          apk.busy && styles.primaryBtnDisabled,
-          pressed && !apk.busy && styles.pressed,
-        ]}
-      >
-        <Text style={styles.primaryBtnLabel}>{label}</Text>
-      </Pressable>
-      <Pressable
-        onPress={() => setVersionOpen(true)}
-        accessibilityRole="button"
-        accessibilityLabel="Show version information"
-        testID="apk-update-version"
-        style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
-      >
-        <Text style={styles.secondaryBtnLabel}>Version</Text>
-      </Pressable>
+      <View style={styles.updateActions}>
+        <Pressable
+          onPress={action}
+          disabled={apk.busy}
+          accessibilityRole="button"
+          accessibilityLabel={a11y}
+          accessibilityState={{ disabled: apk.busy, busy: apk.busy }}
+          testID="apk-update-check"
+          style={({ pressed }) => [
+            styles.primaryBtn,
+            apk.busy && styles.primaryBtnDisabled,
+            pressed && !apk.busy && styles.pressed,
+          ]}
+        >
+          <Text numberOfLines={1} style={styles.primaryBtnLabel}>{label}</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => setVersionOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Show version information"
+          testID="apk-update-version"
+          style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
+        >
+          <Text numberOfLines={1} style={styles.secondaryBtnLabel}>Version</Text>
+        </Pressable>
+      </View>
       {versionOpen ? (
         <ApkVersionSheet
           apk={apk}
@@ -477,16 +481,38 @@ const makeStyles = (theme: KonduktTheme) =>
       ...type.bodySmall,
       color: theme.palette.outline,
     },
-    // The primary action, shaped exactly like the app's other solid buttons
-    // (PassengerScreen's Retry/Go-to-trips) so it reads as the same control.
-    primaryBtn: {
-      marginTop: space(2),
-      minHeight: 48,
-      alignSelf: 'flex-start',
+    // The card's two actions share ONE row: the solid primary beside the
+    // outlined Version button. As siblings in the card's own column they
+    // stacked into two rows and made every card a third taller than its
+    // content — two buttons where the eye expects a pair. The primary is the
+    // one that gives space back when its label is long, so the row never has
+    // to wrap to keep them together.
+    updateActions: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: space(2),
-      paddingHorizontal: space(5),
+      marginTop: space(2),
+    },
+
+    // The primary action, shaped exactly like the app's other solid buttons
+    // (PassengerScreen's Retry/Go-to-trips) so it reads as the same control.
+    primaryBtn: {
+      minHeight: 48,
+      // Sized to its label, but the first thing to compress in a tight row.
+      // The label carries `numberOfLines={1}` for the same reason: a button
+      // that wraps to two lines is exactly the two rows this row exists to
+      // avoid, and the accessibility label still carries the full wording.
+      flexShrink: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: space(2),
+      // `space(4)`, not `space(5)`: these two buttons share one row and that
+      // row has to survive a 360dp phone, where the card content is 296 px.
+      // "Check for Updates" plus "Version" measures 271 px at 16 px of padding
+      // and 287 px at 20 px — one pixel over the line, which truncated the
+      // label to "Check for Updat…". Sixteen is still a comfortable tap target
+      // on a 48 px tall button.
+      paddingHorizontal: space(4),
       borderRadius: radius.large,
       backgroundColor: theme.palette.primarySolid,
     },
@@ -498,13 +524,16 @@ const makeStyles = (theme: KonduktTheme) =>
     // solid primary. Outlined, never filling, so the two read as
     // peers rather than competitors for the same tap.
     secondaryBtn: {
-      marginTop: space(2),
       minHeight: 48,
-      alignSelf: 'flex-start',
+      // Never gives up width: seven characters is the one label in this card
+      // that has to survive on one line, so the primary shrinks first. The
+      // padding matches the primary's for the reason given there — the pair is
+      // measured against one row, not against each other.
+      flexShrink: 0,
       flexDirection: 'row',
       alignItems: 'center',
       gap: space(2),
-      paddingHorizontal: space(5),
+      paddingHorizontal: space(4),
       borderRadius: radius.large,
       borderWidth: 1,
       borderColor: theme.palette.outline,
