@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon, type IconName } from '../icons';
-import { glass, palette, radius, space, tintedGlass, type } from '../theme';
+import { radius, space, tintedGlass, type, type KonduktTheme } from '../theme';
+import { useKonduktTheme } from '../lib/themeContext';
 import { GlassCard } from './GlassCard';
 import { MONTH_NAMES } from '../lib/calendar';
 import { RANGE_SEGMENTS, type PeriodState } from '../lib/historyState';
@@ -51,6 +52,8 @@ export function PeriodControl({
   onOpenCalendar: () => void;
   onPress?: () => void;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <View style={styles.root}>
       {label ? (
@@ -159,6 +162,8 @@ function IconButton({
   disabled?: boolean;
   active?: boolean;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <Pressable
       onPress={onPress}
@@ -173,12 +178,13 @@ function IconButton({
         pressed && styles.pressed,
       ]}
     >
-      <Icon name={icon} size={20} color={palette.primarySolid} />
+      <Icon name={icon} size={20} color={theme.palette.primarySolid} />
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
   root: {
     marginTop: space(3),
     marginHorizontal: space(5),
@@ -187,7 +193,7 @@ const styles = StyleSheet.create({
   // label role — the same 11/600/0.6 the other section labels wear.
   label: {
     ...type.labelSmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginBottom: space(2.5),
   },
   // The reference's `.range-card { padding: 16px }`, a little more air
@@ -208,10 +214,10 @@ const styles = StyleSheet.create({
     padding: space(1),
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: palette.outlineVariant,
+    borderColor: theme.palette.outlineVariant,
     // Translucent, not the old solid white: the reference's track is a white
     // wash the field shows through, like every other control on this screen.
-    backgroundColor: glass.tint,
+    backgroundColor: theme.glass.tint,
   },
   segment: {
     flex: 1,
@@ -223,7 +229,7 @@ const styles = StyleSheet.create({
   segmentLabel: {
     ...type.bodyMedium,
     fontFamily: 'Poppins_600SemiBold',
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
   },
   segmentLabelSelected: {
     fontFamily: 'Poppins_700Bold',
@@ -236,13 +242,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: palette.outlineVariant,
-    backgroundColor: glass.tint,
+    borderColor: theme.palette.outlineVariant,
+    backgroundColor: theme.glass.tint,
   },
   iconButtonActive: {
-    backgroundColor: palette.primaryContainer,
+    backgroundColor: theme.palette.primaryContainer,
     borderWidth: 2,
-    borderColor: palette.primary,
+    borderColor: theme.palette.primary,
   },
   iconButtonDisabled: {
     opacity: 0.4,
@@ -263,12 +269,12 @@ const styles = StyleSheet.create({
   },
   stepperLabel: {
     ...type.titleMedium,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     textAlign: 'center',
   },
   stepperDates: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginTop: space(0.5),
     textAlign: 'center',
   },
@@ -282,16 +288,16 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 2,
-    backgroundColor: palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
     alignSelf: 'center',
   },
   captionText: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     flex: 1,
   },
   captionStrong: {
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     fontFamily: 'Poppins_600SemiBold',
   },
   pressed: {

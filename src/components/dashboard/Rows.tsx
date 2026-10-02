@@ -6,7 +6,8 @@ import { placeSummary } from '../../lib/dashboardState';
 import { passengerTypeLabel } from '../../lib/tripTicketsFormat';
 import { formatShortTime } from '../../lib/tripScreenFormat';
 import { formatDate, php } from '../../lib/format';
-import { palette, type } from '../../theme';
+import { type, type KonduktTheme } from '../../theme';
+import { useKonduktTheme } from '../../lib/themeContext';
 
 /** What one trip's ledger adds up to, for the trip row's meta line. */
 export type TripAggregate = {
@@ -109,6 +110,8 @@ export function TicketRow({
   stacked: boolean;
   onPress?: () => void;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const route = placeSummary(ticket.from, ticket.to);
   const total = ticketTotal(ticket);
   // The stored category reads `Pwd` / `Senior Citizen`; the reference and the
@@ -146,9 +149,17 @@ export function TicketRow({
   );
 }
 
-const styles = StyleSheet.create({
-  qty: {
-    ...type.bodySmall,
-    color: palette.onSurfaceVariant,
-  },
-});
+/**
+ * The quantity suffix, from the theme.
+ *
+ * This read the light `palette` at module scope, so in Dark mode the "· Qty 3"
+ * beside a ticket's category chip rendered light-theme grey on a dark ledger
+ * row — a row whose other text had already been fixed by a theme-aware parent.
+ */
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
+    qty: {
+      ...type.bodySmall,
+      color: theme.palette.onSurfaceVariant,
+    },
+  });

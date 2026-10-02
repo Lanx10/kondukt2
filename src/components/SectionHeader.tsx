@@ -1,6 +1,8 @@
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '../icons';
-import { glass, palette, space, type } from '../theme';
+import { space, type, type KonduktTheme } from '../theme';
+import { useKonduktTheme } from '../lib/themeContext';
 
 /** Below this the action wraps under the title rather than squeezing it. */
 const STACK_HEADER_WIDTH = 360;
@@ -16,6 +18,10 @@ const STACK_HEADER_WIDTH = 360;
  * The action is a text button rather than a filled one: these sit on a page
  * that already has a primary action, and a second filled button per section
  * would out-shout the number the section is actually about.
+ *
+ * The colours come from the theme, not the light `palette`/`glass` at module
+ * scope — a heading that keeps the light tokens paints light-on-dark in Dark
+ * mode, and this header sits above most of the Dashboard's content.
  */
 export function SectionHeader({
   title,
@@ -28,6 +34,8 @@ export function SectionHeader({
   onAction?: () => void;
   width: number;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const stacked = width < STACK_HEADER_WIDTH;
 
   return (
@@ -46,33 +54,39 @@ export function SectionHeader({
           style={({ pressed }) => [styles.action, stacked && styles.actionStacked, pressed && styles.pressed]}
         >
           <Text style={styles.actionLabel}>{actionLabel}</Text>
-          <Icon name="chevron" size={14} color={glass.accentPrimary} />
+          <Icon name="chevron" size={14} color={theme.glass.accentPrimary} />
         </Pressable>
       ) : null}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: space(5),
-    marginBottom: space(3),
-    marginHorizontal: space(5),
-  },
-  // On a narrow screen the action drops below the title and right-aligns,
-  // rather than the title wrapping to two lines beside a shrinking action.
-  rootStacked: { flexDirection: 'column', alignItems: 'flex-start' },
-  title: { ...type.labelSmall, color: palette.onSurfaceVariant },
-  action: { flexDirection: 'row', alignItems: 'center', gap: space(1), minHeight: 48 },
-  actionStacked: { alignSelf: 'flex-end', marginTop: -space(2) },
-  // The reference's `.link-btn`: 12px/600 in `--glass-primary`. Not
-  // `labelSmall` (11px) and not `palette.primary` (#E65100 = 3.79:1, short of
-  // the 4.5:1 a 12px label owes).
-  actionLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, lineHeight: 18, color: glass.accentPrimary },
-  pressed: { opacity: 0.7 },
-});
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
+    root: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: space(5),
+      marginBottom: space(3),
+      marginHorizontal: space(5),
+    },
+    // On a narrow screen the action drops below the title and right-aligns,
+    // rather than the title wrapping to two lines beside a shrinking action.
+    rootStacked: { flexDirection: 'column', alignItems: 'flex-start' },
+    title: { ...type.labelSmall, color: theme.palette.onSurfaceVariant },
+    action: { flexDirection: 'row', alignItems: 'center', gap: space(1), minHeight: 48 },
+    actionStacked: { alignSelf: 'flex-end', marginTop: -space(2) },
+    // The reference's `.link-btn`: 12px/600 in the on-glass accent. Not
+    // `labelSmall` (11px) and not the primary (#E65100 = 3.79:1, short of the
+    // 4.5:1 a 12px label owes) — the accent token is the one that clears it.
+    actionLabel: {
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 12,
+      lineHeight: 18,
+      color: theme.glass.accentPrimary,
+    },
+    pressed: { opacity: 0.7 },
+  });
 
 export { STACK_HEADER_WIDTH };

@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon, type IconName } from '../../icons';
-import { cardShadow, palette, radius, space, type } from '../../theme';
+import { cardShadow, radius, space, type, type KonduktTheme } from '../../theme';
+import { useKonduktTheme } from '../../lib/themeContext';
 import { GlassCard } from '../GlassCard';
 
 /**
@@ -17,6 +18,11 @@ import { GlassCard } from '../GlassCard';
  *
  * One component rather than six, because six components is where they would
  * drift, and because the states differ in wording far more than in structure.
+ *
+ * Every colour comes from the theme. This card used to read the light `palette`
+ * at module scope, so in Dark mode the eyebrow, headline, body and meta — the
+ * whole hierarchy — rendered in light-theme ink on a dark card, which is how the
+ * Dashboard came to have the most unreadable text in the app.
  */
 export function StatusCard({
   eyebrow,
@@ -41,11 +47,13 @@ export function StatusCard({
   tone?: 'glass' | 'active' | 'error';
   onPress?: () => void;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const solid = tone === 'active';
   const isError = tone === 'error';
   // White on the solid orange button, dark on the amber card, neutral elsewhere.
   const actionColour =
-    actionTone === 'solid' ? '#FFFFFF' : solid ? palette.onSecondary : palette.onSurface;
+    actionTone === 'solid' ? '#FFFFFF' : solid ? theme.palette.onSecondary : theme.palette.onSurface;
 
   // Solid amber: the one state a conductor registers without reading, and the
   // only card on the screen that leaves the glass run for it.
@@ -120,7 +128,8 @@ export function StatusCard({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
   root: {
     marginTop: space(2),
     marginHorizontal: space(5),
@@ -132,15 +141,15 @@ const styles = StyleSheet.create({
     padding: space(5),
   },
   cardError: {
-    backgroundColor: palette.errorContainer,
+    backgroundColor: theme.palette.errorContainer,
     borderWidth: 1,
-    borderColor: palette.error,
+    borderColor: theme.palette.error,
   },
   // Solid amber, and the only yellow on the screen. `cardShadow` rather than a
   // second shadow: same numbers as every other panel, so it sits at the same
   // depth.
   cardActive: {
-    backgroundColor: palette.secondary,
+    backgroundColor: theme.palette.secondary,
     borderRadius: radius.glass,
     ...cardShadow,
   },
@@ -152,49 +161,49 @@ const styles = StyleSheet.create({
   },
   eyebrow: {
     ...type.labelSmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
   },
   eyebrowError: {
-    color: palette.error,
+    color: theme.palette.error,
   },
   eyebrowChip: {
     minHeight: 24,
     paddingHorizontal: 10,
     justifyContent: 'center',
     borderRadius: radius.full,
-    backgroundColor: palette.surfaceContainer,
+    backgroundColor: theme.palette.surfaceContainer,
   },
   eyebrowChipActive: {
-    backgroundColor: palette.onSecondary,
+    backgroundColor: theme.palette.onSecondary,
   },
   // Dark ground, amber type on the amber card: 7.4:1, where the pale
   // secondary container would sit at 1.6:1 and the status would go with it.
   eyebrowChipLabel: {
     ...type.labelSmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
   },
   eyebrowChipLabelActive: {
-    color: palette.secondary,
+    color: theme.palette.secondary,
   },
   title: {
     ...type.headlineSmall,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     marginTop: space(1.5),
   },
   titleError: {
-    color: palette.error,
+    color: theme.palette.error,
   },
   titleActive: {
-    color: palette.onSecondary,
+    color: theme.palette.onSecondary,
   },
   body: {
     ...type.bodyMedium,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginTop: space(1.5),
   },
   meta: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginTop: space(2.5),
     fontVariant: ['tabular-nums'],
   },
@@ -211,23 +220,23 @@ const styles = StyleSheet.create({
   // Solid primary orange, not a pale container: the card's own fill is solid,
   // so the button under it is too. White on `primarySolid` is 5.2:1.
   actionSolid: {
-    backgroundColor: palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
   },
   actionLabelSolid: {
     color: '#FFFFFF',
   },
   actionLabelSolidActive: {
-    color: palette.onSecondary,
+    color: theme.palette.onSecondary,
   },
   actionGhost: {
     borderWidth: 1,
-    borderColor: palette.outline,
+    borderColor: theme.palette.outline,
   },
   actionGhostSolid: {
-    borderColor: palette.onSecondary,
+    borderColor: theme.palette.onSecondary,
   },
   actionLabelGhost: {
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
   },
   actionLabel: {
     ...type.labelLarge,

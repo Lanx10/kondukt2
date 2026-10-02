@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon, type IconName } from '../icons';
-import { accent, palette, radius, space, type, type Accent } from '../theme';
+import { radius, space, type, type Accent, type KonduktTheme } from '../theme';
+import { useKonduktTheme } from '../lib/themeContext';
 import { GlassCard } from './GlassCard';
 
 /** The three accent pairs a row's icon chip can take. */
@@ -56,14 +57,16 @@ export function LedgerRow({
   accessibilityLabel?: string;
   accessibilityHint?: string;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const body = (
     <GlassCard
       cornerRadius={radius.large}
       style={[styles.card, stacked && styles.cardStacked]}
     >
       <View style={styles.lead}>
-        <View style={[styles.chip, { backgroundColor: accent[tone].container }]}>
-          <Icon name={icon} size={20} color={accent[tone].fg} />
+        <View style={[styles.chip, { backgroundColor: theme.accent[tone].container }]}>
+          <Icon name={icon} size={20} color={theme.accent[tone].fg} />
         </View>
         <View style={styles.main}>
           <Text style={styles.title}>
@@ -111,7 +114,7 @@ export function LedgerRow({
         </View>
       ) : null}
       {chevron && !stacked ? (
-        <Icon name="chevron" size={18} color={palette.outlineVariant} />
+        <Icon name="chevron" size={18} color={theme.palette.outlineVariant} />
       ) : null}
     </GlassCard>
   );
@@ -144,6 +147,8 @@ export function LedgerRow({
 
 /** The small category chip a ticket row carries in its sub line. */
 export function CategoryChip({ label }: { label: string }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <View style={styles.categoryChip}>
       <Text style={styles.categoryChipLabel}>{label}</Text>
@@ -151,7 +156,8 @@ export function CategoryChip({ label }: { label: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
   gutter: {
     marginHorizontal: space(5),
     marginTop: space(3),
@@ -183,12 +189,12 @@ const styles = StyleSheet.create({
   },
   title: {
     ...type.titleMedium,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
   },
   titleSuffix: {
     ...type.bodySmall,
     fontFamily: 'Poppins_400Regular',
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
   },
   subRow: {
     flexDirection: 'row',
@@ -199,11 +205,11 @@ const styles = StyleSheet.create({
   },
   sub: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
   },
   meta: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginTop: space(1.5),
   },
   side: {
@@ -221,12 +227,12 @@ const styles = StyleSheet.create({
   },
   amount: {
     ...type.bodyMedium,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     fontVariant: ['tabular-nums'],
   },
   amountLabel: {
     ...type.labelSmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
   },
   chip: {
     width: 40,
@@ -244,28 +250,28 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
   },
   statusActive: {
-    backgroundColor: accent.secondary.container,
+    backgroundColor: theme.accent.secondary.container,
   },
   statusCompleted: {
-    backgroundColor: accent.tertiary.container,
+    backgroundColor: theme.accent.tertiary.container,
   },
   statusLabel: {
     ...type.labelSmall,
   },
   statusLabelActive: {
-    color: accent.secondary.onContainer,
+    color: theme.accent.secondary.onContainer,
   },
   statusLabelCompleted: {
-    color: accent.tertiary.onContainer,
+    color: theme.accent.tertiary.onContainer,
   },
   categoryChip: {
     paddingHorizontal: space(2),
     paddingVertical: 3,
     borderRadius: radius.full,
-    backgroundColor: palette.surfaceContainer,
+    backgroundColor: theme.palette.surfaceContainer,
   },
   categoryChipLabel: {
     ...type.labelSmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
   },
-});
+  });
