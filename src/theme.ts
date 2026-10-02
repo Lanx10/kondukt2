@@ -176,12 +176,19 @@ export const tintedGlass = {
  * on #FFB300 is roughly 1.9:1 and is never used; `onPrimary` on amber is the
  * same violation in a warmer ink. These four are the only permitted text
  * colours on amber, lightest last.
+ *
+ * The ramp is stepped by measured contrast rather than by eye, because
+ * #FFB300 leaves barely 7.4:1 of headroom over AA — four inks cannot be spaced
+ * evenly inside it. The steps are 7.4 / 6.2 / 5.3 / 4.7, the faintest sitting
+ * just over the 4.5:1 floor rather than at an even fraction of it.
+ * `src/lib/themeContrast.test.ts` audits all four against the light and the
+ * dark amber, so a re-step cannot quietly break the lightest one.
  */
 export const onAmber = {
   primary: palette.onSecondary,
-  detail: '#4F3D2B',
-  muted: '#5B4720',
-  faint: '#6B5518',
+  detail: '#4A3820',
+  muted: '#57431C',
+  faint: '#604B10',
 } as const;
 
 /**
