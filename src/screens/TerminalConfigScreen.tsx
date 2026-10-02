@@ -17,6 +17,7 @@ import { DetailCard, DetailRow, Sheet } from '../components/BottomSheet';
 import { Icon } from '../icons';
 import { maxContentWidth, onPrimarySolid, radius, space, tintedGlass, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
+import { useThemedStyles } from '../lib/useThemedStyles';
 import {
   deactivateTerminal,
   fetchAllMunicipalities,
@@ -81,7 +82,7 @@ type Overlay =
  */
 export function TerminalConfigScreen({ onBack, onOpenEditor }: TerminalConfigScreenProps) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
 
   // Local state: query, filter, overlay, transient message — all reset on
@@ -510,7 +511,7 @@ function TerminalRecordRow({
   onPress: () => void;
 }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const active = terminal.is_active === 1;
   return (
     <GlassCard
@@ -562,7 +563,7 @@ function PickOption({
   testID: string;
 }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <GlassCard
       onPress={onPress}
@@ -612,8 +613,7 @@ function RecordSheet({
   onDeactivate: () => void;
   onClose: () => void;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const title = terminalNameOf(terminal.name);
   const pairs = terminalDetailPairs(terminal, allMunicipalities);
   return (
@@ -713,8 +713,7 @@ function ConfirmSheet({
   onClose: () => void;
   onConfirm: () => void;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const title = terminalNameOf(terminal.name);
   return (
     <Sheet
@@ -771,8 +770,7 @@ function ConfirmSheet({
  * nothing about that shape.
  */
 function LoadingState() {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <View
       testID="tc-state"

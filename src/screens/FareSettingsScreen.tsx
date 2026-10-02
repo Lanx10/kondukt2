@@ -25,6 +25,7 @@ import {
   type KonduktTheme,
 } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
+import { useThemedStyles } from '../lib/useThemedStyles';
 import {
   fetchFareConfiguration,
   saveFareConfiguration,
@@ -192,7 +193,7 @@ const FIGURES = [
 
 export function FareSettingsScreen({ onBack }: FareSettingsScreenProps) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
 
   // All ten editable values are strings. A number-bound field cannot hold a
@@ -805,8 +806,7 @@ export function FareSettingsScreen({ onBack }: FareSettingsScreenProps) {
 
 /** One label/value line in the preview card's hop row. */
 function Row({ label, value }: { label: string; value: string }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.previewRow}>
       <Text style={styles.previewRowLabel}>{label}</Text>
@@ -842,8 +842,7 @@ function Field({
   testID?: string;
   onChangeText: (text: string) => void;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const base = label ?? field.label;
   return (
     <View style={styles.fx}>
@@ -894,8 +893,7 @@ function MatrixGrid({
   deluxeEnabled: boolean;
   onEdit: (key: FareFieldKey, text: string) => void;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.mx}>
       <View style={styles.mxHeadRow}>

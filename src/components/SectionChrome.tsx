@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,7 +8,8 @@ import {
 } from 'react-native';
 import { Icon } from '../icons';
 import { maxContentWidth, radius, space, tintedGlass, type, type KonduktTheme } from '../theme';
-import { useKonduktTheme } from '../lib/themeContext';
+
+import { useThemedStyles } from '../lib/useThemedStyles';
 import { GlassBackdrop } from './GlassBackdrop';
 import { GlassCard } from './GlassCard';
 
@@ -86,8 +87,7 @@ export function SectionChrome({
   subtitleTestID?: string;
   children: ReactNode;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
 
   return (
     <View testID={testID} style={[styles.screen, { paddingTop: insets.top }]}>

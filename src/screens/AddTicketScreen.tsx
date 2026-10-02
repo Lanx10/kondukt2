@@ -7,6 +7,7 @@ import * as _componentsBottomSheet from '../components/BottomSheet';
 import * as _icons from '../icons';
 import * as _theme from '../theme';
 import * as _libThemeContext from '../lib/themeContext';
+import * as _libUseThemedStyles from '../lib/useThemedStyles';
 import * as _dataTripTicketsStore from '../data/tripTicketsStore';
 import * as _dataFareStore from '../data/fareStore';
 import * as _libAddTicketFare from '../lib/addTicketFare';
@@ -76,7 +77,7 @@ type Observation = {
    // theme mode the process first saw. Every component that reads `styles`
    // derives it from the live theme instead.
    let theme = (0, _libThemeContext.useKonduktTheme)().theme;
-   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
+   let styles = (0, _libUseThemedStyles.useThemedStyles)(makeStyles);
    let insets = (0, _reactNativeSafeAreaContext.useSafeAreaInsets)();
    let [observation, setObservation] = _react.useState<Observation>(EMPTY_OBSERVATION);
    let [retryToken, setRetryToken] = (0, _react.useState)(0);
@@ -579,8 +580,7 @@ type Observation = {
    onOpenBoard,
    onOpenDrop
  }: { [key: string]: any }) {
-   let theme = (0, _libThemeContext.useKonduktTheme)().theme;
-   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
+   let styles = (0, _libUseThemedStyles.useThemedStyles)(makeStyles);
    let legWarning = board !== null && drop !== null ? warning : null;
    return /*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_reactJsxRuntime.Fragment, {
      children: [/*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_componentsGlassCard.GlassCard, {
@@ -627,7 +627,7 @@ type Observation = {
    onPress
  }: { [key: string]: any }) {
    let theme = (0, _libThemeContext.useKonduktTheme)().theme;
-   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
+   let styles = (0, _libUseThemedStyles.useThemedStyles)(makeStyles);
    return /*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_reactNative.Pressable, {
      onPress: onPress,
      testID: testID,
@@ -675,8 +675,7 @@ type Observation = {
    onChange,
    rules
  }: { [key: string]: any }) {
-   let theme = (0, _libThemeContext.useKonduktTheme)().theme;
-   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
+   let styles = (0, _libUseThemedStyles.useThemedStyles)(makeStyles);
    return /*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_componentsGlassCard.GlassCard, {
      testID: "at-road-card",
      style: styles.card,
@@ -715,8 +714,7 @@ type Observation = {
    pressed,
    onPress
  }: { [key: string]: any }) {
-   let theme = (0, _libThemeContext.useKonduktTheme)().theme;
-   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
+   let styles = (0, _libUseThemedStyles.useThemedStyles)(makeStyles);
    return /*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_reactNative.Pressable, {
      onPress: onPress,
      testID: testID,
@@ -752,8 +750,7 @@ type Observation = {
    onType,
    onQuantity
  }: { [key: string]: any }) {
-   let theme = (0, _libThemeContext.useKonduktTheme)().theme;
-   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
+   let styles = (0, _libUseThemedStyles.useThemedStyles)(makeStyles);
    return /*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_componentsGlassCard.GlassCard, {
      testID: "at-pax-card",
      style: styles.card,
@@ -850,8 +847,7 @@ type Observation = {
    tripNumber,
    onOpenRules
  }: { [key: string]: any }) {
-   let theme = (0, _libThemeContext.useKonduktTheme)().theme;
-   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
+   let styles = (0, _libUseThemedStyles.useThemedStyles)(makeStyles);
    let notes = breakdown ? (0, _libAddTicketFare.minimumNotes)(breakdown, rules) : [];
    let pax = (0, _libAddTicketFare.clampQuantity)(quantity);
    return /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.View, {
@@ -939,8 +935,7 @@ type Observation = {
    label,
    value
  }: { [key: string]: any }) {
-   let theme = (0, _libThemeContext.useKonduktTheme)().theme;
-   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
+   let styles = (0, _libUseThemedStyles.useThemedStyles)(makeStyles);
    return /*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_reactNative.View, {
      style: styles.calcRow,
      children: [/*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.Text, {
@@ -962,7 +957,7 @@ type Observation = {
    onSelect
  }: { [key: string]: any }) {
    let theme = (0, _libThemeContext.useKonduktTheme)().theme;
-   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
+   let styles = (0, _libUseThemedStyles.useThemedStyles)(makeStyles);
    // One sheet, two titles, gated on which end of the route asked for it — a
    // `visible` shortcut would leave the modal mounted for the whole screen.
    let [query, setQuery] = (0, _react.useState)('');
@@ -1061,8 +1056,7 @@ type Observation = {
    rules,
    onClose
  }: { [key: string]: any }) {
-   let theme = (0, _libThemeContext.useKonduktTheme)().theme;
-   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
+   let styles = (0, _libUseThemedStyles.useThemedStyles)(makeStyles);
    if (!visible) return null;
    return /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_componentsBottomSheet.Sheet, {
      kind: "rules",
@@ -1127,8 +1121,7 @@ type Observation = {
    tripTicketCount,
    onRecordAnother
  }: { [key: string]: any }) {
-   let theme = (0, _libThemeContext.useKonduktTheme)().theme;
-   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
+   let styles = (0, _libUseThemedStyles.useThemedStyles)(makeStyles);
    if (!visible || !recorded) return null;
    return /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_componentsBottomSheet.Sheet, {
      kind: "recorded",
@@ -1212,8 +1205,7 @@ type Observation = {
    usesExpressWay,
    onClose
  }: { [key: string]: any }) {
-   let theme = (0, _libThemeContext.useKonduktTheme)().theme;
-   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
+   let styles = (0, _libUseThemedStyles.useThemedStyles)(makeStyles);
    if (!visible || !ticket) return null;
    // A full-trip rider's leg is the trip's own distance. Any other leg was never
    // stored, and the sheet says so instead of borrowing the trip's number.
@@ -1272,8 +1264,7 @@ type Observation = {
  /** The one dead end: the trip's own details, then a way to Trip tickets. */
  /** The loading state. Skeleton rows, not a spinner: the shape is already known. */
  function LoadingState() {
-   let theme = (0, _libThemeContext.useKonduktTheme)().theme;
-   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
+   let styles = (0, _libUseThemedStyles.useThemedStyles)(makeStyles);
    return /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.View, {
      testID: "at-rules",
      style: styles.gutter,

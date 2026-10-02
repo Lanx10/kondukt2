@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassCard } from '../components/GlassCard';
@@ -15,6 +15,7 @@ import {
   type ThemeMode,
 } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
+import { useThemedStyles } from '../lib/useThemedStyles';
 import { loadThemeMode, saveThemeMode } from '../lib/preferences';
 
 export type AdvancedSettingsScreenProps = {
@@ -56,7 +57,7 @@ const OPTIONS: AppearanceOption[] = [
 export function AdvancedSettingsScreen({ onBack }: AdvancedSettingsScreenProps) {
   const insets = useSafeAreaInsets();
   const { theme, setThemeMode } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
 
   // The failure copy, or null. The happy path never renders a message.
   const [error, setError] = useState<string | null>(null);

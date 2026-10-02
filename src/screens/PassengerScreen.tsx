@@ -14,6 +14,7 @@ import { SectionChrome } from '../components/SectionChrome';
 import { Icon } from '../icons';
 import { cardShadow, onAmber, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
+import { useThemedStyles } from '../lib/useThemedStyles';
 import {
   fetchAvailableTrips,
   fetchTripTickets,
@@ -87,7 +88,7 @@ function roadElapsed(startedAt: number, endedAt: number | null, now: number) {
  */
 export function PassengerScreen({ onBack, onOpenTrips }: PassengerScreenProps) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
 
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' });
@@ -771,8 +772,7 @@ function Chrome({
 
 /** One figure in the card's hero row — FARES / GROUPS / MUNICIPALITIES. */
 function Figure({ value, label, live }: { value: number; label: string; live: boolean }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.figure}>
       <Text style={[styles.figureValue, live && styles.amberPrimary]}>{value}</Text>
@@ -804,7 +804,7 @@ function TripCard({
   onSwitch: () => void;
 }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const live = trip.status === 'ACTIVE';
   const detail =
     `${trip.distance_km_milli > 0 ? formatKm(trip.distance_km_milli) : NO_DISTANCE}` +
@@ -905,8 +905,7 @@ function PairRow({
   denom: number;
   onPress: () => void;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const { row, rank } = entry;
   const pct = denom > 0 ? Math.round((row.passengerCount / denom) * 100) : 0;
   const mix = mixLabel(row.byType);
@@ -959,7 +958,7 @@ function PairRow({
 /** The storage footer, last — the privacy note after the answer. */
 function StorageFooter({ note }: { note: ReactNode }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <GlassCard style={styles.storageCard} testID="ps-storage">
       <Icon name="database" size={18} color={theme.palette.onSurfaceVariant} />

@@ -1,8 +1,9 @@
-import { useMemo, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon, type IconName } from '../icons';
 import { radius, space, tintedGlass, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
+import { useThemedStyles } from '../lib/useThemedStyles';
 import { GlassCard } from './GlassCard';
 import { MONTH_NAMES } from '../lib/calendar';
 import { RANGE_SEGMENTS, type PeriodState } from '../lib/historyState';
@@ -52,8 +53,7 @@ export function PeriodControl({
   onOpenCalendar: () => void;
   onPress?: () => void;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.root}>
       {label ? (
@@ -163,7 +163,7 @@ function IconButton({
   active?: boolean;
 }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <Pressable
       onPress={onPress}

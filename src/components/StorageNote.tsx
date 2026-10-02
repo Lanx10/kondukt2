@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
+
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Icon } from '../icons';
 import { glassBlur, space, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
+import { useThemedStyles } from '../lib/useThemedStyles';
 import { GlassCard } from './GlassCard';
 
 /** "1 trip" / "3 trips" — the note's counts, and the footnote's. */
@@ -30,7 +31,7 @@ export function StorageNote({
   style?: StyleProp<ViewStyle>;
 }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const summary =
     `${plural(tripCount, 'trip')} and ${plural(ticketCount, 'fare')} across ` +
     `${plural(dayCount, 'day')}, all saved on this device. No network is used.`;

@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
+
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '../icons';
 import { space, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
+import { useThemedStyles } from '../lib/useThemedStyles';
 
 /** Below this the action wraps under the title rather than squeezing it. */
 const STACK_HEADER_WIDTH = 360;
@@ -35,7 +36,7 @@ export function SectionHeader({
   width: number;
 }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const stacked = width < STACK_HEADER_WIDTH;
 
   return (

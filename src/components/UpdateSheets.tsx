@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
+
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { DetailCard, DetailRow, Sheet } from './BottomSheet';
 import { radius, space, type, type KonduktTheme } from '../theme';
-import { useKonduktTheme } from '../lib/themeContext';
+
+import { useThemedStyles } from '../lib/useThemedStyles';
 import { useUpdates } from '../lib/UpdateProvider';
 import { useApkUpdates } from '../lib/ApkUpdateProvider';
 import { formatBytes } from '../lib/apkUpdateState';
@@ -45,8 +46,7 @@ export function ApkAvailableSheet({
 }: {
   apk: ReturnType<typeof useApkUpdates>;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const release = apk.release;
   if (release === null) return null;
   return (
@@ -126,8 +126,7 @@ export function ApkPermissionSheet({
 }: {
   apk: ReturnType<typeof useApkUpdates>;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <Sheet
       kind="apk-permission"
@@ -175,8 +174,7 @@ export function UpdateSheet({
 }: {
   updates: ReturnType<typeof useUpdates>;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <Sheet
       kind="update"
@@ -245,8 +243,7 @@ export function ApkVersionSheet({
   apk: ReturnType<typeof useApkUpdates>;
   onClose: () => void;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <Sheet
       kind="apk-version"
@@ -335,8 +332,7 @@ export function UpdateVersionSheet({
   updates: ReturnType<typeof useUpdates>;
   onClose: () => void;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <Sheet
       kind="update-version"

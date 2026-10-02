@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DetailCard, DetailRow, Handoff, Sheet } from '../components/BottomSheet';
@@ -7,6 +7,7 @@ import { SectionChrome } from '../components/SectionChrome';
 import { Icon } from '../icons';
 import { cardShadow, onAmber, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
+import { useThemedStyles } from '../lib/useThemedStyles';
 import {
   endActiveTrip,
   fetchAllTerminals,
@@ -90,7 +91,7 @@ export function CurrentTripScreen({
   onTripEnded,
 }: CurrentTripScreenProps) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   // Ending the running trip is a transaction: no update sheet may open over
   // its confirm, and no restart may land mid-press. See updateGuard.
@@ -680,8 +681,7 @@ const legOf = (origin: string, destination: string): number | null => {
 
 /** One ruled row on the RUNNING card. */
 function RunRow({ k, v, last = false }: { k: string; v: string; last?: boolean }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={[styles.detailRow, last && styles.detailRowLast]}>
       <Text style={styles.detailKey}>{k}</Text>
@@ -705,8 +705,7 @@ function BoardingRow({
   note: string | null;
   testID: string;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const readable = readablePassengerType(ticket.passenger_type);
   const route = `${ticket.origin_location_snapshot} → ${ticket.destination_location_snapshot}`;
   const label = `${formatRowStamp(ticket.created_at)} ${route}. ${ticket.passenger_quantity} ${readable} passengers, ${centavos(ticket.total_fare)}${note ? `, ${note}` : ''}.`;

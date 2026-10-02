@@ -17,6 +17,7 @@ import { DetailCard, DetailRow, Sheet } from '../components/BottomSheet';
 import { Icon } from '../icons';
 import { maxContentWidth, onPrimarySolid, radius, space, tintedGlass, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
+import { useThemedStyles } from '../lib/useThemedStyles';
 import {
   deactivateMunicipality,
   deactivateTerminal,
@@ -122,7 +123,7 @@ export function BarangayConfigScreen({
   onOpenMunicipalityEditor,
 }: BarangayConfigScreenProps) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
 
   // Local state, reset on unmount: re-entering shows the barangays tab, both
@@ -804,7 +805,7 @@ function RecordRow({
   onPress: () => void;
 }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <GlassCard
       onPress={onPress}
@@ -867,8 +868,7 @@ function InlineEmpty({
   actionLabel: string | null;
   onAction: (action: LocationEmptyAction) => void;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <GlassCard
       cornerRadius={radius.xlarge}
@@ -917,7 +917,7 @@ function PickOption({
   testID: string;
 }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <GlassCard
       onPress={onPress}
@@ -970,8 +970,7 @@ function RecordSheet({
   onEdit: () => void;
   onDeactivate: () => void;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const isBarangay = row.kind === 'barangay';
   const title = isBarangay ? row.barangay.barangayName : row.municipality.name;
   const active = isBarangay ? row.barangay.isActive : row.municipality.is_active === 1;
@@ -1076,8 +1075,7 @@ function ConfirmSheet({
   onClose: () => void;
   onConfirm: () => void;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const isBarangay = row.kind === 'barangay';
   const title = isBarangay ? 'Deactivate Barangay?' : 'Deactivate Municipality?';
   const body = isBarangay
@@ -1137,8 +1135,7 @@ function ConfirmSheet({
  * being read.
  */
 function LoadingState() {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <View
       style={styles.stateBlock}

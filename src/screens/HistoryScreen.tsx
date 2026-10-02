@@ -26,6 +26,7 @@ import { RangeCalendarModal } from '../components/history/RangeCalendarModal';
 import { Icon, type IconName } from '../icons';
 import { maxContentWidth, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
+import { useThemedStyles } from '../lib/useThemedStyles';
 import {
   fetchDailyEarnings,
   fetchHistorySummary,
@@ -145,7 +146,7 @@ type OffsetsByTab = Record<HistoryTab, number>;
  */
 export function HistoryScreen({ onBack, onOpenTrip, operationMessage }: HistoryScreenProps) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const now = useNow();
@@ -929,8 +930,7 @@ export function HistoryScreen({ onBack, onOpenTrip, operationMessage }: HistoryS
 
 /** One day-group head: the reference's slim yellow bar over each day's rows. */
 function DayHead({ heading, count }: { heading: string; count: string }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <View
       style={styles.dayHead}

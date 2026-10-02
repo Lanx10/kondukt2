@@ -1,8 +1,9 @@
-import { useMemo, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { StyleSheet, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { Icon } from '../icons';
 import { radius, space, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
+import { useThemedStyles } from '../lib/useThemedStyles';
 
 /**
  * The standard scrim and bottom sheet, shared by the screens that end in one.
@@ -40,7 +41,7 @@ export function Sheet({
   closeTestID?: string;
 }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.scrim} onPress={onClose}>
@@ -101,8 +102,7 @@ export function DetailRow({
   value: ReactNode;
   tabular?: boolean;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.detailRow}>
       <Text style={styles.detailLabel}>{label}</Text>
@@ -125,8 +125,7 @@ export function Handoff({
   children: string | string[];
   testID?: string;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const text = Array.isArray(children) ? children.join(' ') : children;
   return (
     <View
@@ -142,8 +141,7 @@ export function Handoff({
 
 /** A group of `DetailRow`s, the sheet-level card they sit in. */
 export function DetailCard({ children }: { children: ReactNode }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return <View style={styles.detailCard}>{children}</View>;
 }
 

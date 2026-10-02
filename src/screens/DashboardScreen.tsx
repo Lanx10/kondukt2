@@ -31,7 +31,8 @@ import { useNow } from '../lib/useNow';
 import { ROW_STACK_WIDTH, STAT_STACK_WIDTH } from '../lib/layout';
 import { customPeriod, plural, resolvePeriod, type RangeMode } from '../lib/historyState';
 import { maxContentWidth, space, type, type KonduktTheme } from '../theme';
-import { useKonduktTheme } from '../lib/themeContext';
+
+import { useThemedStyles } from '../lib/useThemedStyles';
 
 /** Shown in place of a value that has no meaning yet. */
 const EMPTY_VALUE = '\u2014';
@@ -71,8 +72,7 @@ export function DashboardScreen({
   onOpenTrip: () => void;
   onOpenTicket: (ticketId: string, tripId: string) => void;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const now = useNow();
@@ -429,8 +429,7 @@ export function DashboardScreen({
 
 /** An empty section that is never a bare gap — it says what is missing. */
 function InlineEmpty({ message }: { message: string }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.inlineEmpty}>
       <GlassCard style={styles.inlineEmptyCard}>

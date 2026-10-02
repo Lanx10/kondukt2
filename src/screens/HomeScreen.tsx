@@ -38,6 +38,7 @@ import * as _libApkUpdateProvider from '../lib/ApkUpdateProvider';
 import * as _icons from '../icons';
 import * as _theme from '../theme';
 import * as _libThemeContext from '../lib/themeContext';
+import * as _libUseThemedStyles from '../lib/useThemedStyles';
 import * as _reactJsxRuntime from 'react/jsx-runtime';
 
 
@@ -126,7 +127,7 @@ type SectionKey = keyof typeof SECTIONS | OpenRoute;
    // first saw, so the section chrome and the empty-state card never followed
    // a switch in Advanced Settings. Derived per render instead.
    let theme = (0, _libThemeContext.useKonduktTheme)().theme;
-   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
+   let styles = (0, _libUseThemedStyles.useThemedStyles)(makeStyles);
    let insets = (0, _reactNativeSafeAreaContext.useSafeAreaInsets)();
    let now = (0, _libUseNow.useNow)();
    let [open, setOpen] = _react.useState<SectionKey | null>(null);

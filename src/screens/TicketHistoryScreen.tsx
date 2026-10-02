@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   AccessibilityInfo,
   Animated,
@@ -16,6 +16,7 @@ import { GlassCard } from '../components/GlassCard';
 import { Icon } from '../icons';
 import { onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
+import { useThemedStyles } from '../lib/useThemedStyles';
 import {
   fetchTripWithTickets,
   subscribeToTripWithTickets,
@@ -80,8 +81,7 @@ export function TicketHistoryScreen({
   onSearchRange,
   onOpenTicket,
 }: TicketHistoryScreenProps) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
 
   // The loading branch is honest by construction: `load` starts at loading
@@ -216,7 +216,7 @@ function TicketCard({
   onPress: () => void;
 }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   // The label reads the whole stamp (clock and date); the card's meta line
   // prints the clock only — the reference keeps the date for the ear.
   const label = ticketRowAnnouncement(row, centavos, formatReceiptStamp, tripNumber);
@@ -260,7 +260,7 @@ function TicketCard({
 /** The cards' own shape while the read is in flight — the book's proportions. */
 function LoadingList() {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   // The reference's .sk sweep: the same ink breathing between its own two
   // stops (.05 → .09) on the same 1.4s beat, parked when the system asks for
   // reduced motion — which is what the reference's media query does too.
@@ -339,8 +339,7 @@ function LoadingList() {
  * the read is safe, so it is the one action worth offering.
  */
 function ErrorState({ onRetry }: { onRetry: () => void }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const body =
     'The tickets on this device did not answer, so no card on this screen can be shown. Nothing was lost — they are still in the local store, and Retry reads them again.';
   return (
@@ -383,8 +382,7 @@ function EmptyState({
   tripNumber: string;
   onSearchRange: () => void;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const body = `Trip ${trip ? `#${tripNumber}` : ''} has not sold a ticket yet. A ticket appears here the moment one is issued, with the fare it was bought for.`;
   return (
     <View
@@ -427,7 +425,7 @@ function StorageFooter({
   totals: TicketHistoryTotals | null;
 }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const text =
     load.kind === 'loading'
       ? 'Reading the local store…'

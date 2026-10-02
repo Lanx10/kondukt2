@@ -3,6 +3,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { Icon } from '../../icons';
 import { onPrimarySolid, radius, space, tintedGlass, type, type KonduktTheme } from '../../theme';
 import { useKonduktTheme } from '../../lib/themeContext';
+import { useThemedStyles } from '../../lib/useThemedStyles';
 import { GlassCard } from '../GlassCard';
 import { MONTH_NAMES, WEEKDAY_INITIALS } from '../../lib/calendar';
 import { formatDateLong, startOfDay } from '../../lib/format';
@@ -30,7 +31,7 @@ export function RangeCalendarModal({
   onApply: (start: number, end: number) => void;
 }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   // Re-seeded from today on every open, with the same render-time reset
   // DatePickerModal uses: the component stays mounted under the Modal, so plain
   // useState would reopen on whichever month the user last browsed.

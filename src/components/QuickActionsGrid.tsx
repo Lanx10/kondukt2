@@ -1,9 +1,10 @@
-import { useMemo } from 'react';
+
 import { StyleSheet, Text, View } from 'react-native';
 import { GlassCard } from './GlassCard';
 import { Icon, IconName } from '../icons';
 import { Accent, glassBlur, radius, space, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
+import { useThemedStyles } from '../lib/useThemedStyles';
 
 export type QuickAction = {
   key: string;
@@ -38,7 +39,7 @@ export type QuickAction = {
  */
 function QuickActionCard({ action }: { action: QuickAction }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const tone = theme.accent[action.accent];
   // The reference's tone-primary chip ink is `--primary-solid`; the M3 role
   // colour (#E65100) sits at 3.6:1 on the container where solid clears 5.2.
@@ -72,8 +73,7 @@ function QuickActionCard({ action }: { action: QuickAction }) {
 }
 
 export function QuickActionsGrid({ actions }: { actions: QuickAction[] }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.grid}>
       {actions.map((action) => (

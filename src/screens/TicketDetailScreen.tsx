@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SectionChrome } from '../components/SectionChrome';
@@ -6,6 +6,7 @@ import { GlassCard } from '../components/GlassCard';
 import { Icon } from '../icons';
 import { cardShadow, onAmber, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
+import { useThemedStyles } from '../lib/useThemedStyles';
 import { fetchTripWithTickets, subscribeToTripWithTickets } from '../data/tripTicketsStore';
 import { fetchHistorySummary } from '../data/historyStore';
 import { tripNumber } from '../data/tripHelpers';
@@ -67,8 +68,7 @@ const stamp = formatReceiptStamp;
 const FIG_STACK = 300;
 
 export function TicketDetailScreen({ tripId, ticketId, backLabel, onBack }: TicketDetailScreenProps) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
 
   // Honest loading by construction: `load` starts at loading and only a
@@ -281,7 +281,7 @@ function ReceiptSection({
   stackFigures: boolean;
 }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const live = trip?.status === 'ACTIVE';
   const distance = trip ? distanceLabel(trip.distance_km_milli) : 'Distance not recorded';
   // The two ink sets. On amber: the `onAmber` ramp, the only text colours
@@ -390,8 +390,7 @@ function ReceiptSection({
 }
 
 function Figure({ label, value, amber }: { label: string; value: string; amber: boolean }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.figure}>
       <Text style={[styles.figureValue, amber ? AMBER_INK.primary : null]}>{value}</Text>
@@ -406,8 +405,7 @@ function Figure({ label, value, amber }: { label: string; value: string; amber: 
  * the last — the divider that makes two lists read as records, not prose.
  */
 function FactRow({ label, value, divider = true }: { label: string; value: string; divider?: boolean }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={[styles.factRow, divider && styles.factRowDivider]}>
       <Text style={styles.factKey}>{label}</Text>
@@ -433,8 +431,7 @@ function StateCard({
   onBack: () => void;
   backTestID: string;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const error = tone === 'error';
   const content = (
     <>
@@ -487,8 +484,7 @@ function StateCard({
 
 /** Skeleton inside a glass card — the shape of the receipt is already known. */
 function LoadingState() {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.block}>
       <GlassCard
@@ -508,7 +504,7 @@ function LoadingState() {
 
 function StorageFooter({ state, counts }: { state: 'ready' | 'loading' | 'error'; counts?: Counts }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const text =
     state === 'ready' && counts
       ? `One of ${counts.fares} fares recorded on this device, in a store of ${counts.trips} trips. Nothing is sent anywhere.`

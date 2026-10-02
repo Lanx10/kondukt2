@@ -1,8 +1,9 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Icon, type IconName } from '../icons';
 import { radius, space, type, type Accent, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
+import { useThemedStyles } from '../lib/useThemedStyles';
 import { GlassCard } from './GlassCard';
 
 /** One figure in the summary detail: a tone chip, a label, a value. */
@@ -53,7 +54,7 @@ export function SummaryDisclosure({
   glassTiles?: boolean;
 }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const [open, setOpen] = useState(false);
   const max = Math.max(1, ...bars.map((bar) => bar.count));
 
@@ -167,8 +168,7 @@ export function Skeleton({
   height: number;
   style?: StyleProp<ViewStyle>;
 }): ReactNode {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return <View style={[styles.skeleton, { height }, style]} />;
 }
 

@@ -1,8 +1,9 @@
-import { useMemo, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon, type IconName } from '../icons';
 import { radius, space, type, type Accent, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
+import { useThemedStyles } from '../lib/useThemedStyles';
 import { GlassCard } from './GlassCard';
 
 /** The three accent pairs a row's icon chip can take. */
@@ -58,7 +59,7 @@ export function LedgerRow({
   accessibilityHint?: string;
 }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const body = (
     <GlassCard
       cornerRadius={radius.large}
@@ -151,8 +152,7 @@ export function LedgerRow({
 
 /** The small category chip a ticket row carries in its sub line. */
 export function CategoryChip({ label }: { label: string }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.categoryChip}>
       <Text style={styles.categoryChipLabel}>{label}</Text>

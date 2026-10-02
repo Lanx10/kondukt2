@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SectionChrome } from '../components/SectionChrome';
@@ -21,6 +21,7 @@ import {
   type KonduktTheme,
 } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
+import { useThemedStyles } from '../lib/useThemedStyles';
 import { useUpdates } from '../lib/UpdateProvider';
 import { useApkUpdates } from '../lib/ApkUpdateProvider';
 
@@ -60,7 +61,7 @@ export function SettingsScreen({
 }: SettingsScreenProps) {
   const insets = useSafeAreaInsets();
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   // The OTA update state, owned by the one provider in App.tsx. The card and
   // the "Update available" sheet below are its only surfaces.
   const updates = useUpdates();

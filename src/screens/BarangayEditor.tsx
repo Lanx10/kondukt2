@@ -18,6 +18,7 @@ import { Sheet } from '../components/BottomSheet';
 import { Icon } from '../icons';
 import { maxContentWidth, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
+import { useThemedStyles } from '../lib/useThemedStyles';
 import {
   fetchAllMunicipalities,
   fetchAllTerminals,
@@ -88,7 +89,7 @@ const SUBTITLE = 'Registers a stop and its KM marker';
  */
 export function BarangayEditor({ id, onBack }: BarangayEditorProps) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
 
   // The mode derives from the param, never from state: a route reuse cannot

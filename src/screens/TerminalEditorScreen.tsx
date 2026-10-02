@@ -17,6 +17,7 @@ import { GlassCard } from '../components/GlassCard';
 import { Icon } from '../icons';
 import { maxContentWidth, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
+import { useThemedStyles } from '../lib/useThemedStyles';
 import {
   fetchAllTerminals,
   fetchTerminalById,
@@ -74,7 +75,7 @@ export type TerminalEditorScreenProps = {
  */
 export function TerminalEditorScreen({ terminalId, onBack }: TerminalEditorScreenProps) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
 
   // The mode derives from the param, never from state: a route reuse cannot

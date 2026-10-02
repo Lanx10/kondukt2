@@ -7,7 +7,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { SectionChrome } from '../components/SectionChrome';
 import { SectionHeader } from '../components/SectionHeader';
 import { LocalStorageCard } from '../components/LocalStorageCard';
@@ -16,6 +16,7 @@ import { Skeleton } from '../components/SummaryDisclosure';
 import { Icon } from '../icons';
 import { cardShadow, onAmber, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
+import { useThemedStyles } from '../lib/useThemedStyles';
 import {
   fetchTripWithTickets,
   subscribeToTripWithTickets,
@@ -92,7 +93,7 @@ export function TripTicketsScreen({
   readOnly = false,
 }: TripTicketsScreenProps) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const stackedRows = width < ROW_STACK_WIDTH;
@@ -349,8 +350,7 @@ function TripHero({
   canRecord: boolean;
   onRecord: () => void;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const trip = state.trip;
   const active = trip.status === 'ACTIVE';
   const detail = [
@@ -431,8 +431,7 @@ function TripHero({
 
 /** One figure in the hero's row: the value, then its label. */
 function HeroFigure({ label, value, solid }: { label: string; value: string; solid: boolean }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.heroFigure}>
       <Text style={[styles.heroFigureValue, solid && styles.heroFigureValueSolid]}>
@@ -451,7 +450,7 @@ function HeroFigure({ label, value, solid }: { label: string; value: string; sol
  */
 function GateNote({ state, readOnly }: { state: TripTicketsUiState; readOnly: boolean }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const trip = state.trip;
   const closed = trip.status !== 'ACTIVE';
   const stamp =
@@ -507,8 +506,7 @@ function LedgerRow({
   stacked: boolean;
   onPress: () => void;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const label =
     `${formatRowStamp(row.createdAt)}, ${formatDate(new Date(row.createdAt))}. ` +
     `${passengerTypeLabel(row.passengerType)}, ${plural(row.passengerQuantity, 'passenger')} ` +
@@ -578,7 +576,7 @@ function LedgerRow({
  */
 function CategoryChip({ type }: { type: TicketRowRecord['passenger_type'] }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const discounted = type !== 'REGULAR';
   return (
     <View
@@ -601,8 +599,7 @@ function CategoryChip({ type }: { type: TicketRowRecord['passenger_type'] }) {
 
 /** The storage footer, under every branch. */
 function StorageFooter() {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.storageSlot}>
       <LocalStorageCard />

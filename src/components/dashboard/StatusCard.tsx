@@ -1,8 +1,9 @@
-import { useMemo, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon, type IconName } from '../../icons';
 import { cardShadow, onAmber, onPrimarySolid, radius, space, type, type KonduktTheme } from '../../theme';
 import { useKonduktTheme } from '../../lib/themeContext';
+import { useThemedStyles } from '../../lib/useThemedStyles';
 import { GlassCard } from '../GlassCard';
 
 /**
@@ -48,7 +49,7 @@ export function StatusCard({
   onPress?: () => void;
 }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const solid = tone === 'active';
   const isError = tone === 'error';
   // White on the solid orange button, dark on the amber card, neutral elsewhere.

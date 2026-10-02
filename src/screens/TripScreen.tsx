@@ -7,13 +7,14 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { SectionChrome } from '../components/SectionChrome';
 import { LocalStorageCard } from '../components/LocalStorageCard';
 import { GlassCard } from '../components/GlassCard';
 import { Icon } from '../icons';
 import { onAmber, radius, space, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
+import { useThemedStyles } from '../lib/useThemedStyles';
 import {
   endActiveTrip,
   fetchTripBoard,
@@ -53,7 +54,7 @@ export type TripScreenProps = {
  */
 export function TripScreen({ onBack, onOpenTickets, onAddTrip, onViewAllTrips }: TripScreenProps) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const stacked = width < ROW_STACK_WIDTH;
@@ -197,8 +198,7 @@ export function TripScreen({ onBack, onOpenTickets, onAddTrip, onViewAllTrips }:
 
 /** The running trip: number, route, distance, start, live elapsed, status. */
 function ActiveTripCard({ trip }: { trip: TripRowRecord }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   // One-second ticker, mounted with the screen and torn down with it. The
   // keepalive is non-zero — a zero holdoff froze the elapsed clock whenever
   // the screen lost focus and let it stutter on return.
@@ -255,7 +255,7 @@ function ActiveTripActions({
   onOpenTickets: (tripId: number) => void;
 }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.gutter}>
       <Pressable
@@ -281,7 +281,7 @@ function ActiveTripActions({
  */
 function EndTripButton({ trip }: { trip: TripRowRecord }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const [pending, setPending] = useState(false);
   const [failure, setFailure] = useState<Extract<EndTripResult, 'noActiveTrip' | 'failed'> | null>(null);
 
@@ -358,8 +358,7 @@ function EndTripDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   if (!visible) return null;
   return (
     <View style={styles.dialogScrim}>
@@ -396,8 +395,7 @@ function EndTripDialog({
 
 /** Empty current-trip state, in the Home empty-card language. */
 function EmptyCurrentTrip() {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.gutter}>
       <GlassCard style={styles.card}>
@@ -415,7 +413,7 @@ function EmptyCurrentTrip() {
 /** The add-trip action, only ever shown when no trip is running. */
 function AddTripCard({ onPress }: { onPress: () => void }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <GlassCard style={styles.gutter}>
       <Pressable
@@ -449,7 +447,7 @@ function CompletedTripRow({
   onPress: () => void;
 }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const label =
     `${tripRoute(trip)}. Completed. ` +
     `Started ${formatShortTime(trip.started_at)}` +

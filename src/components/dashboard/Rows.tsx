@@ -7,7 +7,8 @@ import { passengerTypeLabel } from '../../lib/tripTicketsFormat';
 import { formatShortTime } from '../../lib/tripScreenFormat';
 import { formatDate, php } from '../../lib/format';
 import { type, type KonduktTheme } from '../../theme';
-import { useKonduktTheme } from '../../lib/themeContext';
+
+import { useThemedStyles } from '../../lib/useThemedStyles';
 
 /** What one trip's ledger adds up to, for the trip row's meta line. */
 export type TripAggregate = {
@@ -110,8 +111,7 @@ export function TicketRow({
   stacked: boolean;
   onPress?: () => void;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const route = placeSummary(ticket.from, ticket.to);
   const total = ticketTotal(ticket);
   // The stored category reads `Pwd` / `Senior Citizen`; the reference and the

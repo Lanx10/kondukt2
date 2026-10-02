@@ -1,8 +1,9 @@
-import { useMemo, ReactNode } from 'react';
+import { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon, type IconName } from '../../icons';
 import { cardShadow, glassBlur, onAmber, onPrimarySolid, radius, space, tintedGlass, type, type KonduktTheme } from '../../theme';
-import { useKonduktTheme } from '../../lib/themeContext';
+
+import { useThemedStyles } from '../../lib/useThemedStyles';
 import { GlassCard } from '../GlassCard';
 import { Skeleton } from '../SummaryDisclosure';
 
@@ -46,8 +47,7 @@ export function HomeHero({
   actions?: HeroAction[];
   titleSuffix?: string;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const running = state === 'running';
   const failed = state === 'error';
 

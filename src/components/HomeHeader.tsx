@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   AccessibilityInfo,
   Animated,
@@ -9,7 +9,8 @@ import {
   View,
 } from 'react-native';
 import { radius, space, type, type KonduktTheme } from '../theme';
-import { useKonduktTheme } from '../lib/themeContext';
+
+import { useThemedStyles } from '../lib/useThemedStyles';
 
 /**
  * The app's one header: mark, wordmark, and a tagline that states what the app
@@ -25,8 +26,7 @@ import { useKonduktTheme } from '../lib/themeContext';
  * the system asks for reduced motion.
  */
 export function HomeHeader({ tagline, tripLabel }: { tagline: string; tripLabel?: string }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.root}>
       {/* The favicon itself, bare — no badge card behind it. */}
@@ -52,8 +52,7 @@ export function HomeHeader({ tagline, tripLabel }: { tagline: string; tripLabel?
 
 /** The live-trip pill, and its pulse. */
 function TripPill({ label }: { label: string }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   // useState, not useRef: an Animated.Value is a value, and reading a ref's
   // `.current` during render is what the compiler lint rule refuses.
   const [pulse] = useState(() => new Animated.Value(1));

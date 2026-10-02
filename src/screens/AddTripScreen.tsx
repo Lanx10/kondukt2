@@ -1,6 +1,6 @@
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useUpdateGuard } from '../lib/updateGuard';
 import { SectionChrome } from '../components/SectionChrome';
 import { GlassCard } from '../components/GlassCard';
@@ -8,6 +8,7 @@ import { DetailCard, DetailRow, Handoff, Sheet } from '../components/BottomSheet
 import { Icon } from '../icons';
 import { onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
+import { useThemedStyles } from '../lib/useThemedStyles';
 import {
   fetchActiveTerminals,
   fetchAllMunicipalities,
@@ -82,7 +83,7 @@ export function AddTripScreen({
   onOpenFareSettings,
 }: AddTripScreenProps) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   // While a route is being chosen, the update system must not pop its
   // "Update available" sheet or restart the app over this form.
@@ -769,7 +770,7 @@ function TerminalField({
   onPress: () => void;
 }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <Pressable
       onPress={onPress}
@@ -810,8 +811,7 @@ function RoadButton({
   pressed: boolean;
   onPress: () => void;
 }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <Pressable
       onPress={onPress}
@@ -833,8 +833,7 @@ function RoadButton({
 
 /** One estimate line: label at the left, the tabular figure at the right. */
 function EstRow({ k, v, last = false }: { k: string; v: string; last?: boolean }) {
-  const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={[styles.estRow, last && styles.estRowLast]}>
       <Text style={styles.estKey}>{k}</Text>
@@ -870,7 +869,7 @@ function PickerSheet({
   onPick: (terminal: TerminalRowRecord) => void;
 }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const results = filterTerminals(terminals, query);
   const muniName = (stop: TerminalRowRecord) =>
     stop.municipality_id != null

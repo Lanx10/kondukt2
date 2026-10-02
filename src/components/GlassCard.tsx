@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -11,6 +11,7 @@ import {
 import { BlurView } from 'expo-blur';
 import { cardShadow, radius, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
+import { useThemedStyles } from '../lib/useThemedStyles';
 
 /**
  * Liquid glass surface.
@@ -98,7 +99,7 @@ export function GlassCard({
   | 'testID'
 >) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   // The blur tints whatever it samples, so it has to follow the mode: a light
   // tint over a dark backdrop washes the panel out to grey.
   const blurTint = theme.mode === 'dark' ? 'dark' : 'light';

@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
+
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Icon, type IconName } from '../icons';
 import { radius, space, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
+import { useThemedStyles } from '../lib/useThemedStyles';
 import { GlassCard } from './GlassCard';
 
 /**
@@ -34,7 +35,7 @@ export function LocalStorageCard({
   style?: StyleProp<ViewStyle>;
 }) {
   const { theme } = useKonduktTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const styles = useThemedStyles(makeStyles);
   const iconColor = tone === 'muted' ? theme.palette.onSurfaceVariant : theme.accent.tertiary.fg;
   const containerColor =
     tone === 'muted' ? theme.palette.surfaceContainer : theme.accent.tertiary.container;
