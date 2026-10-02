@@ -149,8 +149,8 @@ export function AdvancedSettingsScreen({ onBack }: AdvancedSettingsScreenProps) 
             </Text>
 
             {/* One radio group over two options: the setting is one boolean.
-                The group is labelled by the heading above it, and selection
-                is a mark plus a border plus aria-selected — never a tint. */}
+                The group is labelled by the heading above it, and selection is
+                the solid fill plus a mark plus aria-selected. */}
             <View
               testID="as-modes"
               accessibilityRole="radiogroup"
@@ -178,13 +178,14 @@ export function AdvancedSettingsScreen({ onBack }: AdvancedSettingsScreenProps) 
                       selected && styles.optionSelected,
                       pressed && styles.pressed,
                     ]}
-                  >                      <View style={[styles.chip, selected && styles.chipSelected]}>
+                  >
+                    <View style={[styles.chip, selected && styles.chipSelected]}>
                       <Icon
                         name={option.icon}
                         size={22}
                         color={
                           selected
-                            ? theme.palette.onPrimary
+                            ? theme.palette.primary
                             : theme.palette.onTertiaryContainer
                         }
                       />
@@ -206,7 +207,7 @@ export function AdvancedSettingsScreen({ onBack }: AdvancedSettingsScreenProps) 
                       importantForAccessibility="no-hide-descendants"
                     >
                       {selected ? (
-                        <Icon name="check" size={13} color={theme.palette.onPrimary} />
+                        <Icon name="check" size={13} color={theme.palette.primary} />
                       ) : null}
                     </View>
                   </Pressable>
@@ -218,24 +219,6 @@ export function AdvancedSettingsScreen({ onBack }: AdvancedSettingsScreenProps) 
               Applies the moment you tap it. There is nothing to save.
             </Text>
           </View>
-
-          {/* The one button this screen carries. It names the version it
-              replaces, so the tap says what happens; it sits under the button,
-              never above it. ponytail: the reference prototype binds no handler
-              either — wire it to an update channel when the app ships one. */}
-          <Pressable
-            testID="as-update"
-            accessibilityRole="button"
-            accessibilityLabel="Update app"
-            onPress={() => {}}
-            style={({ pressed }) => [styles.updateBtn, pressed && styles.pressed]}
-          >
-            <Text style={styles.updateBtnLabel}>Update app</Text>
-          </Pressable>
-          <Text testID="as-update-note" style={styles.updateNote}>
-            Installs over Kondukt 1.0.0, the version on this handset. Everything saved here
-            stays.
-          </Text>
 
           {/* What the app can actually prove about the value — each fact is
               about the value, not about the UI. This is what fills the screen
@@ -348,12 +331,21 @@ const makeStyles = (theme: KonduktTheme) =>
       backgroundColor: theme.glass.tint,
       ...cardShadow,
     },
-    // The chosen option is the reference's pale container on an accent
-    // boundary — the mark, the chip and the border carry the selection, not a
-    // flood of solid orange under text that has to stay readable.
+    // The chosen option goes SOLID: the accent fills the whole panel and every
+    // piece of text on it turns to on-primary. This replaces a pale
+    // primary-container wash, which read as "slightly tinted" rather than as
+    // "this is the mode you are in" — the question the tap is answering. The
+    // contrast is not a gamble: `onPrimary` on `primary` is the pairing the
+    // accent itself is measured at (7.57:1), so the solid fill is the same
+    // contrast the accent always had, just applied to a larger area.
+    //
+    // Every child inverts with it — chip, title, sub and mark — because a
+    // single accent-coloured piece left on a solid accent would disappear.
+    // Border width stays 1px in both states, so choosing a mode cannot resize
+    // the pair and shift the layout under the tap.
     optionSelected: {
-      borderColor: theme.glass.accentPrimary,
-      backgroundColor: theme.palette.primaryContainer,
+      borderColor: theme.palette.primary,
+      backgroundColor: theme.palette.primary,
     },
     pressed: { opacity: 0.88 },
     chip: {
@@ -365,22 +357,25 @@ const makeStyles = (theme: KonduktTheme) =>
       backgroundColor: theme.palette.tertiaryContainer,
       flexShrink: 0,
     },
-    chipSelected: { backgroundColor: theme.palette.primary },
+    // The chip inverts with the panel: a light chip carrying the accent icon,
+    // so it stays legible on the solid fill instead of dissolving into it.
+    chipSelected: { backgroundColor: theme.palette.onPrimary },
     optionBody: { flex: 1, minWidth: 0 },
     optionTitle: {
       ...type.titleMedium,
       color: theme.glass.onGlass,
     },
-    optionTitleSelected: { color: theme.palette.onPrimaryContainer },
+    optionTitleSelected: { color: theme.palette.onPrimary },
     optionSub: {
       ...type.bodySmall,
       color: theme.glass.onGlassVariant,
       marginTop: 2,
     },
-    optionSubSelected: { color: theme.palette.onPrimaryContainer },
+    optionSubSelected: { color: theme.palette.onPrimary },
     // 20px ring: the selection mark the shipped screen never had. Rest is a
-    // plain --outline ring; chosen fills with the accent and knocks the tick
-    // out in on-primary — 7.57:1, the reference's own measurement.
+    // plain --outline ring; chosen fills with on-primary and knocks the tick
+    // out in primary — inverting with the panel, so the tick reads on the
+    // solid fill rather than matching it.
     mark: {
       width: 20,
       height: 20,
@@ -392,30 +387,12 @@ const makeStyles = (theme: KonduktTheme) =>
       flexShrink: 0,
     },
     markSelected: {
-      borderColor: theme.glass.accentPrimary,
-      backgroundColor: theme.glass.accentPrimary,
+      borderColor: theme.palette.onPrimary,
+      backgroundColor: theme.palette.onPrimary,
     },
 
     // ── the commit caption ──
     commitHint: {
-      ...type.bodySmall,
-      color: theme.glass.onGlassVariant,
-      marginTop: space(3),
-    },
-
-    // ── the one committing action ──
-    // The screen's only solid primary, full-width, sitting under the button it
-    // describes — never above it.
-    updateBtn: {
-      minHeight: 48,
-      marginTop: 14,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderRadius: radius.large,
-      backgroundColor: theme.palette.primarySolid,
-    },
-    updateBtnLabel: { ...type.labelLarge, color: '#FFFFFF' },
-    updateNote: {
       ...type.bodySmall,
       color: theme.glass.onGlassVariant,
       marginTop: space(3),

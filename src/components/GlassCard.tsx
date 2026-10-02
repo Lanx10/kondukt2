@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -9,7 +9,8 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { cardShadow, glass, radius } from '../theme';
+import { cardShadow, radius, type KonduktTheme } from '../theme';
+import { useKonduktTheme } from '../lib/themeContext';
 
 /**
  * Liquid glass surface.
@@ -30,6 +31,15 @@ import { cardShadow, glass, radius } from '../theme';
  *
  * `intensity` is how hard the blur bites, mapped from frostBlurRadius. Keep it
  * low to stay crisp; raise it toward 40 to frost.
+ *
+ * **The glass tokens are read from the theme, not imported as constants.**
+ * This card used to read the light `glass` object at module scope and hard-code
+ * `tint="light"` on the blur, which froze every panel in the app to the light
+ * palette: in Dark mode a card painted its light tint — a pale panel floating
+ * on a dark backdrop — because the tokens it needed were right there in
+ * `darkGlass` and never consulted. Reading `theme.glass` costs one render and
+ * is the whole difference between a surface that belongs to the mode it is in
+ * and one that does not.
  */
 export function GlassCard({
   children,
@@ -87,13 +97,19 @@ export function GlassCard({
   | 'accessibilityState'
   | 'testID'
 >) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
+  // The blur tints whatever it samples, so it has to follow the mode: a light
+  // tint over a dark backdrop washes the panel out to grey.
+  const blurTint = theme.mode === 'dark' ? 'dark' : 'light';
+
   const body = (
     <>
       {/* Blur is the only thing here that samples what is behind the card, so
           it must sit directly on the backdrop, under every other layer. */}
       <BlurView
         intensity={intensity}
-        tint="light"
+        tint={blurTint}
         // The spec calls for a fully transparent glass tint — let the backdrop
         // come through untouched.
         experimentalBlurMethod="dimezisBlurView"
@@ -107,7 +123,7 @@ export function GlassCard({
       <View
         style={[
           styles.innerRim,
-          { borderRadius: cornerRadius, borderColor: tint ? 'transparent' : rim ?? glass.rim },
+          { borderRadius: cornerRadius, borderColor: tint ? 'transparent' : rim ?? theme.glass.rim },
         ]}
         pointerEvents="none"
       />
@@ -138,29 +154,34 @@ export function GlassCard({
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    overflow: 'hidden',
-    borderRadius: radius.glass,
-    backgroundColor: glass.tint,
-    // Shared with every filled card on the page, so a panel can't end up at a
-    // depth its neighbours aren't at. See `cardShadow`.
-    ...cardShadow,
-  },
-  innerRim: {
-    // absoluteFill, not absoluteFillObject: RN 0.86's types no longer declare
-    // the latter. They are the same frozen style object, and absoluteFill is
-    // still typed and still present at runtime.
-    ...StyleSheet.absoluteFill,
-    borderRadius: radius.glass,
-    // The white bleed along the lit edge — the -5 spread means it stops well
-    // short of the centre, so a 1px ring reads correctly and costs nothing.
-    borderWidth: 1,
-  },
-  noise: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: glass.grain,
-    opacity: 0.035,
-  },
-  pressed: { opacity: 0.88 },
-});
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
+    root: {
+      overflow: 'hidden',
+      borderRadius: radius.glass,
+      backgroundColor: theme.glass.tint,
+      // Shared with every filled card on the page, so a panel can't end up at a
+      // depth its neighbours aren't at. See `cardShadow`. The geometry is the
+      // shared token; only the shadow's COLOUR follows the mode — light's token
+      // bakes in a light `glass.shadow`, and casting a light shadow from a dark
+      // panel is what makes a dark surface look pasted on.
+      ...cardShadow,
+      shadowColor: theme.glass.shadow,
+    },
+    innerRim: {
+      // absoluteFill, not absoluteFillObject: RN 0.86's types no longer declare
+      // the latter. They are the same frozen style object, and absoluteFill is
+      // still typed and still present at runtime.
+      ...StyleSheet.absoluteFill,
+      borderRadius: radius.glass,
+      // The white bleed along the lit edge — the -5 spread means it stops well
+      // short of the centre, so a 1px ring reads correctly and costs nothing.
+      borderWidth: 1,
+    },
+    noise: {
+      ...StyleSheet.absoluteFill,
+      backgroundColor: theme.glass.grain,
+      opacity: 0.035,
+    },
+    pressed: { opacity: 0.88 },
+  });
