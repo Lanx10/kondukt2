@@ -6,6 +6,7 @@ import * as _componentsSectionChrome from '../components/SectionChrome';
 import * as _componentsBottomSheet from '../components/BottomSheet';
 import * as _icons from '../icons';
 import * as _theme from '../theme';
+import * as _libThemeContext from '../lib/themeContext';
 import * as _dataTripTicketsStore from '../data/tripTicketsStore';
 import * as _dataFareStore from '../data/fareStore';
 import * as _libAddTicketFare from '../lib/addTicketFare';
@@ -71,6 +72,11 @@ type Observation = {
    onBack,
    onOpenFareSettings
  }: { [key: string]: any }) {
+   // The stylesheet below is built at module scope, so it froze to whichever
+   // theme mode the process first saw. Every component that reads `styles`
+   // derives it from the live theme instead.
+   let theme = (0, _libThemeContext.useKonduktTheme)().theme;
+   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
    let insets = (0, _reactNativeSafeAreaContext.useSafeAreaInsets)();
    let [observation, setObservation] = _react.useState<Observation>(EMPTY_OBSERVATION);
    let [retryToken, setRetryToken] = (0, _react.useState)(0);
@@ -509,7 +515,7 @@ type Observation = {
            children: [/*#__PURE__*/(0, _reactJsxRuntime.jsx)(_icons.Icon, {
              name: "database",
              size: 18,
-             color: _theme.glass.accentTertiary
+             color: theme.glass.accentTertiary
            }), /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.Text, {
              style: styles.storageNote,
              children: "Stored on this device only. The fare is calculated from the trip and the fare rules, and the number is saved with the ticket."
@@ -573,6 +579,8 @@ type Observation = {
    onOpenBoard,
    onOpenDrop
  }: { [key: string]: any }) {
+   let theme = (0, _libThemeContext.useKonduktTheme)().theme;
+   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
    let legWarning = board !== null && drop !== null ? warning : null;
    return /*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_reactJsxRuntime.Fragment, {
      children: [/*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_componentsGlassCard.GlassCard, {
@@ -618,6 +626,8 @@ type Observation = {
    terminal,
    onPress
  }: { [key: string]: any }) {
+   let theme = (0, _libThemeContext.useKonduktTheme)().theme;
+   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
    return /*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_reactNative.Pressable, {
      onPress: onPress,
      testID: testID,
@@ -631,7 +641,7 @@ type Observation = {
        children: /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_icons.Icon, {
          name: "terminal",
          size: 20,
-         color: _theme.palette.onTertiaryContainer
+         color: theme.palette.onTertiaryContainer
        })
      }), /*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_reactNative.View, {
        style: styles.fieldBody,
@@ -646,7 +656,7 @@ type Observation = {
      }), /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_icons.Icon, {
        name: "chevron",
        size: 18,
-       color: _theme.palette.onSurfaceVariant
+       color: theme.palette.onSurfaceVariant
      })]
    });
  }
@@ -665,6 +675,8 @@ type Observation = {
    onChange,
    rules
  }: { [key: string]: any }) {
+   let theme = (0, _libThemeContext.useKonduktTheme)().theme;
+   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
    return /*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_componentsGlassCard.GlassCard, {
      testID: "at-road-card",
      style: styles.card,
@@ -703,6 +715,8 @@ type Observation = {
    pressed,
    onPress
  }: { [key: string]: any }) {
+   let theme = (0, _libThemeContext.useKonduktTheme)().theme;
+   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
    return /*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_reactNative.Pressable, {
      onPress: onPress,
      testID: testID,
@@ -738,6 +752,8 @@ type Observation = {
    onType,
    onQuantity
  }: { [key: string]: any }) {
+   let theme = (0, _libThemeContext.useKonduktTheme)().theme;
+   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
    return /*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_componentsGlassCard.GlassCard, {
      testID: "at-pax-card",
      style: styles.card,
@@ -806,7 +822,7 @@ type Observation = {
          children: /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_icons.Icon, {
            name: "plus",
            size: 20,
-           color: _theme.palette.onPrimary
+           color: _theme.onPrimarySolid
          })
        })]
      })]
@@ -834,6 +850,8 @@ type Observation = {
    tripNumber,
    onOpenRules
  }: { [key: string]: any }) {
+   let theme = (0, _libThemeContext.useKonduktTheme)().theme;
+   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
    let notes = breakdown ? (0, _libAddTicketFare.minimumNotes)(breakdown, rules) : [];
    let pax = (0, _libAddTicketFare.clampQuantity)(quantity);
    return /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.View, {
@@ -921,6 +939,8 @@ type Observation = {
    label,
    value
  }: { [key: string]: any }) {
+   let theme = (0, _libThemeContext.useKonduktTheme)().theme;
+   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
    return /*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_reactNative.View, {
      style: styles.calcRow,
      children: [/*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.Text, {
@@ -941,6 +961,8 @@ type Observation = {
    onClose,
    onSelect
  }: { [key: string]: any }) {
+   let theme = (0, _libThemeContext.useKonduktTheme)().theme;
+   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
    // One sheet, two titles, gated on which end of the route asked for it — a
    // `visible` shortcut would leave the modal mounted for the whole screen.
    let [query, setQuery] = (0, _react.useState)('');
@@ -959,7 +981,7 @@ type Observation = {
         value: query,
         onChangeText: setQuery,
         placeholder: "Search barangay names",
-        placeholderTextColor: _theme.palette.outline,
+        placeholderTextColor: theme.palette.outline,
         accessibilityLabel: kind === SIDE.DROP ? "Search destination barangays" : "Search boarding point barangays",
         style: styles.search
       }), /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.FlatList, {
@@ -1039,6 +1061,8 @@ type Observation = {
    rules,
    onClose
  }: { [key: string]: any }) {
+   let theme = (0, _libThemeContext.useKonduktTheme)().theme;
+   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
    if (!visible) return null;
    return /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_componentsBottomSheet.Sheet, {
      kind: "rules",
@@ -1103,6 +1127,8 @@ type Observation = {
    tripTicketCount,
    onRecordAnother
  }: { [key: string]: any }) {
+   let theme = (0, _libThemeContext.useKonduktTheme)().theme;
+   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
    if (!visible || !recorded) return null;
    return /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_componentsBottomSheet.Sheet, {
      kind: "recorded",
@@ -1186,6 +1212,8 @@ type Observation = {
    usesExpressWay,
    onClose
  }: { [key: string]: any }) {
+   let theme = (0, _libThemeContext.useKonduktTheme)().theme;
+   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
    if (!visible || !ticket) return null;
    // A full-trip rider's leg is the trip's own distance. Any other leg was never
    // stored, and the sheet says so instead of borrowing the trip's number.
@@ -1244,6 +1272,8 @@ type Observation = {
  /** The one dead end: the trip's own details, then a way to Trip tickets. */
  /** The loading state. Skeleton rows, not a spinner: the shape is already known. */
  function LoadingState() {
+   let theme = (0, _libThemeContext.useKonduktTheme)().theme;
+   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
    return /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.View, {
      testID: "at-rules",
      style: styles.gutter,
@@ -1279,7 +1309,7 @@ type Observation = {
  function passengerTypeLabel(type: any) {
    return _libAddTicketFare.PASSENGER_TYPES.find(entry => entry.key === type)?.label ?? type;
  }
- const styles = _reactNative.StyleSheet.create({
+ const makeStyles = (theme: _theme.KonduktTheme) => _reactNative.StyleSheet.create({
    screen: {
      flex: 1
    },
@@ -1302,7 +1332,7 @@ type Observation = {
    },
    sectionLabel: {
      ..._theme.type.labelSmall,
-     color: _theme.palette.onSurfaceVariant
+     color: theme.palette.onSurfaceVariant
    },
    sectionHead: {
      flexDirection: 'row',
@@ -1313,7 +1343,7 @@ type Observation = {
    },
    sectionTotal: {
      ..._theme.type.titleMedium,
-     color: _theme.palette.onSurface,
+     color: theme.palette.onSurface,
      fontVariant: ['tabular-nums']
    },
    // ROUTE
@@ -1328,8 +1358,8 @@ type Observation = {
      paddingHorizontal: (0, _theme.space)(3),
      borderRadius: _theme.radius.large,
      borderWidth: 1,
-     borderColor: _theme.palette.outlineVariant,
-     backgroundColor: _theme.palette.surfaceContainerLowest
+     borderColor: theme.palette.outlineVariant,
+     backgroundColor: theme.palette.surfaceContainerLowest
    },
    fieldIcon: {
      width: 36,
@@ -1337,7 +1367,7 @@ type Observation = {
      alignItems: 'center',
      justifyContent: 'center',
      borderRadius: _theme.radius.medium,
-     backgroundColor: _theme.palette.tertiaryContainer
+     backgroundColor: theme.palette.tertiaryContainer
    },
    fieldBody: {
      flex: 1,
@@ -1345,15 +1375,15 @@ type Observation = {
    },
    fieldLabel: {
      ..._theme.type.labelSmall,
-     color: _theme.palette.onSurfaceVariant
+     color: theme.palette.onSurfaceVariant
    },
    fieldValue: {
      ..._theme.type.titleMedium,
-     color: _theme.palette.onSurface
+     color: theme.palette.onSurface
    },
    fieldPlaceholder: {
      ..._theme.type.bodyMedium,
-     color: _theme.palette.outline
+     color: theme.palette.outline
    },
    leg: {
      flexDirection: 'row',
@@ -1367,16 +1397,16 @@ type Observation = {
    legLine: {
      flex: 1,
      height: 1,
-     backgroundColor: _theme.palette.outline
+     backgroundColor: theme.palette.outline
    },
    legText: {
      ..._theme.type.bodySmall,
-     color: _theme.palette.onSurfaceVariant,
+     color: theme.palette.onSurfaceVariant,
      fontVariant: ['tabular-nums']
    },
    legWarning: {
      ..._theme.type.bodySmall,
-     color: _theme.palette.error
+     color: theme.palette.error
    },
    // The reference hangs the refusal under the card, not inside it: the card
    // holds the two choices, the sentence below explains why they do not price.
@@ -1397,39 +1427,39 @@ type Observation = {
      paddingHorizontal: (0, _theme.space)(3),
      borderRadius: _theme.radius.large,
      borderWidth: 1,
-     borderColor: _theme.palette.outlineVariant,
-     backgroundColor: _theme.palette.surfaceContainerLowest
+     borderColor: theme.palette.outlineVariant,
+     backgroundColor: theme.palette.surfaceContainerLowest
    },
    // Clicked = solid: a chosen control inverts to the brand fill, so one
    // orange means one thing on this screen (the reference's .seg-route rule).
    roadButtonActive: {
-     backgroundColor: _theme.palette.primarySolid,
-     borderColor: _theme.palette.primarySolid,
+     backgroundColor: theme.palette.primarySolid,
+     borderColor: theme.palette.primarySolid,
      borderWidth: 2
    },
    roadTitle: {
      ..._theme.type.titleMedium,
-     color: _theme.palette.onSurface
+     color: theme.palette.onSurface
    },
    roadTitleActive: {
-     color: _theme.palette.onPrimary
+     color: _theme.onPrimarySolid
    },
    roadSub: {
      ..._theme.type.bodySmall,
-     color: _theme.palette.onSurfaceVariant
+     color: theme.palette.onSurfaceVariant
    },
    roadSubActive: {
-     color: _theme.palette.onPrimary
+     color: _theme.onPrimarySolid
    },
    note: {
      marginTop: (0, _theme.space)(3),
      padding: (0, _theme.space)(3),
      borderRadius: _theme.radius.medium,
-     backgroundColor: _theme.palette.secondaryContainer
+     backgroundColor: theme.palette.secondaryContainer
    },
    noteText: {
      ..._theme.type.bodySmall,
-     color: _theme.palette.onSecondaryContainer
+     color: theme.palette.onSecondaryContainer
    },
    // PASSENGERS
    // Four category pills sharing the card's full width on one line. Content-sized
@@ -1449,19 +1479,19 @@ type Observation = {
      justifyContent: 'center',
      borderRadius: _theme.radius.full,
      borderWidth: 1,
-     borderColor: _theme.palette.outline
+     borderColor: theme.palette.outline
    },
    chipSelected: {
-     backgroundColor: _theme.palette.primarySolid,
-     borderColor: _theme.palette.primarySolid,
+     backgroundColor: theme.palette.primarySolid,
+     borderColor: theme.palette.primarySolid,
      borderWidth: 2
    },
    chipLabel: {
      ..._theme.type.labelSmall,
-     color: _theme.palette.onSurfaceVariant
+     color: theme.palette.onSurfaceVariant
    },
    chipLabelSelected: {
-     color: _theme.palette.onPrimary
+     color: _theme.onPrimarySolid
    },
    stepper: {
      flexDirection: 'row',
@@ -1475,8 +1505,8 @@ type Observation = {
      justifyContent: 'center',
      borderRadius: _theme.radius.full,
      borderWidth: 1,
-     borderColor: _theme.palette.primarySolid,
-     backgroundColor: _theme.palette.primarySolid
+     borderColor: theme.palette.primarySolid,
+     backgroundColor: theme.palette.primarySolid
    },
    // .8, not .4: the glyph and its fill composite under opacity, and .8 is the
    // floor that clears 3:1 on the orange fill (the reference's own rule).
@@ -1485,11 +1515,11 @@ type Observation = {
    },
    stepperGlyph: {
      ..._theme.type.titleMedium,
-     color: _theme.palette.onPrimary
+     color: _theme.onPrimarySolid
    },
    stepperValue: {
      ..._theme.type.titleMedium,
-     color: _theme.palette.onSurface,
+     color: theme.palette.onSurface,
      fontVariant: ['tabular-nums']
    },
    // FARE — the one amber card. Never GlassCard: a translucent tint over the
@@ -1499,7 +1529,7 @@ type Observation = {
      marginTop: (0, _theme.space)(5),
      padding: (0, _theme.space)(5),
      borderRadius: _theme.radius.glass,
-     backgroundColor: _theme.palette.secondary,
+     backgroundColor: theme.palette.secondary,
      ..._theme.cardShadow
    },
    fareLabel: {
@@ -1586,14 +1616,14 @@ color: _theme.onAmber.muted,
      borderRadius: _theme.radius.large,
      // Solid orange. This one had no fill at all after the glass sweep, so the
      // white label floated on the page background.
-     backgroundColor: _theme.palette.primarySolid
+     backgroundColor: theme.palette.primarySolid
    },
    solidButtonDisabled: {
      opacity: 0.45
    },
    solidButtonLabel: {
      ..._theme.type.labelLarge,
-     color: '#FFFFFF'
+     color: _theme.onPrimarySolid
    },
    ghostButton: {
      minHeight: 48,
@@ -1603,20 +1633,20 @@ color: _theme.onAmber.muted,
      paddingHorizontal: (0, _theme.space)(4),
      borderRadius: _theme.radius.large,
      borderWidth: 1,
-     borderColor: _theme.palette.outline
+     borderColor: theme.palette.outline
    },
    ghostButtonLabel: {
      ..._theme.type.labelLarge,
-     color: _theme.palette.onSurface
+     color: theme.palette.onSurface
    },
    blockReason: {
      ..._theme.type.bodySmall,
-     color: _theme.palette.error,
+     color: theme.palette.error,
      marginTop: (0, _theme.space)(2)
    },
    hint: {
      ..._theme.type.bodySmall,
-     color: _theme.palette.onSurfaceVariant,
+     color: theme.palette.onSurfaceVariant,
      marginTop: (0, _theme.space)(2)
    },
    // RECENT
@@ -1644,7 +1674,7 @@ color: _theme.onAmber.muted,
    },
    recentRoute: {
      ..._theme.type.titleMedium,
-     color: _theme.palette.onSurface
+     color: theme.palette.onSurface
    },
    recentMeta: {
      flexDirection: 'row',
@@ -1655,7 +1685,7 @@ color: _theme.onAmber.muted,
    },
    recentMetaText: {
      ..._theme.type.bodySmall,
-     color: _theme.palette.onSurfaceVariant,
+     color: theme.palette.onSurfaceVariant,
      flexShrink: 1
    },
    // The fare-type chip the ledger rows wear: regular takes the pale primary
@@ -1667,30 +1697,30 @@ color: _theme.onAmber.muted,
      borderRadius: _theme.radius.full
    },
    recentCatRegular: {
-     backgroundColor: _theme.palette.primaryContainer,
-     color: _theme.palette.onPrimaryContainer
+     backgroundColor: theme.palette.primaryContainer,
+     color: theme.palette.onPrimaryContainer
    },
    recentCatDiscount: {
-     backgroundColor: _theme.palette.tertiaryContainer,
-     color: _theme.palette.onTertiaryContainer
+     backgroundColor: theme.palette.tertiaryContainer,
+     color: theme.palette.onTertiaryContainer
    },
    recentSide: {
      alignItems: 'flex-end'
    },
    recentAmount: {
      ..._theme.type.titleMedium,
-     color: _theme.palette.onSurface,
+     color: theme.palette.onSurface,
      fontVariant: ['tabular-nums']
    },
    recentId: {
      ..._theme.type.bodySmall,
-     color: _theme.palette.onSurfaceVariant,
+     color: theme.palette.onSurfaceVariant,
      marginTop: (0, _theme.space)(1),
      fontVariant: ['tabular-nums']
    },
    capLine: {
      ..._theme.type.bodySmall,
-     color: _theme.palette.onSurfaceVariant,
+     color: theme.palette.onSurfaceVariant,
      marginHorizontal: (0, _theme.space)(5),
      marginTop: (0, _theme.space)(1)
    },
@@ -1709,7 +1739,7 @@ color: _theme.onAmber.muted,
    },
    storageNote: {
      ..._theme.type.bodySmall,
-     color: _theme.palette.onSurfaceVariant,
+     color: theme.palette.onSurfaceVariant,
      flex: 1
    },
    // States
@@ -1717,22 +1747,22 @@ color: _theme.onAmber.muted,
      padding: (0, _theme.space)(5)
    },
    errorCard: {
-     backgroundColor: _theme.palette.errorContainer,
+     backgroundColor: theme.palette.errorContainer,
      borderWidth: 1,
-     borderColor: _theme.palette.error
+     borderColor: theme.palette.error
    },
    stateTitle: {
      ..._theme.type.titleMedium,
-     color: _theme.palette.onSurface
+     color: theme.palette.onSurface
    },
    stateBody: {
      ..._theme.type.bodySmall,
-     color: _theme.palette.onSurfaceVariant,
+     color: theme.palette.onSurfaceVariant,
      marginTop: (0, _theme.space)(2)
    },
    skeleton: {
      borderRadius: _theme.radius.small,
-     backgroundColor: _theme.palette.surfaceContainer
+     backgroundColor: theme.palette.surfaceContainer
    },
    skeletonTitle: {
      height: 16,
@@ -1751,15 +1781,15 @@ color: _theme.onAmber.muted,
      borderRadius: _theme.radius.medium,
      borderWidth: 1,
      borderStyle: 'dashed',
-     borderColor: _theme.palette.outlineVariant,
-     backgroundColor: _theme.palette.surfaceContainerLow
+     borderColor: theme.palette.outlineVariant,
+     backgroundColor: theme.palette.surfaceContainerLow
    },
    // Sheets
    sheet: {
      // minHeight 0 on the body is what lets a long list scroll inside the sheet
      // instead of pushing the sheet past the screen.
      maxHeight: '86%',
-     backgroundColor: _theme.palette.surfaceContainerLowest,
+     backgroundColor: theme.palette.surfaceContainerLowest,
      borderTopLeftRadius: _theme.radius.glass,
      borderTopRightRadius: _theme.radius.glass,
      paddingHorizontal: (0, _theme.space)(5),
@@ -1770,7 +1800,7 @@ color: _theme.onAmber.muted,
      width: 36,
      height: 4,
      borderRadius: _theme.radius.full,
-     backgroundColor: _theme.palette.outlineVariant,
+     backgroundColor: theme.palette.outlineVariant,
      alignSelf: 'center',
      marginBottom: (0, _theme.space)(3)
    },
@@ -1780,11 +1810,11 @@ color: _theme.onAmber.muted,
      alignItems: 'center',
      justifyContent: 'center',
      borderRadius: _theme.radius.full,
-     backgroundColor: _theme.palette.surfaceContainer
+     backgroundColor: theme.palette.surfaceContainer
    },
    sheetFootnote: {
      ..._theme.type.bodySmall,
-     color: _theme.palette.onSurfaceVariant,
+     color: theme.palette.onSurfaceVariant,
      marginTop: (0, _theme.space)(3)
    },
     search: {
@@ -1793,8 +1823,8 @@ color: _theme.onAmber.muted,
       marginBottom: (0, _theme.space)(3),
       borderRadius: _theme.radius.medium,
       borderWidth: 1,
-      borderColor: _theme.palette.outlineVariant,
-      color: _theme.palette.onSurface,
+      borderColor: theme.palette.outlineVariant,
+      color: theme.palette.onSurface,
       ..._theme.type.bodyMedium
     },
     // The picker list takes the sheet's maxHeight clamp (see BottomSheet):
@@ -1813,10 +1843,10 @@ color: _theme.onAmber.muted,
      paddingHorizontal: (0, _theme.space)(3),
      borderRadius: _theme.radius.medium,
      borderWidth: 1,
-     borderColor: _theme.palette.outlineVariant
+     borderColor: theme.palette.outlineVariant
    },
    stopRowMarked: {
-     backgroundColor: _theme.palette.surfaceContainer,
+     backgroundColor: theme.palette.surfaceContainer,
      opacity: 0.7
    },
    stopBody: {
@@ -1825,11 +1855,11 @@ color: _theme.onAmber.muted,
    },
    stopName: {
      ..._theme.type.bodyMedium,
-     color: _theme.palette.onSurface
+     color: theme.palette.onSurface
    },
    stopSub: {
      ..._theme.type.bodySmall,
-     color: _theme.palette.onSurfaceVariant,
+     color: theme.palette.onSurfaceVariant,
      marginTop: (0, _theme.space)(1),
      fontVariant: ['tabular-nums']
    },
@@ -1837,23 +1867,23 @@ color: _theme.onAmber.muted,
      paddingHorizontal: (0, _theme.space)(2),
      paddingVertical: 2,
      borderRadius: _theme.radius.full,
-     backgroundColor: _theme.palette.tertiaryContainer
+     backgroundColor: theme.palette.tertiaryContainer
    },
    inUseLabel: {
      ..._theme.type.labelSmall,
-     color: _theme.palette.onTertiaryContainer
+     color: theme.palette.onTertiaryContainer
    },
    offServicePill: {
-     backgroundColor: _theme.palette.errorContainer
+     backgroundColor: theme.palette.errorContainer
    },
    offServiceLabel: {
      ..._theme.type.labelSmall,
-     color: _theme.palette.onErrorContainer
+     color: theme.palette.onErrorContainer
    },
    detailCard: {
      paddingVertical: (0, _theme.space)(2),
      borderRadius: _theme.radius.large,
-     backgroundColor: _theme.palette.surfaceContainerLow
+     backgroundColor: theme.palette.surfaceContainerLow
    },
    detailRow: {
      flexDirection: 'row',
@@ -1868,26 +1898,26 @@ color: _theme.onAmber.muted,
      marginTop: (0, _theme.space)(3),
      padding: (0, _theme.space)(4),
      borderRadius: _theme.radius.large,
-     backgroundColor: _theme.palette.surfaceContainerLow
+     backgroundColor: theme.palette.surfaceContainerLow
    },
    proseTitle: {
      ..._theme.type.labelSmall,
-     color: _theme.palette.onSurfaceVariant
+     color: theme.palette.onSurfaceVariant
    },
    proseText: {
      ..._theme.type.bodySmall,
-     color: _theme.palette.onSurfaceVariant,
+     color: theme.palette.onSurfaceVariant,
      marginTop: (0, _theme.space)(2)
    },
    positionCard: {
      marginTop: (0, _theme.space)(3),
      padding: (0, _theme.space)(4),
      borderRadius: _theme.radius.large,
-     backgroundColor: _theme.palette.primaryContainer
+     backgroundColor: theme.palette.primaryContainer
    },
    positionValue: {
      ..._theme.type.titleMedium,
-     color: _theme.palette.onPrimaryContainer,
+     color: theme.palette.onPrimaryContainer,
      marginTop: (0, _theme.space)(1),
      fontVariant: ['tabular-nums']
    }

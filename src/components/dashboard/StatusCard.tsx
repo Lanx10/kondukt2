@@ -1,7 +1,7 @@
 import { useMemo, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon, type IconName } from '../../icons';
-import { cardShadow, radius, space, type, type KonduktTheme } from '../../theme';
+import { cardShadow, onAmber, onPrimarySolid, radius, space, type, type KonduktTheme } from '../../theme';
 import { useKonduktTheme } from '../../lib/themeContext';
 import { GlassCard } from '../GlassCard';
 
@@ -69,7 +69,10 @@ export function StatusCard({
     return (
       <>
         <View style={styles.eyebrowRow}>
-          <Text style={[styles.eyebrow, isError && styles.eyebrowError]} accessibilityRole="header">
+          <Text
+            style={[styles.eyebrow, solid && styles.eyebrowActive, isError && styles.eyebrowError]}
+            accessibilityRole="header"
+          >
             {eyebrow}
           </Text>
           {eyebrowChip ? (
@@ -83,8 +86,8 @@ export function StatusCard({
         <Text style={[styles.title, isError && styles.titleError, solid && styles.titleActive]}>
           {title}
         </Text>
-        <Text style={styles.body}>{body}</Text>
-        {meta ? <Text style={styles.meta}>{meta}</Text> : null}
+        <Text style={[styles.body, solid && styles.bodyActive]}>{body}</Text>
+        {meta ? <Text style={[styles.meta, solid && styles.metaActive]}>{meta}</Text> : null}
         {actionLabel && onPress ? (
           <Pressable
             onPress={onPress}
@@ -166,6 +169,19 @@ const makeStyles = (theme: KonduktTheme) =>
   eyebrowError: {
     color: theme.palette.error,
   },
+  // Every ink on the solid amber card comes from the `onAmber` ramp, never
+  // from the neutral ramp: `onSurfaceVariant` is a light warm grey in dark
+  // mode, and on amber it measured 1.18:1 — the eyebrow, the body sentence and
+  // the meta line all went with it.
+  eyebrowActive: {
+    color: onAmber.muted,
+  },
+  bodyActive: {
+    color: onAmber.detail,
+  },
+  metaActive: {
+    color: onAmber.muted,
+  },
   eyebrowChip: {
     minHeight: 24,
     paddingHorizontal: 10,
@@ -223,7 +239,7 @@ const makeStyles = (theme: KonduktTheme) =>
     backgroundColor: theme.palette.primarySolid,
   },
   actionLabelSolid: {
-    color: '#FFFFFF',
+    color: onPrimarySolid,
   },
   actionLabelSolidActive: {
     color: theme.palette.onSecondary,

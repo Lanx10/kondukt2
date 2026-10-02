@@ -178,7 +178,12 @@ function IconButton({
         pressed && styles.pressed,
       ]}
     >
-      <Icon name={icon} size={20} color={theme.palette.primarySolid} />
+      {/* `palette.primary` as INK, not `primarySolid` as a fill: the stepper
+          sits on a surface whose lightness flips with the mode, and the solid
+          step clears 5.2:1 on the light track but falls to 1.9:1 on the dark
+          one. The role colour is #E65100 in light (3.5:1 on the track) and
+          #FFB68B in dark (8:1) — the accent on its own surface, either way. */}
+      <Icon name={icon} size={20} color={theme.palette.primary} />
     </Pressable>
   );
 }

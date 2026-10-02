@@ -1,7 +1,7 @@
 import { useMemo, ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon, type IconName } from '../../icons';
-import { cardShadow, glassBlur, radius, space, tintedGlass, type, type KonduktTheme } from '../../theme';
+import { cardShadow, glassBlur, onAmber, onPrimarySolid, radius, space, tintedGlass, type, type KonduktTheme } from '../../theme';
 import { useKonduktTheme } from '../../lib/themeContext';
 import { GlassCard } from '../GlassCard';
 import { Skeleton } from '../SummaryDisclosure';
@@ -46,15 +46,18 @@ export function HomeHero({
   actions?: HeroAction[];
   titleSuffix?: string;
 }) {
-const { theme } = useKonduktTheme();
-const styles = useMemo(() => makeStyles(theme), [theme]);
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const running = state === 'running';
   const failed = state === 'error';
 
   const content: ReactNode = (
     <>
       <View style={styles.eyebrowRow}>
-        <Text style={[styles.eyebrow, failed && styles.eyebrowError]} accessibilityRole="header">
+        <Text
+          style={[styles.eyebrow, running && styles.eyebrowRunning, failed && styles.eyebrowError]}
+          accessibilityRole="header"
+        >
           {eyebrow}
         </Text>
         {eyebrowChip ? (
@@ -77,7 +80,12 @@ const styles = useMemo(() => makeStyles(theme), [theme]);
             style={[styles.title, failed && styles.titleError, running && styles.titleRunning]}
           >
             {title}
-            {titleSuffix ? <Text style={styles.titleSuffix}> {titleSuffix}</Text> : null}
+            {titleSuffix ? (
+              <Text style={[styles.titleSuffix, running && styles.titleSuffixRunning]}>
+                {' '}
+                {titleSuffix}
+              </Text>
+            ) : null}
           </Text>
           {when ? (
             <Text style={[styles.when, running && styles.whenRunning]}>{when}</Text>
@@ -85,7 +93,7 @@ const styles = useMemo(() => makeStyles(theme), [theme]);
         </>
       )}
 
-      <Text style={styles.body}>{body}</Text>
+      <Text style={[styles.body, running && styles.bodyRunning]}>{body}</Text>
 
       {figures && figures.length > 0 ? (
         <View style={[styles.figures, running && styles.figuresRunning]}>
@@ -119,7 +127,7 @@ const styles = useMemo(() => makeStyles(theme), [theme]);
                 cornerRadius={radius.full}
                 style={styles.action}
               >
-                <Icon name={action.icon} size={18} color="#FFFFFF" />
+                <Icon name={action.icon} size={18} color={onPrimarySolid} />
                 <Text style={styles.actionLabel}>{action.label}</Text>
               </GlassCard>
             ) : (
@@ -132,6 +140,7 @@ const styles = useMemo(() => makeStyles(theme), [theme]);
                 style={({ pressed }) => [
                   styles.action,
                   styles.actionGhost,
+                  running && styles.actionGhostRunning,
                   pressed && styles.pressed,
                 ]}
               >
@@ -209,6 +218,13 @@ const makeStyles = (theme: KonduktTheme) =>
   eyebrowError: {
     color: theme.palette.error,
   },
+  // Every ink on the running card comes from the `onAmber` ramp, never from
+  // the neutral ramp: `onSurfaceVariant` is a light warm grey in dark mode,
+  // and on a solid amber fill it measured 1.18:1 — the eyebrow, the arrow and
+  // destination, and all three figure labels went with it.
+  eyebrowRunning: {
+    color: onAmber.muted,
+  },
   chip: {
     minHeight: 24,
     paddingHorizontal: 10,
@@ -242,18 +258,24 @@ const makeStyles = (theme: KonduktTheme) =>
   titleSuffix: {
     color: theme.palette.onSurfaceVariant,
   },
+  titleSuffixRunning: {
+    color: onAmber.muted,
+  },
   when: {
     ...type.bodyMedium,
     color: theme.palette.onSurfaceVariant,
     marginTop: space(0.5),
   },
   whenRunning: {
-    color: theme.palette.onSecondary,
+    color: onAmber.detail,
   },
   body: {
     ...type.bodyMedium,
     color: theme.palette.onSurfaceVariant,
     marginTop: space(2),
+  },
+  bodyRunning: {
+    color: onAmber.detail,
   },
   figures: {
     flexDirection: 'row',
@@ -286,7 +308,7 @@ const makeStyles = (theme: KonduktTheme) =>
     marginTop: 1,
   },
   figureLabelRunning: {
-    color: theme.palette.onSurfaceVariant,
+    color: onAmber.muted,
   },
   actions: {
     flexDirection: 'row',
@@ -312,9 +334,15 @@ const makeStyles = (theme: KonduktTheme) =>
     // onSecondary border this used to swap in was the app's own invention.
     borderColor: theme.palette.outline,
   },
+  // The ghost action's rim on the amber card: a hair of the fill's own dark
+  // ink. `palette.outline` clears 3:1 against light amber but only reaches
+  // ~2.4:1 against the dark mode step, under the non-text floor.
+  actionGhostRunning: {
+    borderColor: 'rgba(61, 46, 0, 0.6)',
+  },
   actionLabel: {
     ...type.labelLarge,
-    color: '#FFFFFF',
+    color: onPrimarySolid,
   },
   actionLabelGhost: {
     color: theme.palette.onSurface,

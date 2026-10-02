@@ -114,7 +114,11 @@ export function LedgerRow({
         </View>
       ) : null}
       {chevron && !stacked ? (
-        <Icon name="chevron" size={18} color={theme.palette.outlineVariant} />
+        // `outline`, not `outlineVariant`: the variant is a 1.7:1 hairline in
+        // light and 1.5:1 on the dark surface container — too faint to be the
+        // affordance telling you the row opens. Every other chevron in the app
+        // already uses `outline`.
+        <Icon name="chevron" size={18} color={theme.palette.outline} />
       ) : null}
     </GlassCard>
   );

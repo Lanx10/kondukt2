@@ -7,6 +7,7 @@ import { Icon, type IconName } from '../icons';
 import {
   cardShadow,
   maxContentWidth,
+  onPrimarySolid,
   radius,
   space,
   type,
@@ -185,7 +186,7 @@ export function AdvancedSettingsScreen({ onBack }: AdvancedSettingsScreenProps) 
                         size={22}
                         color={
                           selected
-                            ? theme.palette.primary
+                            ? theme.palette.primarySolid
                             : theme.palette.onTertiaryContainer
                         }
                       />
@@ -207,7 +208,7 @@ export function AdvancedSettingsScreen({ onBack }: AdvancedSettingsScreenProps) 
                       importantForAccessibility="no-hide-descendants"
                     >
                       {selected ? (
-                        <Icon name="check" size={13} color={theme.palette.primary} />
+                        <Icon name="check" size={13} color={theme.palette.primarySolid} />
                       ) : null}
                     </View>
                   </Pressable>
@@ -334,18 +335,22 @@ const makeStyles = (theme: KonduktTheme) =>
     // The chosen option goes SOLID: the accent fills the whole panel and every
     // piece of text on it turns to on-primary. This replaces a pale
     // primary-container wash, which read as "slightly tinted" rather than as
-    // "this is the mode you are in" — the question the tap is answering. The
-    // contrast is not a gamble: `onPrimary` on `primary` is the pairing the
-    // accent itself is measured at (7.57:1), so the solid fill is the same
-    // contrast the accent always had, just applied to a larger area.
+    // "this is the mode you are in" — the question the tap is answering.
+    //
+    // `primarySolid`, not `primary`: white on `primary` (#E65100) is 3.79:1,
+    // which is fine for the 20px+ display roles and for icons and short of the
+    // 4.5:1 a 15px title and a 12px sub line owe. `primarySolid` (#C2410C) is
+    // the same hue a step deeper and clears 5.2:1 with white — and it is the
+    // same step in both palettes, so the selected row looks identical in
+    // either mode.
     //
     // Every child inverts with it — chip, title, sub and mark — because a
     // single accent-coloured piece left on a solid accent would disappear.
     // Border width stays 1px in both states, so choosing a mode cannot resize
     // the pair and shift the layout under the tap.
     optionSelected: {
-      borderColor: theme.palette.primary,
-      backgroundColor: theme.palette.primary,
+      borderColor: theme.palette.primarySolid,
+      backgroundColor: theme.palette.primarySolid,
     },
     pressed: { opacity: 0.88 },
     chip: {
@@ -359,19 +364,19 @@ const makeStyles = (theme: KonduktTheme) =>
     },
     // The chip inverts with the panel: a light chip carrying the accent icon,
     // so it stays legible on the solid fill instead of dissolving into it.
-    chipSelected: { backgroundColor: theme.palette.onPrimary },
+    chipSelected: { backgroundColor: onPrimarySolid },
     optionBody: { flex: 1, minWidth: 0 },
     optionTitle: {
       ...type.titleMedium,
       color: theme.glass.onGlass,
     },
-    optionTitleSelected: { color: theme.palette.onPrimary },
+    optionTitleSelected: { color: onPrimarySolid },
     optionSub: {
       ...type.bodySmall,
       color: theme.glass.onGlassVariant,
       marginTop: 2,
     },
-    optionSubSelected: { color: theme.palette.onPrimary },
+    optionSubSelected: { color: onPrimarySolid },
     // 20px ring: the selection mark the shipped screen never had. Rest is a
     // plain --outline ring; chosen fills with on-primary and knocks the tick
     // out in primary — inverting with the panel, so the tick reads on the
@@ -387,8 +392,8 @@ const makeStyles = (theme: KonduktTheme) =>
       flexShrink: 0,
     },
     markSelected: {
-      borderColor: theme.palette.onPrimary,
-      backgroundColor: theme.palette.onPrimary,
+      borderColor: onPrimarySolid,
+      backgroundColor: onPrimarySolid,
     },
 
     // ── the commit caption ──

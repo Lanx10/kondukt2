@@ -42,7 +42,13 @@ function QuickActionCard({ action }: { action: QuickAction }) {
   const tone = theme.accent[action.accent];
   // The reference's tone-primary chip ink is `--primary-solid`; the M3 role
   // colour (#E65100) sits at 3.6:1 on the container where solid clears 5.2.
-  const chipInk = action.accent === 'primary' ? theme.palette.primarySolid : tone.fg;
+  //
+  // That only holds in light. Dark's `primaryContainer` is a deep brown
+  // (#6E3400) and the same solid ink falls to 1.9:1 on it, so the chip goes
+  // back to the role colour there — #FFB68B on #6E3400, the pairing the other
+  // two tones already use.
+  const chipInk =
+    action.accent === 'primary' && theme.mode === 'light' ? theme.palette.primarySolid : tone.fg;
   return (
     <GlassCard
       onPress={action.onPress}

@@ -12,7 +12,7 @@ import { SectionChrome } from '../components/SectionChrome';
 import { LocalStorageCard } from '../components/LocalStorageCard';
 import { GlassCard } from '../components/GlassCard';
 import { Icon } from '../icons';
-import { radius, space, type, type KonduktTheme } from '../theme';
+import { onAmber, radius, space, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
 import {
   endActiveTrip,
@@ -508,7 +508,8 @@ const makeStyles = (theme: KonduktTheme) =>
   cardActive: {
     backgroundColor: theme.palette.secondary,
     borderRadius: radius.glass,
-    shadowColor: 'rgba(90, 106, 130, 0.16)',
+    // Only the shadow's colour follows the mode — the geometry is the card's.
+    shadowColor: theme.glass.shadow,
     shadowOpacity: 1,
     shadowRadius: 15,
     shadowOffset: { width: 0, height: 8 },
@@ -527,27 +528,31 @@ const makeStyles = (theme: KonduktTheme) =>
   },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.palette.secondary },
   pillLabel: { ...type.labelSmall, color: theme.palette.secondary, letterSpacing: 0.6 },
-  activeRoute: { ...type.titleMedium, color: theme.palette.onSurface, marginTop: space(2) },
+  // Everything below `cardActive` is printed on the solid amber surface, so
+  // every ink in it comes from the `onAmber` ramp rather than the neutral one.
+  // `onSurfaceVariant` is a light warm grey in dark mode and measured 1.18:1
+  // on amber; the route and the two clock values were 1.22:1.
+  activeRoute: { ...type.titleMedium, color: onAmber.primary, marginTop: space(2) },
   activeMeta: {
     ...type.bodyMedium,
-    color: theme.palette.onSurfaceVariant,
+    color: onAmber.muted,
     marginTop: space(1),
     fontVariant: ['tabular-nums'],
   },
 
   timesRow: { flexDirection: 'row', gap: space(6), marginTop: space(3) },
   timeBlock: {},
-  timeLabel: { ...type.labelSmall, color: theme.palette.onSurfaceVariant },
+  timeLabel: { ...type.labelSmall, color: onAmber.muted },
   timeValue: {
     ...type.titleMedium,
-    color: theme.palette.onSurface,
+    color: onAmber.primary,
     marginTop: space(0.5),
     fontVariant: ['tabular-nums'],
   },
-  timeDate: { ...type.bodySmall, color: theme.palette.onSurfaceVariant, fontVariant: ['tabular-nums'] },
+  timeDate: { ...type.bodySmall, color: onAmber.muted, fontVariant: ['tabular-nums'] },
   elapsedValue: {
     ...type.titleMedium,
-    color: theme.palette.onSurface,
+    color: onAmber.primary,
     marginTop: space(0.5),
     fontVariant: ['tabular-nums'],
   },

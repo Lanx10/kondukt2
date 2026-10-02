@@ -15,7 +15,8 @@ import { GlassBackdrop } from '../components/GlassBackdrop';
 import { GlassCard } from '../components/GlassCard';
 import { DetailCard, DetailRow, Sheet } from '../components/BottomSheet';
 import { Icon } from '../icons';
-import { accent, glass, maxContentWidth, palette, radius, space, tintedGlass, type } from '../theme';
+import { maxContentWidth, onPrimarySolid, radius, space, tintedGlass, type, type KonduktTheme } from '../theme';
+import { useKonduktTheme } from '../lib/themeContext';
 import {
   deactivateTerminal,
   fetchAllMunicipalities,
@@ -79,6 +80,8 @@ type Overlay =
  * screen instead of a second Add inside the empty block.
  */
 export function TerminalConfigScreen({ onBack, onOpenEditor }: TerminalConfigScreenProps) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
 
   // Local state: query, filter, overlay, transient message — all reset on
@@ -247,14 +250,14 @@ export function TerminalConfigScreen({ onBack, onOpenEditor }: TerminalConfigScr
               <GlassCard style={styles.controlCard}>
                 <GlassCard cornerRadius={radius.large} style={styles.field}>
                   <View style={styles.fieldIcon}>
-                    <Icon name="search" size={18} color={accent.tertiary.onContainer} />
+                    <Icon name="search" size={18} color={theme.accent.tertiary.onContainer} />
                   </View>
                   <TextInput
                     testID="tc-q"
                     value={searchQuery}
                     onChangeText={setSearchQuery}
                     placeholder="Search terminals"
-                    placeholderTextColor={palette.outline}
+                    placeholderTextColor={theme.palette.outline}
                     accessibilityLabel="Search terminals"
                     autoCapitalize="none"
                     autoCorrect={false}
@@ -271,7 +274,7 @@ export function TerminalConfigScreen({ onBack, onOpenEditor }: TerminalConfigScr
                   style={[
                     styles.captionDot,
                     {
-                      backgroundColor: filter === 'ALL' ? palette.outline : palette.primary,
+                      backgroundColor: filter === 'ALL' ? theme.palette.outline : theme.palette.primary,
                     },
                   ]}
                 />
@@ -317,7 +320,7 @@ export function TerminalConfigScreen({ onBack, onOpenEditor }: TerminalConfigScr
                   hitSlop={8}
                   style={({ pressed }) => [styles.cautionClose, pressed && styles.pressed]}
                 >
-                  <Icon name="close" size={18} color={glass.onGlassVariant} />
+                  <Icon name="close" size={18} color={theme.glass.onGlassVariant} />
                 </Pressable>
               </GlassCard>
             ) : null}
@@ -348,7 +351,7 @@ export function TerminalConfigScreen({ onBack, onOpenEditor }: TerminalConfigScr
                   </Text>
                   <View style={styles.addPillDiv} />
                   <Text style={styles.addPillLabel}>ADD TERMINAL</Text>
-                  <Icon name="plus" size={14} color={palette.onPrimary} />
+                  <Icon name="plus" size={14} color={onPrimarySolid} />
                 </Pressable>
               </View>
             </View>
@@ -377,7 +380,7 @@ export function TerminalConfigScreen({ onBack, onOpenEditor }: TerminalConfigScr
                     style={({ pressed }) => [styles.ghostBtn, pressed && styles.pressed]}
                   >
                     {/* The way out is a glass pill like every other control on
-                        this screen, not an outline on glass. */}
+                        this screen, not an outline on theme.glass. */}
                     <GlassCard
                       cornerRadius={radius.large}
                       style={StyleSheet.absoluteFill}
@@ -411,7 +414,7 @@ export function TerminalConfigScreen({ onBack, onOpenEditor }: TerminalConfigScr
                 accessible
                 accessibilityLabel="Offline storage. All terminals are saved locally and work offline."
               >
-                <Icon name="lock" size={18} color={glass.onGlassVariant} />
+                <Icon name="lock" size={18} color={theme.glass.onGlassVariant} />
                 <View style={styles.noteLockBody}>
                   <Text style={styles.noteLockLabel}>OFFLINE STORAGE</Text>
                   <Text style={styles.noteLockText} testID="tc-offline">
@@ -506,6 +509,8 @@ function TerminalRecordRow({
   value: string;
   onPress: () => void;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const active = terminal.is_active === 1;
   return (
     <GlassCard
@@ -538,7 +543,7 @@ function TerminalRecordRow({
             {active ? 'ACTIVE' : 'INACTIVE'}
           </Text>
         </View>
-        <Icon name="chevron" size={18} color={palette.onSurfaceVariant} />
+        <Icon name="chevron" size={18} color={theme.palette.onSurfaceVariant} />
       </View>
     </GlassCard>
   );
@@ -556,6 +561,8 @@ function PickOption({
   onPress: () => void;
   testID: string;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <GlassCard
       onPress={onPress}
@@ -580,7 +587,7 @@ function PickOption({
       <Icon
         name="check"
         size={18}
-        color={current ? '#FFFFFF' : palette.onSurfaceVariant}
+        color={current ? onPrimarySolid : theme.palette.onSurfaceVariant}
       />
     </GlassCard>
   );
@@ -605,6 +612,8 @@ function RecordSheet({
   onDeactivate: () => void;
   onClose: () => void;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const title = terminalNameOf(terminal.name);
   const pairs = terminalDetailPairs(terminal, allMunicipalities);
   return (
@@ -704,6 +713,8 @@ function ConfirmSheet({
   onClose: () => void;
   onConfirm: () => void;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const title = terminalNameOf(terminal.name);
   return (
     <Sheet
@@ -760,6 +771,8 @@ function ConfirmSheet({
  * nothing about that shape.
  */
 function LoadingState() {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <View
       testID="tc-state"
@@ -781,10 +794,11 @@ function LoadingState() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
   flex: { flex: 1 },
   pressed: { opacity: 0.88 },
-  screen: { flex: 1, backgroundColor: glass.backdrop },
+  screen: { flex: 1, backgroundColor: theme.glass.backdrop },
 
   // ONE column, ONE gutter — the family's 20px, matching the reference shell.
   column: {
@@ -816,9 +830,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.small,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: accent.tertiary.container,
+    backgroundColor: theme.accent.tertiary.container,
   },
-  fieldInput: { flex: 1, minWidth: 0, padding: 0, ...type.bodyMedium, color: palette.onSurface },
+  fieldInput: { flex: 1, minWidth: 0, padding: 0, ...type.bodyMedium, color: theme.palette.onSurface },
 
   // `.range-caption`: 10px below the card — the family's caption margin, the
   // one gap here that is not 12 or 20.
@@ -833,7 +847,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   captionDot: { width: 5, height: 5, borderRadius: 2, flexShrink: 0 },
-  captionText: { ...type.bodySmall, color: glass.onGlassVariant, flexShrink: 1 },
+  captionText: { ...type.bodySmall, color: theme.glass.onGlassVariant, flexShrink: 1 },
   captionValue: { fontFamily: 'Poppins_700Bold' },
   textAction: {
     minHeight: 48,
@@ -850,7 +864,7 @@ const styles = StyleSheet.create({
   textActionLabel: {
     ...type.bodySmall,
     fontFamily: 'Poppins_600SemiBold',
-    color: glass.accentPrimary,
+    color: theme.glass.accentPrimary,
   },
   textActionLabelPressed: { textDecorationLine: 'underline' },
 
@@ -865,7 +879,7 @@ const styles = StyleSheet.create({
     paddingVertical: space(3),
     paddingHorizontal: space(4),
   },
-  cautionText: { ...type.bodySmall, color: glass.onGlassVariant, flex: 1 },
+  cautionText: { ...type.bodySmall, color: theme.glass.onGlassVariant, flex: 1 },
   cautionClose: {
     width: 44,
     height: 44,
@@ -886,7 +900,7 @@ const styles = StyleSheet.create({
     marginTop: space(5),
     marginBottom: space(3),
   },
-  sectionLabel: { ...type.labelSmall, color: glass.onGlassVariant },
+  sectionLabel: { ...type.labelSmall, color: theme.glass.onGlassVariant },
   sectionEnd: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -905,13 +919,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space(2),
     borderRadius: radius.full,
-    backgroundColor: palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
   },
   addPillCount: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 14,
     lineHeight: 18,
-    color: palette.onPrimary,
+    color: onPrimarySolid,
     fontVariant: ['tabular-nums'],
   },
   addPillCountStrong: { fontFamily: 'Poppins_700Bold' },
@@ -920,10 +934,10 @@ const styles = StyleSheet.create({
   addPillDiv: {
     width: 1,
     height: 14,
-    backgroundColor: palette.onPrimary,
+    backgroundColor: onPrimarySolid,
     opacity: 0.45,
   },
-  addPillLabel: { ...type.labelSmall, color: palette.onPrimary },
+  addPillLabel: { ...type.labelSmall, color: onPrimarySolid },
 
   // ── the record row: Settings' card, minus its chip ──
   row: {
@@ -934,15 +948,15 @@ const styles = StyleSheet.create({
     padding: space(5),
   },
   rowBody: { flex: 1, minWidth: 0 },
-  rowTitle: { ...type.titleMedium, color: palette.onSurface },
-  rowValue: { ...type.bodyMedium, color: palette.onSurfaceVariant, marginTop: 2 },
+  rowTitle: { ...type.titleMedium, color: theme.palette.onSurface },
+  rowValue: { ...type.bodyMedium, color: theme.palette.onSurfaceVariant, marginTop: 2 },
   rowEnd: { flexDirection: 'row', alignItems: 'center', gap: space(2), flexShrink: 0 },
   pill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.full },
-  pillActive: { backgroundColor: accent.tertiary.container },
-  pillInactive: { backgroundColor: palette.surfaceContainer },
+  pillActive: { backgroundColor: theme.accent.tertiary.container },
+  pillInactive: { backgroundColor: theme.palette.surfaceContainer },
   pillLabel: { ...type.labelSmall },
-  pillLabelActive: { color: accent.tertiary.onContainer },
-  pillLabelInactive: { color: glass.onGlassVariant },
+  pillLabelActive: { color: theme.accent.tertiary.onContainer },
+  pillLabelInactive: { color: theme.glass.onGlassVariant },
 
   // ── the empty state: three causes, three ways out ──
   // A GlassCard, geometry only. Nothing here invites a duplicate add: the
@@ -952,8 +966,8 @@ const styles = StyleSheet.create({
     paddingVertical: space(4),
     paddingHorizontal: 18,
   },
-  inlineEmptyTitle: { ...type.labelSmall, color: glass.onGlass },
-  inlineEmptyBody: { ...type.bodySmall, color: glass.onGlassVariant, marginTop: space(2) },
+  inlineEmptyTitle: { ...type.labelSmall, color: theme.glass.onGlass },
+  inlineEmptyBody: { ...type.bodySmall, color: theme.glass.onGlassVariant, marginTop: space(2) },
   cardActions: { flexDirection: 'row', flexWrap: 'wrap', gap: space(2), marginTop: space(4) },
   ghostBtn: {
     minHeight: 48,
@@ -963,10 +977,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: radius.large,
   },
-  ghostBtnLabel: { ...type.labelLarge, color: glass.onGlassVariant },
+  ghostBtnLabel: { ...type.labelLarge, color: theme.glass.onGlassVariant },
 
   // ── the section note and the offline statement ──
-  secNote: { ...type.bodySmall, color: glass.onGlassVariant, marginTop: space(3) },
+  secNote: { ...type.bodySmall, color: theme.glass.onGlassVariant, marginTop: space(3) },
   noteLock: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -976,8 +990,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(5),
   },
   noteLockBody: { flex: 1 },
-  noteLockLabel: { ...type.labelSmall, color: glass.onGlassVariant },
-  noteLockText: { ...type.bodySmall, color: glass.onGlassVariant, marginTop: space(1) },
+  noteLockLabel: { ...type.labelSmall, color: theme.glass.onGlassVariant },
+  noteLockText: { ...type.bodySmall, color: theme.glass.onGlassVariant, marginTop: space(1) },
 
   // ── sheets: options and actions ──
   pickList: { marginTop: space(2), gap: space(2) },
@@ -993,10 +1007,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(3),
   },
   pickBody: { flex: 1, minWidth: 0 },
-  pickName: { ...type.bodyMedium, color: palette.onSurface },
-  pickNameCurrent: { color: '#FFFFFF' },
-  pickSub: { ...type.bodySmall, color: palette.onSurfaceVariant, marginTop: 2 },
-  pickSubCurrent: { color: '#FFFFFF', opacity: 0.85 },
+  pickName: { ...type.bodyMedium, color: theme.palette.onSurface },
+  pickNameCurrent: { color: onPrimarySolid },
+  pickSub: { ...type.bodySmall, color: theme.palette.onSurfaceVariant, marginTop: 2 },
+  pickSubCurrent: { color: onPrimarySolid, opacity: 0.85 },
 
   sheetActions: {
     flexDirection: 'row',
@@ -1012,7 +1026,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: radius.large,
   },
-  sheetGhostLabel: { ...type.labelLarge, color: palette.onSurfaceVariant },
+  sheetGhostLabel: { ...type.labelLarge, color: theme.palette.onSurfaceVariant },
   // The irreversible write, red GLASS: the error pigment is carried by a
   // tinted GlassCard child, so this style is geometry only. It greys, never
   // hides, on a row that has nothing left to deactivate.
@@ -1024,9 +1038,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: radius.large,
   },
-  sheetDestructiveOff: { backgroundColor: palette.surfaceContainer },
-  sheetDestructiveLabel: { ...type.labelLarge, color: palette.onError },
-  sheetDestructiveLabelOff: { color: palette.outline },
+  sheetDestructiveOff: { backgroundColor: theme.palette.surfaceContainer },
+  sheetDestructiveLabel: { ...type.labelLarge, color: theme.palette.onError },
+  sheetDestructiveLabelOff: { color: theme.palette.outline },
   // The confirmation's DEACTIVATE: the primary treatment, never the error fill.
   sheetPrimary: {
     minHeight: 48,
@@ -1034,16 +1048,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: space(5),
     borderRadius: radius.large,
-    backgroundColor: palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
   },
   sheetPrimaryBusy: { opacity: 0.65 },
-  sheetPrimaryLabel: { ...type.labelLarge, color: palette.onPrimary },
+  sheetPrimaryLabel: { ...type.labelLarge, color: onPrimarySolid },
   sheetNote: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginTop: space(3),
   },
-  sheetBodyText: { ...type.bodyMedium, color: palette.onSurfaceVariant },
+  sheetBodyText: { ...type.bodyMedium, color: theme.palette.onSurfaceVariant },
 
   // ── loading and error: they replace the whole screen ──
   stateBlock: {
@@ -1062,15 +1076,15 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: radius.medium,
-    backgroundColor: palette.surfaceContainerHigh,
+    backgroundColor: theme.palette.surfaceContainerHigh,
   },
   skLines: { flex: 1, minWidth: 0 },
-  skLine: { height: 14, borderRadius: radius.small, backgroundColor: palette.surfaceContainerHigh },
+  skLine: { height: 14, borderRadius: radius.small, backgroundColor: theme.palette.surfaceContainerHigh },
   skLineThin: {
     height: 12,
     marginTop: space(2),
     borderRadius: radius.small,
-    backgroundColor: palette.surfaceContainerHigh,
+    backgroundColor: theme.palette.surfaceContainerHigh,
   },
   stateError: {
     marginTop: space(5),
@@ -1081,8 +1095,8 @@ const styles = StyleSheet.create({
   // The screen's one hard failure, and it is red glass: white on the error
   // pigment clears 6.5:1, where the pale errorContainer ink would go
   // pink-on-red.
-  stateErrorTitle: { ...type.titleMedium, color: '#FFFFFF' },
-  stateErrorBody: { ...type.bodyMedium, color: '#FFFFFF', opacity: 0.92 },
+  stateErrorTitle: { ...type.titleMedium, color: onPrimarySolid },
+  stateErrorBody: { ...type.bodyMedium, color: onPrimarySolid, opacity: 0.92 },
   stateGoBack: {
     alignSelf: 'flex-start',
     minHeight: 48,
@@ -1091,7 +1105,7 @@ const styles = StyleSheet.create({
     marginTop: space(3),
     paddingHorizontal: space(6),
     borderRadius: radius.large,
-    backgroundColor: palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
   },
-  stateGoBackLabel: { ...type.labelLarge, color: palette.onPrimary, letterSpacing: 0.8 },
+  stateGoBackLabel: { ...type.labelLarge, color: onPrimarySolid, letterSpacing: 0.8 },
 });

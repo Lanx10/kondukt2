@@ -17,13 +17,14 @@ import { Icon } from '../icons';
 import {
   amberSurface,
   cardShadow,
-  glass,
   onAmber,
-  palette,
+  onPrimarySolid,
   radius,
   space,
   type,
+  type KonduktTheme,
 } from '../theme';
+import { useKonduktTheme } from '../lib/themeContext';
 import {
   fetchFareConfiguration,
   saveFareConfiguration,
@@ -190,6 +191,8 @@ const FIGURES = [
 ];
 
 export function FareSettingsScreen({ onBack }: FareSettingsScreenProps) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
 
   // All ten editable values are strings. A number-bound field cannot hold a
@@ -422,7 +425,7 @@ export function FareSettingsScreen({ onBack }: FareSettingsScreenProps) {
       );
     }
     return null;
-  }, [errorCount, fieldErrors, saveError, successMessage]);
+  }, [errorCount, fieldErrors, saveError, successMessage, styles]);
 
   /**
    * What the count under the button says, and why it is live or dead —
@@ -497,7 +500,7 @@ export function FareSettingsScreen({ onBack }: FareSettingsScreenProps) {
     if (isLoading) {
       return (
         <View style={styles.centerBlock} accessibilityLiveRegion="polite">
-          <ActivityIndicator size="small" color={palette.primary} />
+          <ActivityIndicator size="small" color={theme.palette.primary} />
           <Text style={styles.centerTitle}>Loading fare settings</Text>
           <Text style={styles.centerText}>Reading the local fare configuration.</Text>
         </View>
@@ -522,7 +525,7 @@ export function FareSettingsScreen({ onBack }: FareSettingsScreenProps) {
       );
     }
     return null;
-  }, [isLoading, loadError, onBack]);
+  }, [isLoading, loadError, onBack, styles, theme]);
 
   return (
     <View style={styles.screen}>
@@ -747,7 +750,7 @@ export function FareSettingsScreen({ onBack }: FareSettingsScreenProps) {
                 {/* 6. The offline statement is metadata, not a module: it
                     loses the card and keeps the lock and the copy. */}
                 <View style={styles.noteLock} testID="fc-storage">
-                  <Icon name="lock" size={16} color={glass.onGlassVariant} />
+                  <Icon name="lock" size={16} color={theme.glass.onGlassVariant} />
                   <View style={styles.noteLockText}>
                     <Text style={styles.noteLabel}>SAVED ON THIS DEVICE</Text>
                     <Text style={styles.noteBody}>
@@ -776,12 +779,12 @@ export function FareSettingsScreen({ onBack }: FareSettingsScreenProps) {
                   ]}
                 >
                   {isSaving ? (
-                    <ActivityIndicator size="small" color={palette.onPrimary} />
+                    <ActivityIndicator size="small" color={onPrimarySolid} />
                   ) : (
                     <Icon
                       name="contentSave"
                       size={20}
-                      color={saveEnabled ? palette.onPrimary : palette.onSurfaceVariant}
+                      color={saveEnabled ? onPrimarySolid : theme.palette.onSurfaceVariant}
                     />
                   )}
                   <Text style={saveEnabled ? styles.saveLabel : styles.saveLabelIdle}>
@@ -802,6 +805,8 @@ export function FareSettingsScreen({ onBack }: FareSettingsScreenProps) {
 
 /** One label/value line in the preview card's hop row. */
 function Row({ label, value }: { label: string; value: string }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <View style={styles.previewRow}>
       <Text style={styles.previewRowLabel}>{label}</Text>
@@ -837,6 +842,8 @@ function Field({
   testID?: string;
   onChangeText: (text: string) => void;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const base = label ?? field.label;
   return (
     <View style={styles.fx}>
@@ -887,6 +894,8 @@ function MatrixGrid({
   deluxeEnabled: boolean;
   onEdit: (key: FareFieldKey, text: string) => void;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <View style={styles.mx}>
       <View style={styles.mxHeadRow}>
@@ -924,7 +933,8 @@ function MatrixGrid({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
   flex: { flex: 1 },
   pressed: { opacity: 0.88 },
   screen: { flex: 1 },
@@ -952,9 +962,11 @@ const styles = StyleSheet.create({
   // than four greys on yellow.
   preview: {
     padding: space(5),
-    backgroundColor: palette.secondary,
+    backgroundColor: theme.palette.secondary,
     borderRadius: radius.glass,
     ...cardShadow,
+    // Only the shadow's colour follows the mode — the geometry is the card's.
+    shadowColor: theme.glass.shadow,
   },
   previewHead: { gap: space(0.5) },
   eyebrow: { ...type.labelSmall, color: onAmber.muted },
@@ -988,18 +1000,18 @@ const styles = StyleSheet.create({
   previewNote: { ...type.bodySmall, color: onAmber.faint, marginTop: space(3) },
 
   // ── banner ──────────────────────────────────────────────────────────────
-  // --surface-high is the token palette.surfaceContainerHigh resolves to.
+  // --surface-high is the token theme.palette.surfaceContainerHigh resolves to.
   banner: {
     padding: space(4),
     borderRadius: radius.large,
-    backgroundColor: palette.surfaceContainerHigh,
+    backgroundColor: theme.palette.surfaceContainerHigh,
     gap: space(1),
   },
-  bannerLead: { ...type.titleMedium, color: palette.onSurface },
-  bannerLeadBad: { color: palette.error },
-  bannerCount: { ...type.bodySmall, color: palette.onSurfaceVariant, marginTop: space(1) },
-  bannerItem: { ...type.bodySmall, color: palette.onSurfaceVariant },
-  bannerItemName: { ...type.bodySmall, color: palette.onSurface, fontWeight: '600' },
+  bannerLead: { ...type.titleMedium, color: theme.palette.onSurface },
+  bannerLeadBad: { color: theme.palette.error },
+  bannerCount: { ...type.bodySmall, color: theme.palette.onSurfaceVariant, marginTop: space(1) },
+  bannerItem: { ...type.bodySmall, color: theme.palette.onSurfaceVariant },
+  bannerItemName: { ...type.bodySmall, color: theme.palette.onSurface, fontWeight: '600' },
 
   // ── sections ────────────────────────────────────────────────────────────
   secHead: {
@@ -1012,9 +1024,9 @@ const styles = StyleSheet.create({
   },
   // The reference's `.sec-title`: glass-on-variant, not an accent — the
   // section is structure, not an action.
-  sectionHeading: { ...type.labelSmall, color: glass.onGlassVariant },
+  sectionHeading: { ...type.labelSmall, color: theme.glass.onGlassVariant },
   sectionCard: { padding: space(4) },
-  sectionNote: { ...type.bodySmall, color: glass.onGlassVariant, marginTop: space(3) },
+  sectionNote: { ...type.bodySmall, color: theme.glass.onGlassVariant, marginTop: space(3) },
 
   // ── the fields ──────────────────────────────────────────────────────────
   fxGrid: { flexDirection: 'row', gap: space(3) },
@@ -1024,7 +1036,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     fontWeight: '600',
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
   },
   fxWrap: {
     minHeight: 48,
@@ -1035,16 +1047,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     // --outline, not its variant: the variant is a 1.7:1 hairline on this
     // field and the ten inputs lose their structure.
-    borderColor: palette.outline,
-    backgroundColor: glass.tintStrong,
+    borderColor: theme.palette.outline,
+    backgroundColor: theme.glass.tintStrong,
     paddingHorizontal: space(3),
   },
   // The bad box takes the error surface outright — border, fill and ink —
   // rather than a red line under a field that still looks fine.
-  fxWrapBad: { borderColor: palette.error, backgroundColor: palette.errorContainer },
+  fxWrapBad: { borderColor: theme.palette.error, backgroundColor: theme.palette.errorContainer },
   // Off drops the fill instead of fading it: opacity drags an already-dark
   // value under AA on a fill that is still light.
-  fxWrapOff: { backgroundColor: palette.surfaceContainer, borderColor: palette.outlineVariant },
+  fxWrapOff: { backgroundColor: theme.palette.surfaceContainer, borderColor: theme.palette.outlineVariant },
   fxIn: {
     flex: 1,
     minWidth: 0,
@@ -1052,26 +1064,26 @@ const styles = StyleSheet.create({
     paddingVertical: space(3),
     // align-self: stretch hands the whole 48px to the tap target; the
     // wrapper's centering does the rest.
-    color: glass.onGlass,
+    color: theme.glass.onGlass,
     textAlign: 'right',
     fontVariant: ['tabular-nums'],
     fontSize: 16,
     lineHeight: 23,
     fontWeight: '600',
   },
-  fxInBad: { color: palette.onErrorContainer },
-  fxInOff: { color: palette.onSurfaceVariant },
+  fxInBad: { color: theme.palette.onErrorContainer },
+  fxInOff: { color: theme.palette.onSurfaceVariant },
   fxUnit: {
     fontSize: 11,
     lineHeight: 16,
     fontWeight: '600',
     letterSpacing: 0.6,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
   },
-  fxUnitOff: { color: palette.outline },
+  fxUnitOff: { color: theme.palette.outline },
   // 11/16, not the app's 12/18: it fits under a 48px input without pushing
   // the grid row, and it is the only 11px red text on the screen.
-  fxErr: { fontSize: 11, lineHeight: 16, color: palette.error },
+  fxErr: { fontSize: 11, lineHeight: 16, color: theme.palette.error },
 
   // ── the 2×2 matrices ────────────────────────────────────────────────────
   mx: { gap: space(3) },
@@ -1088,14 +1100,14 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontWeight: '600',
     letterSpacing: 0.6,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
   },
   mxRowLabel: {
     width: 58,
     fontSize: 12,
     lineHeight: 16,
     fontWeight: '600',
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     // The cells are top-aligned; the row word centres against the row track,
     // exactly as the reference's `align-self: center` does.
     alignSelf: 'center',
@@ -1113,28 +1125,33 @@ const styles = StyleSheet.create({
     paddingRight: 8,
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: palette.outline,
+    borderColor: theme.palette.outline,
     backgroundColor: 'transparent',
   },
-  dtToggleOn: { backgroundColor: palette.primarySolid, borderColor: palette.primarySolid },
+  dtToggleOn: { backgroundColor: theme.palette.primarySolid, borderColor: theme.palette.primarySolid },
   dtPressed: { opacity: 0.88 },
-  dtLabel: { ...type.labelSmall, color: glass.onGlassVariant },
-  dtLabelOn: { color: palette.onPrimary },
+  dtLabel: { ...type.labelSmall, color: theme.glass.onGlassVariant },
+  dtLabelOn: { color: onPrimarySolid },
   dtState: {
     paddingVertical: 3,
     paddingHorizontal: 9,
     borderRadius: radius.full,
-    backgroundColor: palette.surfaceContainer,
+    backgroundColor: theme.palette.surfaceContainer,
   },
-  dtStateOn: { backgroundColor: palette.onPrimary },
-  dtStateText: { ...type.labelSmall, color: palette.onSurfaceVariant },
-  dtStateOnText: { ...type.labelSmall, color: palette.primarySolid },
+  // The ON word is a chip punched out of the solid track: a WHITE chip with
+  // the brand step on it. The inverse pairing (`onPrimary` fill,
+  // `primarySolid` ink) is a light-mode accident — in dark `onPrimary` becomes
+  // #4E2200 and the pair drops to 2.8:1. `primarySolid` is the same step in
+  // either mode, so white-over-it is 5.2:1 in both.
+  dtStateOn: { backgroundColor: onPrimarySolid },
+  dtStateText: { ...type.labelSmall, color: theme.palette.onSurfaceVariant },
+  dtStateOnText: { ...type.labelSmall, color: theme.palette.primarySolid },
 
   // ── the storage note ────────────────────────────────────────────────────
   noteLock: { flexDirection: 'row', gap: space(2), marginTop: space(1) },
   noteLockText: { flex: 1, gap: space(0.5) },
-  noteLabel: { ...type.labelSmall, color: glass.onGlassVariant },
-  noteBody: { ...type.bodySmall, color: glass.onGlassVariant },
+  noteLabel: { ...type.labelSmall, color: theme.glass.onGlassVariant },
+  noteBody: { ...type.bodySmall, color: theme.glass.onGlassVariant },
 
   // ── the action bar: the one committing action ───────────────────────────
   // Solid, and the only solid primary in the viewport — --primary-solid, not
@@ -1157,12 +1174,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: space(2),
     borderRadius: radius.large,
-    backgroundColor: palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
   },
-  saveBtnIdle: { backgroundColor: palette.surfaceContainer },
-  saveLabel: { ...type.labelLarge, color: palette.onPrimary, letterSpacing: 0.8 },
-  saveLabelIdle: { ...type.labelLarge, color: palette.onSurfaceVariant, letterSpacing: 0.8 },
-  saveCount: { ...type.bodySmall, color: glass.onGlassVariant, textAlign: 'center' },
+  saveBtnIdle: { backgroundColor: theme.palette.surfaceContainer },
+  saveLabel: { ...type.labelLarge, color: onPrimarySolid, letterSpacing: 0.8 },
+  saveLabelIdle: { ...type.labelLarge, color: theme.palette.onSurfaceVariant, letterSpacing: 0.8 },
+  saveCount: { ...type.bodySmall, color: theme.glass.onGlassVariant, textAlign: 'center' },
 
   centerBlock: {
     flex: 1,
@@ -1171,16 +1188,16 @@ const styles = StyleSheet.create({
     padding: space(5),
     gap: space(2),
   },
-  centerTitle: { ...type.titleMedium, color: palette.onSurface },
-  centerText: { ...type.bodyMedium, color: palette.onSurfaceVariant, textAlign: 'center' },
+  centerTitle: { ...type.titleMedium, color: theme.palette.onSurface },
+  centerText: { ...type.bodyMedium, color: theme.palette.onSurfaceVariant, textAlign: 'center' },
   goBackButton: {
     minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.large,
-    backgroundColor: palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
     paddingHorizontal: space(6),
     marginTop: space(5),
   },
-  goBackLabel: { ...type.labelLarge, color: palette.onPrimary, letterSpacing: 0.8 },
+  goBackLabel: { ...type.labelLarge, color: onPrimarySolid, letterSpacing: 0.8 },
 });

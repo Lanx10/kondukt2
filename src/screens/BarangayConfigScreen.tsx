@@ -15,7 +15,8 @@ import { GlassBackdrop } from '../components/GlassBackdrop';
 import { GlassCard } from '../components/GlassCard';
 import { DetailCard, DetailRow, Sheet } from '../components/BottomSheet';
 import { Icon } from '../icons';
-import { accent, glass, maxContentWidth, palette, radius, space, tintedGlass, type } from '../theme';
+import { maxContentWidth, onPrimarySolid, radius, space, tintedGlass, type, type KonduktTheme } from '../theme';
+import { useKonduktTheme } from '../lib/themeContext';
 import {
   deactivateMunicipality,
   deactivateTerminal,
@@ -120,6 +121,8 @@ export function BarangayConfigScreen({
   onOpenBarangayEditor,
   onOpenMunicipalityEditor,
 }: BarangayConfigScreenProps) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
 
   // Local state, reset on unmount: re-entering shows the barangays tab, both
@@ -431,7 +434,7 @@ export function BarangayConfigScreen({
                   {/* Search: add-trip's `.field`, minus the trailing control. */}
                   <GlassCard cornerRadius={radius.large} style={styles.field}>
                     <View style={styles.fieldIcon}>
-                      <Icon name="search" size={18} color={accent.tertiary.onContainer} />
+                      <Icon name="search" size={18} color={theme.accent.tertiary.onContainer} />
                     </View>
                     <TextInput
                       value={query}
@@ -443,7 +446,7 @@ export function BarangayConfigScreen({
                         )
                       }
                       placeholder={onBarangays ? 'Search barangays' : 'Search municipalities'}
-                      placeholderTextColor={palette.outline}
+                      placeholderTextColor={theme.palette.outline}
                       accessibilityLabel={onBarangays ? 'Search barangays' : 'Search municipalities'}
                       autoCapitalize="none"
                       autoCorrect={false}
@@ -473,7 +476,7 @@ export function BarangayConfigScreen({
                         pointerEvents="none"
                       />
                       <View style={styles.fieldIcon}>
-                        <Icon name="pin" size={18} color={accent.tertiary.onContainer} />
+                        <Icon name="pin" size={18} color={theme.accent.tertiary.onContainer} />
                       </View>
                       <View style={styles.fieldBody}>
                         <Text style={styles.fieldLabel}>Municipality</Text>
@@ -487,7 +490,7 @@ export function BarangayConfigScreen({
                           {scopeApplied}
                         </Text>
                       </View>
-                      <Icon name="chevronDown" size={18} color={palette.onSurfaceVariant} />
+                      <Icon name="chevronDown" size={18} color={theme.palette.onSurfaceVariant} />
                     </Pressable>
                   ) : null}
                 </View>
@@ -502,7 +505,7 @@ export function BarangayConfigScreen({
                     styles.captionDot,
                     {
                       backgroundColor:
-                        state.statusFilter === 'ALL' ? palette.outline : palette.primary,
+                        state.statusFilter === 'ALL' ? theme.palette.outline : theme.palette.primary,
                     },
                   ]}
                 />
@@ -548,7 +551,7 @@ export function BarangayConfigScreen({
                     hitSlop={8}
                     style={({ pressed }) => [styles.cautionClose, pressed && styles.pressed]}
                   >
-                    <Icon name="close" size={18} color={glass.onGlassVariant} />
+                    <Icon name="close" size={18} color={theme.glass.onGlassVariant} />
                   </Pressable>
                 </GlassCard>
               ) : null}
@@ -583,7 +586,7 @@ export function BarangayConfigScreen({
                     <Text style={styles.addPillLabel}>
                       {onBarangays ? 'ADD BARANGAY' : 'ADD MUNICIPALITY'}
                     </Text>
-                    <Icon name="plus" size={14} color={palette.onPrimary} />
+                    <Icon name="plus" size={14} color={onPrimarySolid} />
                   </Pressable>
                 </View>
               </View>
@@ -643,7 +646,7 @@ export function BarangayConfigScreen({
                     : 'All location configurations are saved locally and work offline.'
                 }`}
               >
-                <Icon name="lock" size={18} color={glass.onGlassVariant} />
+                <Icon name="lock" size={18} color={theme.glass.onGlassVariant} />
                 <View style={styles.noteLockBody}>
                   <Text style={styles.noteLockLabel}>OFFLINE STORAGE</Text>
                   <Text style={styles.noteLockText}>
@@ -800,6 +803,8 @@ function RecordRow({
   label: string;
   onPress: () => void;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <GlassCard
       onPress={onPress}
@@ -840,7 +845,7 @@ function RecordRow({
         <Icon
           name="chevron"
           size={18}
-          color={unlinked ? '#FFFFFF' : palette.onSurfaceVariant}
+          color={unlinked ? '#FFFFFF' : theme.palette.onSurfaceVariant}
         />
       </View>
     </GlassCard>
@@ -862,6 +867,8 @@ function InlineEmpty({
   actionLabel: string | null;
   onAction: (action: LocationEmptyAction) => void;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <GlassCard
       cornerRadius={radius.xlarge}
@@ -879,7 +886,7 @@ function InlineEmpty({
             style={({ pressed }) => [styles.ghostBtn, pressed && styles.pressed]}
           >
             {/* The empty state's way out is a glass pill like every other
-                control on this screen, not an outline on glass. */}
+                control on this screen, not an outline on theme.glass. */}
             <GlassCard
               cornerRadius={radius.large}
               style={StyleSheet.absoluteFill}
@@ -909,6 +916,8 @@ function PickOption({
   onPress: () => void;
   testID: string;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <GlassCard
       onPress={onPress}
@@ -933,7 +942,7 @@ function PickOption({
       <Icon
         name="check"
         size={18}
-        color={current ? '#FFFFFF' : palette.onSurfaceVariant}
+        color={current ? onPrimarySolid : theme.palette.onSurfaceVariant}
       />
     </GlassCard>
   );
@@ -961,6 +970,8 @@ function RecordSheet({
   onEdit: () => void;
   onDeactivate: () => void;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const isBarangay = row.kind === 'barangay';
   const title = isBarangay ? row.barangay.barangayName : row.municipality.name;
   const active = isBarangay ? row.barangay.isActive : row.municipality.is_active === 1;
@@ -1065,6 +1076,8 @@ function ConfirmSheet({
   onClose: () => void;
   onConfirm: () => void;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const isBarangay = row.kind === 'barangay';
   const title = isBarangay ? 'Deactivate Barangay?' : 'Deactivate Municipality?';
   const body = isBarangay
@@ -1124,6 +1137,8 @@ function ConfirmSheet({
  * being read.
  */
 function LoadingState() {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <View
       style={styles.stateBlock}
@@ -1144,10 +1159,11 @@ function LoadingState() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
   flex: { flex: 1 },
   pressed: { opacity: 0.88 },
-  screen: { flex: 1, backgroundColor: glass.backdrop },
+  screen: { flex: 1, backgroundColor: theme.glass.backdrop },
 
   // ONE column, ONE gutter — the same inset the chrome above it uses.
   column: {
@@ -1179,16 +1195,16 @@ const styles = StyleSheet.create({
     gap: space(2),
     borderRadius: radius.full,
   },
-  segmentSelected: { backgroundColor: palette.primarySolid },
-  segmentLabel: { ...type.labelLarge, color: palette.onSurfaceVariant },
-  segmentLabelSelected: { fontFamily: 'Poppins_700Bold', color: palette.onPrimary },
+  segmentSelected: { backgroundColor: theme.palette.primarySolid },
+  segmentLabel: { ...type.labelLarge, color: theme.palette.onSurfaceVariant },
+  segmentLabelSelected: { fontFamily: 'Poppins_700Bold', color: onPrimarySolid },
   segmentCount: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     opacity: 0.72,
     fontVariant: ['tabular-nums'],
   },
-  segmentCountSelected: { color: palette.onPrimary },
+  segmentCountSelected: { color: onPrimarySolid },
 
   fields: { marginTop: space(3), gap: space(3) },
   field: {
@@ -1212,18 +1228,18 @@ const styles = StyleSheet.create({
     borderRadius: radius.small,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: accent.tertiary.container,
+    backgroundColor: theme.accent.tertiary.container,
   },
   fieldBody: { flex: 1, minWidth: 0 },
-  fieldLabel: { ...type.bodySmall, color: palette.onSurfaceVariant },
-  fieldValue: { ...type.bodyMedium, fontFamily: 'Poppins_600SemiBold', color: palette.onSurface },
+  fieldLabel: { ...type.bodySmall, color: theme.palette.onSurfaceVariant },
+  fieldValue: { ...type.bodyMedium, fontFamily: 'Poppins_600SemiBold', color: theme.palette.onSurface },
   // "All Municipalities" reads as the absence of a choice, not a chosen value.
   fieldValueEmpty: {
     fontFamily: 'Poppins_400Regular',
     fontWeight: '500',
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
   },
-  fieldInput: { flex: 1, minWidth: 0, padding: 0, ...type.bodyMedium, color: palette.onSurface },
+  fieldInput: { flex: 1, minWidth: 0, padding: 0, ...type.bodyMedium, color: theme.palette.onSurface },
 
   // ── the status caption: the filter, in words ──
   //
@@ -1244,7 +1260,7 @@ const styles = StyleSheet.create({
   captionDot: { width: 5, height: 5, borderRadius: 2, flexShrink: 0 },
   // Sized to the sentence, so Change sits right after it — the prototype's
   // inline flow — and shrinks (wrapping the sentence) before it can overflow.
-  captionText: { ...type.bodySmall, color: glass.onGlassVariant, flexShrink: 1 },
+  captionText: { ...type.bodySmall, color: theme.glass.onGlassVariant, flexShrink: 1 },
   captionValue: { fontFamily: 'Poppins_700Bold' },
   textAction: {
     minHeight: 48,
@@ -1261,7 +1277,7 @@ const styles = StyleSheet.create({
   textActionLabel: {
     ...type.bodySmall,
     fontFamily: 'Poppins_600SemiBold',
-    color: glass.accentPrimary,
+    color: theme.glass.accentPrimary,
   },
   textActionLabelPressed: { textDecorationLine: 'underline' },
 
@@ -1274,7 +1290,7 @@ const styles = StyleSheet.create({
     paddingVertical: space(3),
     paddingHorizontal: space(4),
   },
-  cautionText: { ...type.bodySmall, color: glass.onGlassVariant, flex: 1 },
+  cautionText: { ...type.bodySmall, color: theme.glass.onGlassVariant, flex: 1 },
   cautionClose: {
     width: 44,
     height: 44,
@@ -1297,7 +1313,7 @@ const styles = StyleSheet.create({
     marginTop: space(5),
     marginBottom: space(3),
   },
-  sectionLabel: { ...type.labelSmall, color: glass.onGlassVariant },
+  sectionLabel: { ...type.labelSmall, color: theme.glass.onGlassVariant },
   sectionEnd: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1317,13 +1333,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space(2),
     borderRadius: radius.full,
-    backgroundColor: palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
   },
   addPillCount: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 14,
     lineHeight: 18,
-    color: palette.onPrimary,
+    color: onPrimarySolid,
     fontVariant: ['tabular-nums'],
   },
   addPillCountStrong: { fontFamily: 'Poppins_700Bold' },
@@ -1332,10 +1348,10 @@ const styles = StyleSheet.create({
   addPillDiv: {
     width: 1,
     height: 14,
-    backgroundColor: palette.onPrimary,
+    backgroundColor: onPrimarySolid,
     opacity: 0.45,
   },
-  addPillLabel: { ...type.labelSmall, color: palette.onPrimary },
+  addPillLabel: { ...type.labelSmall, color: onPrimarySolid },
 
   // ── the record row: Settings' card, minus its chip ──
   // A GlassCard: the unlinked fault is the red glass variant (see the `tint`
@@ -1349,8 +1365,8 @@ const styles = StyleSheet.create({
     marginBottom: space(3),
   },
   rowBody: { flex: 1, minWidth: 0 },
-  rowTitle: { ...type.titleMedium, color: palette.onSurface },
-  rowValue: { ...type.bodyMedium, color: palette.onSurfaceVariant, marginTop: 2 },
+  rowTitle: { ...type.titleMedium, color: theme.palette.onSurface },
+  rowValue: { ...type.bodyMedium, color: theme.palette.onSurfaceVariant, marginTop: 2 },
   // On the red glass row the neutral ink goes dark-on-red; white clears
   // 6.5:1 on `tintedGlass.error` and reads as the fault.
   rowTitleUnlinked: { color: '#FFFFFF' },
@@ -1360,19 +1376,19 @@ const styles = StyleSheet.create({
   },
   rowEnd: { flexDirection: 'row', alignItems: 'center', gap: space(2), flexShrink: 0 },
   pill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.full },
-  pillActive: { backgroundColor: accent.tertiary.container },
-  pillInactive: { backgroundColor: palette.surfaceContainer },
+  pillActive: { backgroundColor: theme.accent.tertiary.container },
+  pillInactive: { backgroundColor: theme.palette.surfaceContainer },
   pillLabel: { ...type.labelSmall },
-  pillLabelActive: { color: accent.tertiary.onContainer },
-  pillLabelInactive: { color: glass.onGlassVariant },
+  pillLabelActive: { color: theme.accent.tertiary.onContainer },
+  pillLabelInactive: { color: theme.glass.onGlassVariant },
 
   // ── the empty state ──
   inlineEmpty: {
     paddingVertical: space(4),
     paddingHorizontal: 18,
   },
-  inlineEmptyTitle: { ...type.labelSmall, color: glass.onGlass },
-  inlineEmptyBody: { ...type.bodySmall, color: glass.onGlassVariant, marginTop: space(2) },
+  inlineEmptyTitle: { ...type.labelSmall, color: theme.glass.onGlass },
+  inlineEmptyBody: { ...type.bodySmall, color: theme.glass.onGlassVariant, marginTop: space(2) },
   cardActions: { flexDirection: 'row', flexWrap: 'wrap', gap: space(2), marginTop: space(4) },
   ghostBtn: {
     minHeight: 48,
@@ -1382,10 +1398,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: radius.large,
   },
-  ghostBtnLabel: { ...type.labelLarge, color: glass.onGlassVariant },
+  ghostBtnLabel: { ...type.labelLarge, color: theme.glass.onGlassVariant },
 
   // ── the section note and the offline statement ──
-  secNote: { ...type.bodySmall, color: glass.onGlassVariant, marginTop: space(3) },
+  secNote: { ...type.bodySmall, color: theme.glass.onGlassVariant, marginTop: space(3) },
   noteLock: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -1395,8 +1411,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(5),
   },
   noteLockBody: { flex: 1 },
-  noteLockLabel: { ...type.labelSmall, color: glass.onGlassVariant },
-  noteLockText: { ...type.bodySmall, color: glass.onGlassVariant, marginTop: space(1) },
+  noteLockLabel: { ...type.labelSmall, color: theme.glass.onGlassVariant },
+  noteLockText: { ...type.bodySmall, color: theme.glass.onGlassVariant, marginTop: space(1) },
 
   // ── sheets: options and actions ──
   pickList: { marginTop: space(2), gap: space(2) },
@@ -1412,10 +1428,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(3),
   },
   pickBody: { flex: 1, minWidth: 0 },
-  pickName: { ...type.bodyMedium, color: palette.onSurface },
-  pickNameCurrent: { color: '#FFFFFF' },
-  pickSub: { ...type.bodySmall, color: palette.onSurfaceVariant, marginTop: 2 },
-  pickSubCurrent: { color: '#FFFFFF', opacity: 0.85 },
+  pickName: { ...type.bodyMedium, color: theme.palette.onSurface },
+  pickNameCurrent: { color: onPrimarySolid },
+  pickSub: { ...type.bodySmall, color: theme.palette.onSurfaceVariant, marginTop: 2 },
+  pickSubCurrent: { color: onPrimarySolid, opacity: 0.85 },
 
   sheetActions: {
     flexDirection: 'row',
@@ -1431,7 +1447,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: radius.large,
   },
-  sheetGhostLabel: { ...type.labelLarge, color: palette.onSurfaceVariant },
+  sheetGhostLabel: { ...type.labelLarge, color: theme.palette.onSurfaceVariant },
   // The irreversible write, red GLASS: the error pigment is carried by a
   // tinted GlassCard child, so this style is geometry only. It is greyed,
   // never hidden, on a record that has nothing left to deactivate.
@@ -1443,25 +1459,25 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: radius.large,
   },
-  sheetDestructiveOff: { backgroundColor: palette.surfaceContainer },
-  sheetDestructiveLabel: { ...type.labelLarge, color: palette.onError },
-  sheetDestructiveLabelOff: { color: palette.outline },
+  sheetDestructiveOff: { backgroundColor: theme.palette.surfaceContainer },
+  sheetDestructiveLabel: { ...type.labelLarge, color: theme.palette.onError },
+  sheetDestructiveLabelOff: { color: theme.palette.outline },
   sheetPrimary: {
     minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: space(5),
     borderRadius: radius.large,
-    backgroundColor: palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
   },
   sheetPrimaryBusy: { opacity: 0.65 },
-  sheetPrimaryLabel: { ...type.labelLarge, color: palette.onPrimary },
+  sheetPrimaryLabel: { ...type.labelLarge, color: onPrimarySolid },
   sheetNote: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginTop: space(3),
   },
-  sheetBodyText: { ...type.bodyMedium, color: palette.onSurfaceVariant },
+  sheetBodyText: { ...type.bodyMedium, color: theme.palette.onSurfaceVariant },
 
   // ── loading and error: they replace the whole screen ──
   stateBlock: {
@@ -1480,15 +1496,15 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: radius.medium,
-    backgroundColor: palette.surfaceContainerHigh,
+    backgroundColor: theme.palette.surfaceContainerHigh,
   },
   skLines: { flex: 1, minWidth: 0 },
-  skLine: { height: 14, borderRadius: radius.small, backgroundColor: palette.surfaceContainerHigh },
+  skLine: { height: 14, borderRadius: radius.small, backgroundColor: theme.palette.surfaceContainerHigh },
   skLineThin: {
     height: 12,
     marginTop: space(2),
     borderRadius: radius.small,
-    backgroundColor: palette.surfaceContainerHigh,
+    backgroundColor: theme.palette.surfaceContainerHigh,
   },
   stateError: {
     marginTop: space(5),
@@ -1509,7 +1525,7 @@ const styles = StyleSheet.create({
     marginTop: space(3),
     paddingHorizontal: space(6),
     borderRadius: radius.large,
-    backgroundColor: palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
   },
-  stateGoBackLabel: { ...type.labelLarge, color: palette.onPrimary, letterSpacing: 0.8 },
+  stateGoBackLabel: { ...type.labelLarge, color: onPrimarySolid, letterSpacing: 0.8 },
 });

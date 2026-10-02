@@ -1,12 +1,13 @@
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useUpdateGuard } from '../lib/updateGuard';
 import { SectionChrome } from '../components/SectionChrome';
 import { GlassCard } from '../components/GlassCard';
 import { DetailCard, DetailRow, Handoff, Sheet } from '../components/BottomSheet';
 import { Icon } from '../icons';
-import { palette, radius, space, type } from '../theme';
+import { onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
+import { useKonduktTheme } from '../lib/themeContext';
 import {
   fetchActiveTerminals,
   fetchAllMunicipalities,
@@ -80,6 +81,8 @@ export function AddTripScreen({
   onAddFirstBoarding,
   onOpenFareSettings,
 }: AddTripScreenProps) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   // While a route is being chosen, the update system must not pop its
   // "Update available" sheet or restart the app over this form.
@@ -336,7 +339,7 @@ export function AddTripScreen({
               accessibilityLabel="Retry reading local records"
               style={({ pressed }) => [styles.ghostButton, styles.pickerAction, pressed && styles.pressed]}
             >
-              <Icon name="check" size={18} color={palette.onSurface} />
+              <Icon name="check" size={18} color={theme.palette.onSurface} />
               <Text style={styles.ghostButtonLabel}>Retry</Text>
             </Pressable>
           </GlassCard>
@@ -414,7 +417,7 @@ export function AddTripScreen({
                   pressed && styles.pressed,
                 ]}
               >
-                <Icon name="arrowRight" size={20} color={palette.onSurface} />
+                <Icon name="arrowRight" size={20} color={theme.palette.onSurface} />
               </Pressable>
               <View
                 style={styles.legLine}
@@ -530,7 +533,7 @@ export function AddTripScreen({
               accessibilityLabel="See what a rate would be used for"
               style={({ pressed }) => [styles.ghostButton, styles.pickerAction, pressed && styles.pressed]}
             >
-              <Icon name="fare" size={18} color={palette.onSurface} />
+              <Icon name="fare" size={18} color={theme.palette.onSurface} />
               <Text style={styles.ghostButtonLabel}>See what a rate would be used for</Text>
             </Pressable>
           </GlassCard>
@@ -583,7 +586,7 @@ export function AddTripScreen({
         ) : null}
 
         <GlassCard style={styles.storageCard} testID="storage-footer">
-          <Icon name="database" size={18} color={palette.onSurfaceVariant} />
+          <Icon name="database" size={18} color={theme.palette.onSurfaceVariant} />
           <Text style={styles.storageNote}>{storageNote}</Text>
         </GlassCard>
       </ScrollView>
@@ -765,6 +768,8 @@ function TerminalField({
   value: string | null;
   onPress: () => void;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <Pressable
       onPress={onPress}
@@ -774,7 +779,7 @@ function TerminalField({
       style={({ pressed }) => [styles.field, pressed && styles.pressed]}
     >
       <View style={styles.fieldIcon}>
-        <Icon name="terminal" size={20} color={palette.onTertiaryContainer} />
+        <Icon name="terminal" size={20} color={theme.palette.onTertiaryContainer} />
       </View>
       <View style={styles.fieldBody}>
         <Text style={styles.fieldLabel}>{label}</Text>
@@ -785,7 +790,7 @@ function TerminalField({
           {value ?? placeholder}
         </Text>
       </View>
-      <Icon name="chevron" size={18} color={palette.onSurfaceVariant} />
+      <Icon name="chevron" size={18} color={theme.palette.onSurfaceVariant} />
     </Pressable>
   );
 }
@@ -805,6 +810,8 @@ function RoadButton({
   pressed: boolean;
   onPress: () => void;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <Pressable
       onPress={onPress}
@@ -826,6 +833,8 @@ function RoadButton({
 
 /** One estimate line: label at the left, the tabular figure at the right. */
 function EstRow({ k, v, last = false }: { k: string; v: string; last?: boolean }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <View style={[styles.estRow, last && styles.estRowLast]}>
       <Text style={styles.estKey}>{k}</Text>
@@ -860,6 +869,8 @@ function PickerSheet({
   onClose: () => void;
   onPick: (terminal: TerminalRowRecord) => void;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const results = filterTerminals(terminals, query);
   const muniName = (stop: TerminalRowRecord) =>
     stop.municipality_id != null
@@ -878,7 +889,7 @@ function PickerSheet({
         value={query}
         onChangeText={setQuery}
         placeholder="Search terminal names"
-        placeholderTextColor={palette.outline}
+        placeholderTextColor={theme.palette.outline}
         accessibilityLabel={`Search ${side} terminals`}
         style={styles.pickerSearch}
       />
@@ -922,7 +933,7 @@ function PickerSheet({
                 ]}
               >
                 <View style={styles.pickerIcon}>
-                  <Icon name="terminal" size={18} color={palette.onTertiaryContainer} />
+                  <Icon name="terminal" size={18} color={theme.palette.onTertiaryContainer} />
                 </View>
                 <View style={styles.pickerRowBody}>
                   <Text
@@ -938,7 +949,7 @@ function PickerSheet({
                     {sub}
                   </Text>
                 </View>
-                {isSelected ? <Icon name="check" size={18} color={palette.onPrimary} /> : null}
+                {isSelected ? <Icon name="check" size={18} color={onPrimarySolid} /> : null}
               </Pressable>
             );
           }}
@@ -948,7 +959,8 @@ function PickerSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
   screen: { flex: 1 },
   column: {
     width: '100%',
@@ -973,7 +985,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     ...type.labelSmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     flexShrink: 1,
   },
   textAction: {
@@ -986,7 +998,7 @@ const styles = StyleSheet.create({
   textActionDisabled: { opacity: 0.4 },
   textActionLabel: {
     ...type.labelSmall,
-    color: palette.primarySolid,
+    color: theme.palette.primarySolid,
   },
 
   // ROUTE
@@ -998,8 +1010,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(3),
     borderRadius: radius.large,
     borderWidth: 1,
-    borderColor: palette.outlineVariant,
-    backgroundColor: palette.surfaceContainerLowest,
+    borderColor: theme.palette.outlineVariant,
+    backgroundColor: theme.palette.surfaceContainerLowest,
   },
   fieldIcon: {
     width: 36,
@@ -1007,21 +1019,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.small,
-    backgroundColor: palette.tertiaryContainer,
+    backgroundColor: theme.palette.tertiaryContainer,
   },
   fieldBody: { flex: 1, minWidth: 0 },
   fieldLabel: {
     ...type.labelSmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
   },
   fieldValue: {
     ...type.titleMedium,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
   },
   fieldPlaceholder: {
     ...type.bodyMedium,
     fontWeight: '500',
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
   },
   // The leg is a rule broken by the swap control, with the distance sitting
   // under it: the distance is what joins the two fields.
@@ -1034,7 +1046,7 @@ const styles = StyleSheet.create({
   legLine: {
     flex: 1,
     height: 1,
-    backgroundColor: palette.outline,
+    backgroundColor: theme.palette.outline,
   },
   swapButton: {
     width: 44,
@@ -1045,13 +1057,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: palette.outline,
-    backgroundColor: palette.surfaceContainerLowest,
+    borderColor: theme.palette.outline,
+    backgroundColor: theme.palette.surfaceContainerLowest,
   },
   swapDisabled: { opacity: 0.55 },
   legDist: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     textAlign: 'center',
     fontVariant: ['tabular-nums'],
     marginBottom: space(3),
@@ -1060,7 +1072,7 @@ const styles = StyleSheet.create({
   // holds the two choices, the sentence below explains why they do not price.
   legWarnBelow: {
     ...type.bodySmall,
-    color: palette.error,
+    color: theme.palette.error,
     marginHorizontal: space(5),
     marginTop: space(2),
   },
@@ -1078,36 +1090,36 @@ const styles = StyleSheet.create({
     paddingVertical: space(2),
     borderRadius: radius.large,
     borderWidth: 1,
-    borderColor: palette.outlineVariant,
-    backgroundColor: palette.surfaceContainerLowest,
+    borderColor: theme.palette.outlineVariant,
+    backgroundColor: theme.palette.surfaceContainerLowest,
   },
   // Clicked = solid: the chosen road inverts to the brand fill.
   roadButtonActive: {
-    backgroundColor: palette.primarySolid,
-    borderColor: palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
+    borderColor: theme.palette.primarySolid,
     borderWidth: 2,
   },
   roadTitle: {
     ...type.titleMedium,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
   },
-  roadTitleActive: { color: palette.onPrimary },
+  roadTitleActive: { color: onPrimarySolid },
   roadSub: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginTop: 2,
   },
-  roadSubActive: { color: palette.onPrimary },
+  roadSubActive: { color: onPrimarySolid },
   // The consequence of the road, in pesos, right where the road is chosen.
   roadNote: {
     marginTop: space(3),
     padding: space(3),
     borderRadius: radius.medium,
-    backgroundColor: palette.secondary,
+    backgroundColor: theme.palette.secondary,
   },
   roadNoteText: {
     ...type.bodySmall,
-    color: palette.onSecondary,
+    color: theme.palette.onSecondary,
   },
 
   // ESTIMATE
@@ -1118,24 +1130,24 @@ const styles = StyleSheet.create({
     gap: space(3),
     paddingVertical: space(3),
     borderBottomWidth: 1,
-    borderBottomColor: palette.outline,
+    borderBottomColor: theme.palette.outline,
   },
   estRowLast: { borderBottomWidth: 0 },
   estKey: {
     ...type.bodyMedium,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     flexShrink: 1,
   },
   estVal: {
     ...type.bodyMedium,
     fontWeight: '600',
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     fontVariant: ['tabular-nums'],
     textAlign: 'right',
   },
   hint: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginTop: space(3),
   },
 
@@ -1148,12 +1160,12 @@ const styles = StyleSheet.create({
   // an error — the write never failed.
   blockReason: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginBottom: space(3),
   },
   writeError: {
     ...type.bodySmall,
-    color: palette.error,
+    color: theme.palette.error,
     marginTop: space(2),
     marginBottom: space(3),
   },
@@ -1163,19 +1175,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: space(4),
     borderRadius: radius.large,
-    backgroundColor: palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
   },
   // Dropping the fill, not fading it: opacity blends toward the page and takes
   // the white label under AA with it. A grey button is not a primary.
   solidButtonDisabled: {
-    backgroundColor: palette.surfaceContainer,
+    backgroundColor: theme.palette.surfaceContainer,
   },
   solidButtonLabel: {
     ...type.labelLarge,
-    color: '#FFFFFF',
+    color: onPrimarySolid,
   },
   solidButtonLabelDisabled: {
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
   },
   sheetAction: {
     marginTop: space(4),
@@ -1188,7 +1200,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(4),
     borderRadius: radius.large,
     borderWidth: 1,
-    borderColor: palette.outline,
+    borderColor: theme.palette.outline,
   },
   pickerAction: {
     flexDirection: 'row',
@@ -1196,7 +1208,7 @@ const styles = StyleSheet.create({
   },
   ghostButtonLabel: {
     ...type.labelLarge,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
   },
 
   // STORAGE
@@ -1211,33 +1223,33 @@ const styles = StyleSheet.create({
   },
   storageNote: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     flex: 1,
   },
 
   // Whole-screen states
   stateTitle: {
     ...type.titleMedium,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
   },
   stateBody: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginTop: space(2),
   },
   stateBodyError: {
     ...type.bodySmall,
-    color: palette.onErrorContainer,
+    color: theme.palette.onErrorContainer,
     marginTop: space(2),
   },
   errorCard: {
-    backgroundColor: palette.errorContainer,
+    backgroundColor: theme.palette.errorContainer,
     borderWidth: 1,
-    borderColor: palette.error,
+    borderColor: theme.palette.error,
   },
   skeleton: {
     borderRadius: radius.small,
-    backgroundColor: palette.surfaceContainer,
+    backgroundColor: theme.palette.surfaceContainer,
   },
   skeletonTitle: { height: 16, width: '34%' },
   skeletonRow: { height: 56 },
@@ -1250,8 +1262,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(3),
     borderRadius: radius.medium,
     borderWidth: 1,
-    borderColor: palette.outlineVariant,
-    color: palette.onSurface,
+    borderColor: theme.palette.outlineVariant,
+    color: theme.palette.onSurface,
     ...type.bodyMedium,
   },
   pickerList: {
@@ -1264,7 +1276,7 @@ const styles = StyleSheet.create({
   },
   pickerEmpty: {
     ...type.bodyMedium,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginTop: space(4),
     textAlign: 'center',
   },
@@ -1278,13 +1290,13 @@ const styles = StyleSheet.create({
     paddingVertical: space(2),
     borderRadius: radius.large,
     borderWidth: 1,
-    borderColor: palette.outlineVariant,
-    backgroundColor: palette.surfaceContainerLowest,
+    borderColor: theme.palette.outlineVariant,
+    backgroundColor: theme.palette.surfaceContainerLowest,
   },
   // Chosen = solid, the same rule the road buttons follow.
   pickerRowSelected: {
-    backgroundColor: palette.primarySolid,
-    borderColor: palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
+    borderColor: theme.palette.primarySolid,
     borderWidth: 2,
   },
   pickerIcon: {
@@ -1293,25 +1305,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.small,
-    backgroundColor: palette.tertiaryContainer,
+    backgroundColor: theme.palette.tertiaryContainer,
   },
   pickerRowBody: { flex: 1, minWidth: 0 },
   pickerRowName: {
     ...type.bodyMedium,
     fontWeight: '600',
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
   },
   pickerRowSub: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginTop: 2,
   },
   pickerRowTextSelected: {
-    color: palette.onPrimary,
+    color: onPrimarySolid,
   },
   pickerMore: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginTop: space(3),
     marginBottom: space(2),
   },

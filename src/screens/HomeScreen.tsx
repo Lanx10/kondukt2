@@ -37,6 +37,7 @@ import * as _libUpdateProvider from '../lib/UpdateProvider';
 import * as _libApkUpdateProvider from '../lib/ApkUpdateProvider';
 import * as _icons from '../icons';
 import * as _theme from '../theme';
+import * as _libThemeContext from '../lib/themeContext';
 import * as _reactJsxRuntime from 'react/jsx-runtime';
 
 
@@ -121,6 +122,11 @@ type OpenRoute =
 type SectionKey = keyof typeof SECTIONS | OpenRoute;
 
  function HomeScreen() {
+   // Built at module scope this sheet froze to whatever theme mode the process
+   // first saw, so the section chrome and the empty-state card never followed
+   // a switch in Advanced Settings. Derived per render instead.
+   let theme = (0, _libThemeContext.useKonduktTheme)().theme;
+   let styles = (0, _react.useMemo)(() => makeStyles(theme), [theme]);
    let insets = (0, _reactNativeSafeAreaContext.useSafeAreaInsets)();
    let now = (0, _libUseNow.useNow)();
    let [open, setOpen] = _react.useState<SectionKey | null>(null);
@@ -823,7 +829,7 @@ type SectionKey = keyof typeof SECTIONS | OpenRoute;
                children: /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_icons.Icon, {
              name: section.icon,
              size: 28,
-             color: _theme.glass.accentTertiary
+             color: theme.glass.accentTertiary
                })
              }), /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.Text, {
                style: styles.emptyTitle,
@@ -883,10 +889,10 @@ type SectionKey = keyof typeof SECTIONS | OpenRoute;
      })]
    });
  }
- const styles = _reactNative.StyleSheet.create({
+ const makeStyles = (theme: _theme.KonduktTheme) => _reactNative.StyleSheet.create({
    screen: {
      flex: 1,
-     backgroundColor: _theme.glass.backdrop
+     backgroundColor: theme.glass.backdrop
    },
    content: {
      paddingTop: (0, _theme.space)(2),
@@ -902,7 +908,7 @@ type SectionKey = keyof typeof SECTIONS | OpenRoute;
    },
    sectionHeading: {
      ..._theme.type.labelSmall,
-     color: _theme.palette.onSurfaceVariant,
+     color: theme.palette.onSurfaceVariant,
      marginTop: (0, _theme.space)(5),
      marginBottom: (0, _theme.space)(3),
      marginHorizontal: (0, _theme.space)(5)
@@ -970,12 +976,12 @@ type SectionKey = keyof typeof SECTIONS | OpenRoute;
    },
    emptyTitle: {
      ..._theme.type.titleMedium,
-     color: _theme.glass.onGlass,
+     color: theme.glass.onGlass,
      marginTop: (0, _theme.space)(3)
    },
    emptyText: {
      ..._theme.type.bodyMedium,
-     color: _theme.glass.onGlassVariant,
+     color: theme.glass.onGlassVariant,
      marginTop: (0, _theme.space)(2)
    }
  });

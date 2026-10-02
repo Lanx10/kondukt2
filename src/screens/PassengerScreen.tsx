@@ -12,7 +12,8 @@ import { DetailCard, DetailRow, Handoff, Sheet } from '../components/BottomSheet
 import { GlassCard } from '../components/GlassCard';
 import { SectionChrome } from '../components/SectionChrome';
 import { Icon } from '../icons';
-import { cardShadow, glass, onAmber, palette, radius, space, type } from '../theme';
+import { cardShadow, onAmber, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
+import { useKonduktTheme } from '../lib/themeContext';
 import {
   fetchAvailableTrips,
   fetchTripTickets,
@@ -85,6 +86,8 @@ function roadElapsed(startedAt: number, endedAt: number | null, now: number) {
  * never re-reads the store and the card keeps the trip's own totals.
  */
 export function PassengerScreen({ onBack, onOpenTrips }: PassengerScreenProps) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
 
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' });
@@ -504,7 +507,7 @@ export function PassengerScreen({ onBack, onOpenTrips }: PassengerScreenProps) {
               accessibilityLabel="Retry reading passenger records"
               style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
             >
-              <Icon name="history" size={18} color="#FFFFFF" />
+              <Icon name="history" size={18} color={onPrimarySolid} />
               <Text style={styles.primaryBtnLabel}>Retry</Text>
             </Pressable>
           </View>
@@ -536,7 +539,7 @@ export function PassengerScreen({ onBack, onOpenTrips }: PassengerScreenProps) {
               accessibilityLabel="Go to trip management"
               style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
             >
-              <Icon name="bus" size={18} color="#FFFFFF" />
+              <Icon name="bus" size={18} color={onPrimarySolid} />
               <Text style={styles.primaryBtnLabel}>Go to trips</Text>
             </Pressable>
           </View>
@@ -596,12 +599,12 @@ export function PassengerScreen({ onBack, onOpenTrips }: PassengerScreenProps) {
       </View>
 
       <View style={[styles.search, searchFocus && styles.searchFocused]}>
-        <Icon name="search" size={18} color={palette.onSurfaceVariant} />
+        <Icon name="search" size={18} color={theme.palette.onSurfaceVariant} />
         <TextInput
           value={searchQuery}
           onChangeText={setSearchQuery}
           placeholder="Search a place"
-          placeholderTextColor={palette.outline}
+          placeholderTextColor={theme.palette.outline}
           accessibilityLabel="Search boarding and drop-off places"
           autoCapitalize="none"
           autoCorrect={false}
@@ -623,7 +626,7 @@ export function PassengerScreen({ onBack, onOpenTrips }: PassengerScreenProps) {
             accessibilityLabel="Clear the place search"
             style={({ pressed }) => [styles.searchClear, pressed && styles.pressed]}
           >
-            <Icon name="close" size={18} color={palette.onSurfaceVariant} />
+            <Icon name="close" size={18} color={theme.palette.onSurfaceVariant} />
           </Pressable>
         ) : null}
       </View>
@@ -647,7 +650,7 @@ export function PassengerScreen({ onBack, onOpenTrips }: PassengerScreenProps) {
             style={({ pressed }) => [styles.textAction, pressed && styles.pressed]}
           >
             <Text style={styles.textActionLabel}>ALL GROUPS</Text>
-            <Icon name="chevron" size={14} color={glass.accentPrimary} />
+            <Icon name="chevron" size={14} color={theme.glass.accentPrimary} />
           </Pressable>
         ) : null}
       </View>
@@ -768,6 +771,8 @@ function Chrome({
 
 /** One figure in the card's hero row — FARES / GROUPS / MUNICIPALITIES. */
 function Figure({ value, label, live }: { value: number; label: string; live: boolean }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <View style={styles.figure}>
       <Text style={[styles.figureValue, live && styles.amberPrimary]}>{value}</Text>
@@ -798,6 +803,8 @@ function TripCard({
   now: number;
   onSwitch: () => void;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const live = trip.status === 'ACTIVE';
   const detail =
     `${trip.distance_km_milli > 0 ? formatKm(trip.distance_km_milli) : NO_DISTANCE}` +
@@ -833,7 +840,7 @@ function TripCard({
         <Icon
           name="arrowRight"
           size={18}
-          color={live ? onAmber.faint : palette.onSurfaceVariant}
+          color={live ? onAmber.faint : theme.palette.onSurfaceVariant}
         />
         <Text style={[styles.heroRouteText, live && styles.amberPrimary]}>
           {trip.destination_location_snapshot}
@@ -867,7 +874,7 @@ function TripCard({
           pressed && styles.pressed,
         ]}
       >
-        <Icon name="swap" size={16} color={live ? onAmber.detail : palette.onSurfaceVariant} />
+        <Icon name="swap" size={16} color={live ? onAmber.detail : theme.palette.onSurfaceVariant} />
         <Text style={[styles.ghostBtnLabel, live && styles.amberDetail]}>Switch trip</Text>
       </Pressable>
     </>
@@ -898,6 +905,8 @@ function PairRow({
   denom: number;
   onPress: () => void;
 }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const { row, rank } = entry;
   const pct = denom > 0 ? Math.round((row.passengerCount / denom) * 100) : 0;
   const mix = mixLabel(row.byType);
@@ -949,15 +958,18 @@ function PairRow({
 
 /** The storage footer, last — the privacy note after the answer. */
 function StorageFooter({ note }: { note: ReactNode }) {
+  const { theme } = useKonduktTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   return (
     <GlassCard style={styles.storageCard} testID="ps-storage">
-      <Icon name="database" size={18} color={palette.onSurfaceVariant} />
+      <Icon name="database" size={18} color={theme.palette.onSurfaceVariant} />
       <Text style={styles.storageNote}>{note}</Text>
     </GlassCard>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: KonduktTheme) =>
+  StyleSheet.create({
   screen: { flex: 1 },
   column: {
     width: '100%',
@@ -972,7 +984,7 @@ const styles = StyleSheet.create({
     marginTop: space(3),
     padding: space(5),
   },
-  sk: { borderRadius: radius.small, backgroundColor: palette.surfaceContainer },
+  sk: { borderRadius: radius.small, backgroundColor: theme.palette.surfaceContainer },
   skLabel: { height: 11, width: '34%', borderRadius: 6 },
   skBig: { height: 22, width: '62%', marginTop: space(3.5) },
   skLead: { height: 34, width: '34%', marginTop: space(5) },
@@ -984,14 +996,14 @@ const styles = StyleSheet.create({
     padding: space(5),
     borderRadius: radius.xlarge,
     borderWidth: 1,
-    borderColor: palette.outlineVariant,
-    backgroundColor: 'rgba(255, 255, 255, 0.55)',
+    borderColor: theme.palette.outlineVariant,
+    backgroundColor: theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.55)',
   },
-  errorCard: { borderColor: palette.error, backgroundColor: palette.errorContainer },
-  stateHeading: { ...type.headlineSmall, color: palette.onSurface },
-  errorHeading: { color: palette.onErrorContainer },
-  stateBody: { ...type.bodyMedium, color: palette.onSurfaceVariant, marginTop: space(2) },
-  errorBody: { color: palette.onErrorContainer },
+  errorCard: { borderColor: theme.palette.error, backgroundColor: theme.palette.errorContainer },
+  stateHeading: { ...type.headlineSmall, color: theme.palette.onSurface },
+  errorHeading: { color: theme.palette.onErrorContainer },
+  stateBody: { ...type.bodyMedium, color: theme.palette.onSurfaceVariant, marginTop: space(2) },
+  errorBody: { color: theme.palette.onErrorContainer },
   primaryBtn: {
     marginTop: space(3.5),
     minHeight: 48,
@@ -1001,18 +1013,18 @@ const styles = StyleSheet.create({
     gap: space(2),
     paddingHorizontal: space(5),
     borderRadius: radius.large,
-    backgroundColor: palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
   },
-  primaryBtnLabel: { ...type.labelLarge, color: '#FFFFFF' },
+  primaryBtnLabel: { ...type.labelLarge, color: onPrimarySolid },
   solidButton: {
     marginTop: space(4),
     minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.large,
-    backgroundColor: palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
   },
-  solidButtonLabel: { ...type.labelLarge, color: '#FFFFFF' },
+  solidButtonLabel: { ...type.labelLarge, color: onPrimarySolid },
 
   // ── the trip card ───────────────────────────────────────────────────────
   passCard: {
@@ -1028,23 +1040,30 @@ const styles = StyleSheet.create({
     marginTop: space(3),
     padding: space(5),
     borderRadius: radius.glass,
-    backgroundColor: palette.secondary,
+    backgroundColor: theme.palette.secondary,
     overflow: 'hidden',
     ...cardShadow,
+    // Only the shadow's colour follows the mode — the geometry is the card's.
+    shadowColor: theme.glass.shadow,
   },
   pcHead: { flexDirection: 'row', alignItems: 'center', gap: space(3) },
   pcHeadText: { flex: 1, minWidth: 0 },
-  pcEyebrow: { ...type.labelSmall, color: palette.onSurfaceVariant },
-  pcTitle: { ...type.titleMedium, color: palette.onSurface, marginTop: space(2) },
+  pcEyebrow: { ...type.labelSmall, color: theme.palette.onSurfaceVariant },
+  pcTitle: { ...type.titleMedium, color: theme.palette.onSurface, marginTop: space(2) },
   stPill: {
     paddingHorizontal: space(2.5),
     paddingVertical: 3,
     borderRadius: radius.full,
-    backgroundColor: palette.secondaryContainer,
+    backgroundColor: theme.palette.secondaryContainer,
   },
-  stPillSolid: { backgroundColor: palette.onSecondaryContainer },
-  stPillText: { ...type.labelSmall, color: palette.onSecondaryContainer },
-  stPillTextSolid: { color: palette.secondary },
+  // `onSecondaryContainer` inverted into a chip: light pairs #4A3600 with
+  // #FFB300 (6.1:1), but dark flips BOTH ends (#FFEFC7 under #FFD066) and the
+  // pair collapses to 1.4:1. `onSecondary` is the same dark brown in either
+  // palette, so the amber card — itself light in either mode — always gets a
+  // dark chip with amber ink on it.
+  stPillSolid: { backgroundColor: theme.palette.onSecondary },
+  stPillText: { ...type.labelSmall, color: theme.palette.onSecondaryContainer },
+  stPillTextSolid: { color: theme.palette.secondary },
   heroRoute: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1052,31 +1071,31 @@ const styles = StyleSheet.create({
     gap: space(2),
     marginTop: space(3),
   },
-  heroRouteText: { ...type.headlineSmall, color: palette.onSurface },
-  pcDetail: { ...type.bodySmall, color: palette.onSurfaceVariant, marginTop: space(1) },
+  heroRouteText: { ...type.headlineSmall, color: theme.palette.onSurface },
+  pcDetail: { ...type.bodySmall, color: theme.palette.onSurfaceVariant, marginTop: space(1) },
   leadFigure: { marginTop: space(3) },
   leadValue: {
     ...type.displaySmall,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     fontVariant: ['tabular-nums'],
   },
-  leadLabel: { ...type.labelSmall, color: palette.onSurfaceVariant, marginTop: space(0.5) },
+  leadLabel: { ...type.labelSmall, color: theme.palette.onSurfaceVariant, marginTop: space(0.5) },
   heroFigures: {
     flexDirection: 'row',
     gap: space(3),
     marginTop: space(4),
     paddingTop: space(4),
     borderTopWidth: 1,
-    borderTopColor: palette.outline,
+    borderTopColor: theme.palette.outline,
   },
   heroFiguresSolid: { borderTopColor: 'rgba(61, 46, 0, 0.7)' },
   figure: { flex: 1, minWidth: 0 },
   figureValue: {
     ...type.titleMedium,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     fontVariant: ['tabular-nums'],
   },
-  figureLabel: { ...type.labelSmall, color: palette.onSurfaceVariant, marginTop: space(0.5) },
+  figureLabel: { ...type.labelSmall, color: theme.palette.onSurfaceVariant, marginTop: space(0.5) },
   amberPrimary: { color: onAmber.primary },
   amberDetail: { color: onAmber.detail },
   amberMuted: { color: onAmber.muted },
@@ -1090,11 +1109,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(4),
     borderRadius: radius.large,
     borderWidth: 1,
-    borderColor: palette.outline,
+    borderColor: theme.palette.outline,
     backgroundColor: 'transparent',
   },
   ghostBtnSolid: { borderColor: 'rgba(61, 46, 0, 0.6)' },
-  ghostBtnLabel: { ...type.labelLarge, color: palette.onSurfaceVariant },
+  ghostBtnLabel: { ...type.labelLarge, color: theme.palette.onSurfaceVariant },
 
   // ── filter bar: five equal tracks in one row ────────────────────────────
   filterRow: {
@@ -1109,23 +1128,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(1),
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: palette.outline,
+    borderColor: theme.palette.outline,
     backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
   },
   chipSelected: {
     borderWidth: 2,
-    borderColor: palette.primarySolid,
-    backgroundColor: palette.primarySolid,
+    borderColor: theme.palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
   },
   chipPressed: {
     borderWidth: 2,
-    borderColor: palette.primarySolid,
-    backgroundColor: palette.primarySolid,
+    borderColor: theme.palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
   },
-  chipLabel: { ...type.labelSmall, color: palette.onSurfaceVariant, textAlign: 'center' },
-  chipLabelSelected: { color: '#FFFFFF' },
+  chipLabel: { ...type.labelSmall, color: theme.palette.onSurfaceVariant, textAlign: 'center' },
+  chipLabelSelected: { color: onPrimarySolid },
 
   // ── search + summary ────────────────────────────────────────────────────
   search: {
@@ -1139,20 +1158,20 @@ const styles = StyleSheet.create({
     paddingRight: space(0.5),
     borderRadius: radius.medium,
     borderWidth: 1,
-    borderColor: palette.outline,
-    backgroundColor: glass.tint,
+    borderColor: theme.palette.outline,
+    backgroundColor: theme.glass.tint,
   },
-  searchFocused: { borderColor: palette.primarySolid },
+  searchFocused: { borderColor: theme.palette.primarySolid },
   searchInput: {
     flex: 1,
     minHeight: 44,
     padding: 0,
     ...type.bodyMedium,
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
   },
   searchClear: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   fsummary: { flexDirection: 'row', marginTop: space(3), marginHorizontal: space(5) },
-  fsummaryText: { ...type.bodySmall, color: palette.onSurfaceVariant, flex: 1 },
+  fsummaryText: { ...type.bodySmall, color: theme.palette.onSurfaceVariant, flex: 1 },
 
   // ── the ledger ──────────────────────────────────────────────────────────
   secHead: {
@@ -1164,7 +1183,7 @@ const styles = StyleSheet.create({
     marginTop: space(5),
     marginBottom: space(3),
   },
-  secTitle: { ...type.labelSmall, color: palette.onSurfaceVariant },
+  secTitle: { ...type.labelSmall, color: theme.palette.onSurfaceVariant },
   textAction: {
     minHeight: 48,
     flexDirection: 'row',
@@ -1172,7 +1191,7 @@ const styles = StyleSheet.create({
     gap: space(1),
     paddingHorizontal: space(1),
   },
-  textActionLabel: { ...type.labelSmall, color: glass.accentPrimary },
+  textActionLabel: { ...type.labelSmall, color: theme.glass.accentPrimary },
 
   pairCard: {
     marginHorizontal: space(5),
@@ -1183,39 +1202,39 @@ const styles = StyleSheet.create({
   prRank: {
     width: 20,
     ...type.labelSmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     paddingTop: space(1),
     fontVariant: ['tabular-nums'],
   },
   prBody: { flex: 1, minWidth: 0 },
-  prPair: { ...type.titleMedium, color: palette.onSurface },
-  prSub: { ...type.bodySmall, color: palette.onSurfaceVariant, marginTop: space(1) },
+  prPair: { ...type.titleMedium, color: theme.palette.onSurface },
+  prSub: { ...type.bodySmall, color: theme.palette.onSurfaceVariant, marginTop: space(1) },
   prFoot: { flexDirection: 'row', alignItems: 'center', gap: space(3), marginTop: space(3) },
   prTrack: {
     flex: 1,
     height: 8,
     borderRadius: radius.full,
-    backgroundColor: palette.surfaceContainer,
+    backgroundColor: theme.palette.surfaceContainer,
     overflow: 'hidden',
   },
-  prFill: { height: '100%', borderRadius: radius.full, backgroundColor: palette.tertiary },
+  prFill: { height: '100%', borderRadius: radius.full, backgroundColor: theme.palette.tertiary },
   prCount: { flexDirection: 'row', alignItems: 'baseline', gap: space(1) },
   prCountValue: {
     ...type.titleMedium,
     fontWeight: '700',
-    color: palette.onSurface,
+    color: theme.palette.onSurface,
     fontVariant: ['tabular-nums'],
   },
-  prCountLabel: { ...type.bodySmall, color: palette.onSurfaceVariant },
+  prCountLabel: { ...type.bodySmall, color: theme.palette.onSurfaceVariant },
   ledgerCap: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginHorizontal: space(5),
     marginTop: space(3),
   },
   ledgerFoot: {
     ...type.bodySmall,
-    color: palette.onSurfaceVariant,
+    color: theme.palette.onSurfaceVariant,
     marginHorizontal: space(5),
     marginTop: space(3),
   },
@@ -1227,11 +1246,11 @@ const styles = StyleSheet.create({
     padding: space(4),
     borderRadius: radius.xlarge,
     borderWidth: 1,
-    borderColor: palette.outlineVariant,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    borderColor: theme.palette.outlineVariant,
+    backgroundColor: theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.07)' : 'rgba(255, 255, 255, 0.5)',
   },
-  inlineEmptyLabel: { ...type.labelSmall, color: palette.onSurface },
-  inlineEmptyBody: { ...type.bodySmall, color: palette.onSurfaceVariant, marginTop: space(1.5) },
+  inlineEmptyLabel: { ...type.labelSmall, color: theme.palette.onSurface },
+  inlineEmptyBody: { ...type.bodySmall, color: theme.palette.onSurfaceVariant, marginTop: space(1.5) },
 
   // ── storage footer ──────────────────────────────────────────────────────
   storageCard: {
@@ -1243,8 +1262,8 @@ const styles = StyleSheet.create({
     paddingVertical: space(3),
     paddingHorizontal: space(5),
   },
-  storageNote: { ...type.bodySmall, color: palette.onSurfaceVariant, flex: 1 },
-  storageStrong: { fontWeight: '700', color: palette.onSurface },
+  storageNote: { ...type.bodySmall, color: theme.palette.onSurfaceVariant, flex: 1 },
+  storageStrong: { fontWeight: '700', color: theme.palette.onSurface },
 
   // ── trip picker ─────────────────────────────────────────────────────────
   pickRow: {
@@ -1256,35 +1275,35 @@ const styles = StyleSheet.create({
     marginTop: space(2),
     width: '100%',
     borderWidth: 1,
-    borderColor: palette.outline,
+    borderColor: theme.palette.outline,
     borderRadius: radius.large,
-    backgroundColor: palette.surface,
+    backgroundColor: theme.palette.surface,
   },
   pickRowCurrent: {
     borderWidth: 2,
-    borderColor: palette.primarySolid,
-    backgroundColor: palette.primarySolid,
+    borderColor: theme.palette.primarySolid,
+    backgroundColor: theme.palette.primarySolid,
     padding: space(1.75),
   },
   pickBody: { flex: 1, minWidth: 0 },
-  pickName: { ...type.titleMedium, color: palette.onSurface },
-  pickNameCurrent: { color: '#FFFFFF' },
-  pickSub: { ...type.bodySmall, color: palette.onSurfaceVariant, marginTop: space(0.5) },
-  pickSubCurrent: { color: '#FFFFFF' },
+  pickName: { ...type.titleMedium, color: theme.palette.onSurface },
+  pickNameCurrent: { color: onPrimarySolid },
+  pickSub: { ...type.bodySmall, color: theme.palette.onSurfaceVariant, marginTop: space(0.5) },
+  pickSubCurrent: { color: onPrimarySolid },
   pillRunning: {
     paddingHorizontal: space(2.5),
     paddingVertical: 3,
     borderRadius: radius.full,
-    backgroundColor: palette.secondaryContainer,
+    backgroundColor: theme.palette.secondaryContainer,
   },
-  pillRunningText: { ...type.labelSmall, color: palette.onSecondaryContainer },
+  pillRunningText: { ...type.labelSmall, color: theme.palette.onSecondaryContainer },
   pickMore: {
     marginTop: space(3),
     padding: space(3),
     borderRadius: radius.large,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: palette.outline,
+    borderColor: theme.palette.outline,
   },
-  pickMoreText: { ...type.bodySmall, color: palette.onSurfaceVariant },
+  pickMoreText: { ...type.bodySmall, color: theme.palette.onSurfaceVariant },
 });
