@@ -67,6 +67,14 @@ and each push is verified. Never end a task with uncommitted changes.
    - APK: `curl -s https://api.github.com/repos/Lanx10/kondukt2/releases/latest`
      shows the new tag, APK asset and manifest, and the app's **App updates**
      card detects it.
+   - APK **signature**: the published asset must carry the same certificate as
+     the previous release — `apksigner verify --print-certs <apk>` must show
+     `a28085fded90c677b238aa63fc33d375f99af66cbf07cf8f7bbfed08609fd990`
+     (`CN=Kondukt, O=Freebuff`). A cloud `eas build` is signed with EAS's own
+     managed key (empty subject) and is **uninstallable over the previous
+     release** until re-signed with `keystore/kondukt-release.jks`. Never publish
+     an un-re-signed build, and never fix a conflict by telling users to
+     uninstall — that deletes their trips, tickets and settings.
    - If any check fails, fix it and re-push. A failed publish means the task is
      not done.
 

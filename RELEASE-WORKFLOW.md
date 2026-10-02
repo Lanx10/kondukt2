@@ -89,6 +89,29 @@ an update merely existing is never forced.
    `eas.json`'s `preview` profile produces an APK (channel `preview`, `buildType: apk`).
    Native config changes (new permissions, native modules) need
    `npx expo prebuild -p android` first if the `android/` directory is stale.
+
+   **An EAS build is signed with the wrong key and cannot be published as-is.**
+   EAS signs cloud builds with its own managed keystore — the certificate subject
+   comes out empty (`CN=, O=, …`) — not the app's release key in
+   `keystore/kondukt-release.jks`. Android refuses to install an update whose
+   signer differs from the installed app, so an un-re-signed EAS APK is
+   uninstallable over every release from 1.0.1 onward; it only ever works as a
+   *first* install, which is never how a release is consumed. Re-sign the
+   downloaded artifact before it goes anywhere near a release:
+   ```bash
+   npx eas-cli@latest build:download --build-id <id>        # → the raw EAS artifact
+
+   apksigner sign \
+     --ks keystore/kondukt-release.jks \
+     --ks-key-alias kondukt \
+     --ks-pass env:KS_PASS --key-pass env:KEY_PASS \
+     --out kondukt-<semver>.apk kondukt-<semver>.raw.apk
+   ```
+   `apksigner` ships in the Android SDK's `build-tools/<version>/`; `KS_PASS` and
+   `KEY_PASS` are read from `keystore.properties` into env vars and must never be
+   echoed. Re-signing changes the file size and SHA-256, so recompute both for the
+   release manifest. `zipalign` is unnecessary here: the input is already aligned
+   and `apksigner` preserves entry alignment.
 6. Create a GitHub Release on `Lanx10/kondukt2` (web UI or `gh release create`).
 7. Tag it with the project convention: `v<semver>` — `v1.1.0`, `v1.2.0`, `v1.3.0`.
    Never reuse a tag; never tag a draft as final until the APK is attached.
@@ -101,6 +124,17 @@ an update merely existing is never forced.
     curl -s https://api.github.com/repos/Lanx10/kondukt2/releases/latest
     ```
     Confirm `tag_name`, the `.apk` asset, and (if used) that the body parses as JSON.
+
+    **Then confirm the signer, against the previous release.** A perfectly valid
+    manifest can sit on top of an APK nobody is able to install, and nothing in
+    steps 1–10 shows it. Download the *published* asset and compare its
+    certificate digest with the last release's — they must be identical:
+    ```bash
+    apksigner verify --print-certs kondukt-<semver>.apk | grep 'SHA-256 digest'
+    ```
+    Every release from 1.0.1 onward must show:
+    `a28085fded90c677b238aa63fc33d375f99af66cbf07cf8f7bbfed08609fd990`
+    (`CN=Kondukt, OU=Kondukt, O=Freebuff, L=Manila, ST=Metro Manila, C=PH`).
 11. Install the previous version on a test device.
 12. Open the application (or Settings → App updates → Check for Updates — manual
     checks bypass the 6 h throttle).
@@ -205,6 +239,8 @@ produced it.
 | `src/screens/SettingsScreen.tsx` | Both update cards (each with its Version button) |
 | `src/components/UpdateSheets.tsx` | Every update sheet — update available, install permission, and the two version sheets. Rendered by **both** Home and Settings, so the two surfaces cannot drift |
 | `src/screens/HomeScreen.tsx` | Renders the update sheets, so a release surfaces without a trip into Settings |
+| `plugins/withReleaseSigning.js` | Signs the **local** release build with the app's own key. Only applies to local Gradle builds — an EAS cloud build ignores it and uses EAS's managed key instead, which is why cloud artifacts must be re-signed before release |
+| `keystore.properties` + `keystore/kondukt-release.jks` | The release signing key (gitignored, outside `android/` so `prebuild --clean` cannot destroy it). Losing this means losing the ability to ship an update over the installed one |
 | `app.json` | version / versionCode / `REQUEST_INSTALL_PACKAGES` |
 
 ## Troubleshooting
@@ -216,6 +252,18 @@ produced it.
   are rejected by design.
 - Manual check bypasses the 6 h throttle: Settings → App updates → Check for Updates.
 - Installed version ahead of the release (local dev build) reports *up to date*.
+
+**Install fails with a conflict, or "signatures do not match"**
+- The APK is signed with a different key than the installed build. Android refuses
+  that outright, and it has nothing to do with version numbers: no amount of
+  bumping `versionCode` helps, because a mismatch is a different failure.
+- Compare certificates — `apksigner verify --print-certs <apk>` — against the
+  previous release. A published release must carry `a28085fd…` (`CN=Kondukt`).
+- Nearly always the cause is a raw `eas build` artifact uploaded without
+  re-signing. Re-sign it and replace the release asset; the fix is minutes.
+- Uninstalling the old app also "resolves" it, but it deletes `kondukt.db` and
+  every trip, ticket, passenger and setting on that device. Re-sign instead —
+  the whole point of the update path is that operators keep their data.
 
 **Download fails / interrupted**
 - Partial files are deleted automatically; tap **Update Now** again on a stable
