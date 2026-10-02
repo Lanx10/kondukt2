@@ -513,7 +513,10 @@ const makeStyles = (theme: KonduktTheme) =>
       // label to "Check for Updat…". Sixteen is still a comfortable tap target
       // on a 48 px tall button.
       paddingHorizontal: space(4),
-      borderRadius: radius.large,
+      // A pill, not a rounded rectangle: `radius.full` is larger than half the
+      // 48px height, which both platforms clamp to a full round end. The pair
+      // in one row reads as one control group only when the two ends match.
+      borderRadius: radius.full,
       backgroundColor: theme.palette.primarySolid,
     },
     primaryBtnDisabled: { opacity: 0.5 },
@@ -534,7 +537,9 @@ const makeStyles = (theme: KonduktTheme) =>
       alignItems: 'center',
       gap: space(2),
       paddingHorizontal: space(4),
-      borderRadius: radius.large,
+      // The same pill as the primary beside it, or the pair stops reading as
+      // one group and becomes two controls of different shapes.
+      borderRadius: radius.full,
       borderWidth: 1,
       borderColor: theme.palette.outline,
     },

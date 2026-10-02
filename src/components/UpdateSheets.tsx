@@ -291,6 +291,30 @@ export function ApkVersionSheet({
         />
         <DetailRow label="Last checked" value={apk.lastCheckLabel ?? '—'} />
       </DetailCard>
+      {/* The change log, read from the same release the rows above name. It is
+          the notes of the newest release a check has seen rather than of the
+          release waiting to install, so it is here when the install already
+          matches — which is when someone opens this sheet to find out what
+          they are running. Nothing invented: an empty list prints a sentence
+          instead, and never a "no changes" claim the publisher did not make. */}
+      <Text style={styles.changelogHeading}>
+        {apk.latestVersion !== null ? `What's new in ${apk.latestVersion}` : 'Change log'}
+      </Text>
+      {apk.latestReleaseNotes.length > 0 ? (
+        <View style={styles.releaseNotes}>
+          {apk.latestReleaseNotes.map((note) => (
+            <Text key={note} style={styles.releaseNote}>
+              •  {note}
+            </Text>
+          ))}
+        </View>
+      ) : (
+        <Text style={styles.sheetHint}>
+          {apk.latestVersion !== null
+            ? 'This release was published without any notes.'
+            : 'No release has been checked for on this install yet, so there is nothing to read here.'}
+        </Text>
+      )}
       <Text style={styles.sheetHint} accessibilityLiveRegion="polite">
         {apk.statusText}
       </Text>
@@ -396,6 +420,15 @@ const makeStyles = (theme: KonduktTheme) =>
       ...type.bodySmall,
       color: theme.palette.onSurfaceVariant,
       marginTop: space(3),
+    },
+
+    // The change log's own heading. Label-size and on-surface, so it reads as
+    // a title for the list under it rather than another line of body copy.
+    changelogHeading: {
+      ...type.labelLarge,
+      color: theme.palette.onSurface,
+      marginTop: space(4),
+      marginBottom: space(1),
     },
 
     // Release notes in the APK sheet: a simple bulleted list on the sheet's

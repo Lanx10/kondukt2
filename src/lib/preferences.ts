@@ -33,6 +33,82 @@ const THEME_KEY = 'kondukt.preferences.themeMode';
 const DELUXE_KEY = 'kondukt.preferences.deluxeEnabled';
 const LAST_UPDATE_CHECK_KEY = 'kondukt.preferences.lastUpdateCheckAt';
 const LAST_APK_UPDATE_CHECK_KEY = 'kondukt.preferences.lastApkUpdateCheckAt';
+const LAST_APK_RELEASE_KEY = 'kondukt.preferences.lastApkRelease';
+
+/**
+ * The last APK release this device saw, kept so the change log can be read
+ * without a fresh check.
+ *
+ * The updater throttles its checks to one per six hours, and the version sheet
+ * is opened to answer "what changed?" — a question that has the same answer all
+ * day. Caching the release the last check found means the sheet is never blank
+ * just because the throttle has not expired; it is a cache of a check that
+ * already happened, never a second source of truth.
+ */
+export type CachedApkRelease = { version: string; notes: string[] };
+
+/**
+ * Notes are capped on read and on write. A release body is remote text: a
+ * publisher could ship thousands of lines, and this is a preference store, not
+ * a place to keep an unbounded document. Forty lines is far more than any
+ * release card can show.
+ */
+const MAX_CACHED_NOTES = 40;
+
+/** The cached release, or null when no check has stored one. */
+let cachedRelease: CachedApkRelease | null = null;
+
+/**
+ * Decodes a stored release, or null when it is absent or unusable.
+ *
+ * Written defensively on purpose: this is JSON in a preference store, so a
+ * value from an older build, a half-finished write, or a hand-edited device is
+ * a real possibility. A changelog that fails to parse must read as "no notes",
+ * never as a crash on app start — the update path is exactly where a thrown
+ * parse would strand a driver.
+ */
+export function parseCachedApkRelease(stored: string | null): CachedApkRelease | null {
+  if (stored === null) return null;
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    const { version, notes } = parsed as { version?: unknown; notes?: unknown };
+    if (typeof version !== 'string' || version.length === 0) return null;
+    if (!Array.isArray(notes)) return { version, notes: [] };
+    return {
+      version,
+      notes: notes
+        .filter((note): note is string => typeof note === 'string' && note.length > 0)
+        .slice(0, MAX_CACHED_NOTES),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** The last release a check found, or null before the first one. */
+export async function loadCachedApkRelease(): Promise<CachedApkRelease | null> {
+  if (cachedRelease !== null) return cachedRelease;
+  try {
+    const parsed = parseCachedApkRelease(await AsyncStorage.getItem(LAST_APK_RELEASE_KEY));
+    if (parsed !== null) cachedRelease = parsed;
+    return cachedRelease;
+  } catch {
+    return null;
+  }
+}
+
+/** Persists the release a check just found; false means the write failed. */
+export async function saveCachedApkRelease(release: CachedApkRelease): Promise<boolean> {
+  const bounded = { version: release.version, notes: release.notes.slice(0, MAX_CACHED_NOTES) };
+  try {
+    await AsyncStorage.setItem(LAST_APK_RELEASE_KEY, JSON.stringify(bounded));
+    cachedRelease = bounded;
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** The dark flag, decoded. Anything unrecognised — including a missing key —
  * reads as null, which the caller treats as the light default. */

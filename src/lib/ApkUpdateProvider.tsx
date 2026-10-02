@@ -38,7 +38,12 @@ import { AppState } from 'react-native';
 import type { File } from 'expo-file-system';
 import { formatDate, formatTime } from './format';
 import { isUpdateBlocked } from './updateGuard';
-import { loadLastApkUpdateCheck, saveLastApkUpdateCheck } from './preferences';
+import {
+  loadLastApkUpdateCheck,
+  saveLastApkUpdateCheck,
+  loadCachedApkRelease,
+  saveCachedApkRelease,
+} from './preferences';
 import { UPDATE_CONFIG } from './apkUpdateConfig';
 import {
   APK_UPDATE_COPY,
@@ -89,6 +94,15 @@ export type ApkUpdateContextValue = {
   permissionOpen: boolean;
   /** The newest release version any check has seen, or null. */
   latestVersion: string | null;
+  /**
+   * That same release's notes — its change log — tracked across every valid
+   * verdict rather than only while an update waits. `release` is null when
+   * this install already matches the newest release, which is exactly the
+   * moment a driver opens the version sheet to read what changed, so the
+   * notes have to outlive the "an update is available" state. Empty when no
+   * check has seen a release, or when the manifest carried none.
+   */
+  latestReleaseNotes: string[];
   /** Manual check from Settings. Resolves when the check settles. */
   checkNow: () => Promise<void>;
   /** The available sheet's "Update Now": download, verify, launch installer. */
@@ -130,6 +144,8 @@ export function ApkUpdateProvider({ children }: { children: ReactNode }) {
   // install already matches it, so the version sheet can name the
   // latest release whether or not it is new.
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
+  // Its notes, for the same reason and on the same terms as the version above.
+  const [latestReleaseNotes, setLatestReleaseNotes] = useState<string[]>([]);
   const [lastCheckAt, setLastCheckAt] = useState<number | null>(null);
 
   // The verified file waiting for the installer; not state (never rendered).
@@ -176,8 +192,14 @@ export function ApkUpdateProvider({ children }: { children: ReactNode }) {
       return false;
     }
     // The newest release seen, tracked across every valid verdict —
-    // the version sheet names it even when nothing newer exists.
+    // the version sheet names it and lists its notes even when
+    // nothing newer exists.
     setLatestVersion(found.version);
+    setLatestReleaseNotes(found.releaseNotes);
+    // Cached so the change log survives the restart that follows this check,
+    // and the throttle window that follows it. A failed write is not an error:
+    // the notes are already on screen, and the next check will try again.
+    void saveCachedApkRelease({ version: found.version, notes: found.releaseNotes });
     if (verdict === 'uptodate') {
       setRelease(null);
       setMandatory(false);
@@ -253,6 +275,15 @@ export function ApkUpdateProvider({ children }: { children: ReactNode }) {
     });
     void loadLastApkUpdateCheck().then((at) => {
       if (at !== null) setLastCheckAt(at);
+    });
+    // The release the last check found, restored so the version sheet's change
+    // log is populated on launch. The six-hour throttle means a fresh check is
+    // usually not waiting, and a change log that reads "nothing checked yet" on
+    // every launch answers none of the question it was opened for.
+    void loadCachedApkRelease().then((cached) => {
+      if (cached === null) return;
+      setLatestVersion((current) => current ?? cached.version);
+      setLatestReleaseNotes((current) => (current.length > 0 ? current : cached.notes));
     });
     return () => subscription.remove();
   }, [autoCheck]);
@@ -405,6 +436,7 @@ export function ApkUpdateProvider({ children }: { children: ReactNode }) {
       dialogOpen,
       permissionOpen,
       latestVersion,
+      latestReleaseNotes,
       checkNow,
       updateNow,
       installNow,
@@ -426,6 +458,7 @@ export function ApkUpdateProvider({ children }: { children: ReactNode }) {
       dialogOpen,
       permissionOpen,
       latestVersion,
+      latestReleaseNotes,
       checkNow,
       updateNow,
       installNow,
