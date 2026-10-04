@@ -14,6 +14,7 @@ import { SectionChrome } from '../components/SectionChrome';
 import { GlassBackdrop } from '../components/GlassBackdrop';
 import { GlassCard } from '../components/GlassCard';
 import { DetailCard, DetailRow, Sheet } from '../components/BottomSheet';
+import { ConfigTransferSheet, TransferTrigger } from '../components/ConfigTransferSheet';
 import { Icon } from '../icons';
 import { maxContentWidth, onPrimarySolid, radius, space, tintedGlass, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
@@ -30,6 +31,8 @@ import {
 import type { MunicipalityRowRecord, TerminalRowRecord } from '../data/schema';
 import { plural } from '../lib/currentTripState';
 import { takeScreenFlash } from '../lib/screenFlash';
+import { useConfigTransfer } from '../lib/useConfigTransfer';
+import { BARANGAY_REGISTRY } from '../lib/transferRegistry';
 import {
   barangayDetailPairs,
   barangayDetailSubtitle,
@@ -81,7 +84,8 @@ type Overlay =
   | { kind: 'status' }
   | { kind: 'scope' }
   | { kind: 'record'; rowKind: ListRow['kind']; id: number }
-  | { kind: 'confirm'; rowKind: ListRow['kind']; id: number };
+  | { kind: 'confirm'; rowKind: ListRow['kind']; id: number }
+  | { kind: 'transfer' };
 
 /** The list's one item type, tagged so renderItem narrows without casts. */
 type ListRow =
@@ -318,6 +322,15 @@ export function BarangayConfigScreen({
       );
     });
   }, [overlay, deactivating, apply]);
+
+  // The Import / Export state and its whole flow, owned by the hook — this
+  // screen supplies the registry and its live rows, and holds nothing. The
+  // sheet it opens is the same component the Terminal screen opens.
+  const transfer = useConfigTransfer({
+    registry: BARANGAY_REGISTRY,
+    municipalities: municipalities ?? [],
+    stops: barangays ?? [],
+  });
 
   /** One tap puts every hidden row back: query, scope and status at once. */
   const clearEmpty = useCallback(
@@ -638,6 +651,14 @@ export function BarangayConfigScreen({
                   ? 'Used when creating passenger tickets.'
                   : 'Barangays are assigned to a municipality here.'}
               </Text>
+              {/* The one Import / Export entry point, above the storage card it
+                  acts on. A barangay file carries the municipalities too, so it
+                  is reachable from either tab and neither tab is a dead end. */}
+              <TransferTrigger
+                label={transfer.triggerLabel}
+                testID="bc-transfer"
+                onPress={() => setOverlay({ kind: 'transfer' })}
+              />
               <GlassCard
                 style={styles.noteLock}
                 accessible
@@ -772,6 +793,8 @@ export function BarangayConfigScreen({
           onClose={closeOverlay}
           onConfirm={confirmDeactivate}
         />
+      ) : overlay?.kind === 'transfer' ? (
+        <ConfigTransferSheet {...transfer.sheetProps} onClose={closeOverlay} />
       ) : null}
     </View>
   );

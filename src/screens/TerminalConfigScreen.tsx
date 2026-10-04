@@ -14,6 +14,7 @@ import { SectionChrome } from '../components/SectionChrome';
 import { GlassBackdrop } from '../components/GlassBackdrop';
 import { GlassCard } from '../components/GlassCard';
 import { DetailCard, DetailRow, Sheet } from '../components/BottomSheet';
+import { ConfigTransferSheet, TransferTrigger } from '../components/ConfigTransferSheet';
 import { Icon } from '../icons';
 import { maxContentWidth, onPrimarySolid, radius, space, tintedGlass, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
@@ -28,6 +29,8 @@ import {
 import type { MunicipalityRowRecord, TerminalRowRecord } from '../data/schema';
 import { locationCountAnnouncement } from '../lib/barangayConfigState';
 import { takeScreenFlash } from '../lib/screenFlash';
+import { useConfigTransfer } from '../lib/useConfigTransfer';
+import { TERMINAL_REGISTRY } from '../lib/transferRegistry';
 import {
   deriveTerminalView,
   TERMINAL_FILTERS,
@@ -54,7 +57,8 @@ export type TerminalConfigScreenProps = {
 type Overlay =
   | { kind: 'status' }
   | { kind: 'record'; id: number }
-  | { kind: 'confirm'; id: number };
+  | { kind: 'confirm'; id: number }
+  | { kind: 'transfer' };
 
 /**
  * The Terminal Configuration screen — terminal-config.html made real.
@@ -146,7 +150,7 @@ export function TerminalConfigScreen({ onBack, onOpenEditor }: TerminalConfigScr
   // One sheet's record, re-read from the CURRENT rows every render: a write
   // replaces the list, and a row captured before it would be the old record.
   const target = useMemo(() => {
-    if (overlay === null || overlay.kind === 'status') return null;
+    if (overlay === null || overlay.kind === 'status' || overlay.kind === 'transfer') return null;
     return terminals?.find((row) => row.id === overlay.id) ?? null;
   }, [overlay, terminals]);
 
@@ -180,6 +184,15 @@ export function TerminalConfigScreen({ onBack, onOpenEditor }: TerminalConfigScr
       );
     });
   }, [overlay, deactivating]);
+
+  // The same hook, the same sheet and the same offline file path as the
+  // Barangay screen — this screen supplies the registry and its live rows, and
+  // holds no transfer state of its own.
+  const transfer = useConfigTransfer({
+    registry: TERMINAL_REGISTRY,
+    municipalities: municipalities ?? [],
+    stops: terminals ?? [],
+  });
 
   /** One tap puts every hidden row back: query and filter at once. */
   const clearEmpty = useCallback((action: 'clearQuery' | 'clearFilter') => {
@@ -407,6 +420,14 @@ export function TerminalConfigScreen({ onBack, onOpenEditor }: TerminalConfigScr
               <Text style={styles.secNote} testID="tc-secnote">
                 Terminals mark where a trip starts and ends.
               </Text>
+              {/* The one Import / Export entry point, above the storage card it
+                  acts on — the same place and the same component as the
+                  Barangay screen's, so the two registries read as one feature. */}
+              <TransferTrigger
+                label={transfer.triggerLabel}
+                testID="tc-transfer"
+                onPress={() => setOverlay({ kind: 'transfer' })}
+              />
               {/* A surface like every other storage footer in the app, but
                   still not a control: no chevron, nothing to press. */}
               <GlassCard
@@ -489,6 +510,8 @@ export function TerminalConfigScreen({ onBack, onOpenEditor }: TerminalConfigScr
           onClose={closeOverlay}
           onConfirm={confirmDeactivate}
         />
+      ) : overlay?.kind === 'transfer' ? (
+        <ConfigTransferSheet {...transfer.sheetProps} onClose={closeOverlay} />
       ) : null}
     </View>
   );

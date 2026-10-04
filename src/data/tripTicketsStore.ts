@@ -225,7 +225,10 @@ function memoryBackend() {
           id,
           name: params[0] as string,
           province: params[1] as string,
-          is_active: 1 as const,
+          // The Municipality Editor binds two columns and can only ever write
+          // 1; an import binds the flag as a third parameter, because a backup
+          // has to restore a DEACTIVATED record as deactivated.
+          is_active: (params[2] as 0 | 1 | undefined) === 0 ? 0 : 1,
         };
         state.municipalities.push(row);
         memory.listeners.forEach((fn) => fn());
@@ -977,6 +980,167 @@ export async function saveTerminal(input: SaveTerminalInput): Promise<SaveTermin
   } catch {
     return { kind: 'failed' };
   }
+}
+
+// ── Import (Configuration → Import / Export) ───────────────────────────────
+
+/**
+ * One imported row's outcome, or the whole import's.
+ *
+ * `inserted` counts what landed; `skipped` counts rows the store's own rules
+ * refused, and each carries the repository's own sentence rather than a
+ * rephrasing — the same discipline every other write in this module follows.
+ */
+export type ImportStopsResult = {
+  inserted: number;
+  skipped: { label: string; reason: string }[];
+  failed: boolean;
+};
+
+/**
+ * Inserts a validated set of stops — the write half of a Configuration
+ * screen's IMPORT action.
+ *
+ * The validators already ran in `transferState.ts`; this function's own job is
+ * the DATABASE half of the rule set, and it is the same half every editor save
+ * goes through: `lower(name)` uniqueness inside one transaction, so a file
+ * that slipped a duplicate past the read (a second device exporting between
+ * the parse and the write) is refused by the store rather than inserted.
+ *
+ * Two properties this deliberately does NOT have:
+ *
+ *  · It never DELETES. An import adds; a restore is "make this device hold
+ *    what the file holds, plus what it already had". A registry that lost rows
+ *    because a driver opened the wrong file is unrecoverable, and the backup
+ *    that caused it is on the very device that needed it.
+ *  · It never overwrites by id. Ids in a file mean nothing on this device —
+ *    they are another device's autoincrement — so every row is an insert and
+ *    the store assigns the id.
+ *
+ * `kind` is passed per row and is the discriminator that keeps the two
+ * Configuration screens reading different registries: a terminal file can
+ * never file a stop under `BARANGAY`.
+ */
+export async function importStops(
+  stops: {
+    name: string;
+    km_marker: number;
+    is_active: 0 | 1;
+    municipality_id: number | null;
+  }[],
+  kind: import('./schema').TerminalKind,
+  /** The handle, for a test that drives this against a real engine. */
+  handle?: SQLite.SQLiteDatabase,
+): Promise<ImportStopsResult> {
+  const outcome: ImportStopsResult = { inserted: 0, skipped: [], failed: false };
+  if (stops.length === 0) return outcome;
+  try {
+    const opened = handle ?? (await openDatabase());
+    await opened.withTransactionAsync(async () => {
+      for (const stop of stops) {
+        const dupe = await opened.getFirstAsync<{ n: number }>(
+          'SELECT COUNT(*) AS n FROM terminals WHERE lower(name) = lower(?)',
+          stop.name,
+        );
+        if ((dupe?.n ?? 0) > 0) {
+          const comma = stop.name.indexOf(',');
+          outcome.skipped.push({
+            label: stop.name,
+            reason:
+              comma === -1
+                ? `${stop.name} is already registered.`
+                : `${stop.name.slice(0, comma).trim()} is already registered in ${stop
+                    .name.slice(comma + 1)
+                    .trim()}.`,
+          });
+          continue;
+        }
+        await opened.runAsync(
+          'INSERT INTO terminals (name, km_marker, is_active, municipality_id, kind) VALUES (?, ?, ?, ?, ?)',
+          stop.name,
+          stop.km_marker,
+          stop.is_active,
+          stop.municipality_id,
+          kind,
+        );
+        outcome.inserted += 1;
+      }
+    });
+  } catch {
+    // A transaction that threw rolls back on a native handle; the memory
+    // fallback has no rollback to promise, so `failed` is reported rather than
+    // a partial count claimed as a success.
+    outcome.failed = true;
+  }
+  return outcome;
+}
+
+export type ImportMunicipalitiesResult = {
+  inserted: number;
+  /** Name/province of each accepted row → the id the store assigned it. */
+  idsByName: Map<string, number>;
+  skipped: { label: string; reason: string }[];
+  failed: boolean;
+};
+
+/**
+ * Inserts validated municipalities and hands back their NEW ids by
+ * `name\u0000province`, so the caller's stops can be linked to rows that
+ * existed on this device AND rows this very import created — one map, one
+ * lookup, no second read.
+ *
+ * `is_active` rides along on the insert, unlike `saveMunicipality`'s create,
+ * which can only write 1: a backup has to restore a DEACTIVATED record as
+ * deactivated, or "restore" would silently resurrect every stop an operator
+ * had taken out of service.
+ */
+export async function importMunicipalities(
+  rows: { name: string; province: string; is_active: 0 | 1 }[],
+  /** The handle, for a test that drives this against a real engine. */
+  handle?: SQLite.SQLiteDatabase,
+): Promise<ImportMunicipalitiesResult> {
+  const outcome: ImportMunicipalitiesResult = {
+    inserted: 0,
+    idsByName: new Map(),
+    skipped: [],
+    failed: false,
+  };
+  if (rows.length === 0) return outcome;
+  try {
+    const opened = handle ?? (await openDatabase());
+    await opened.withTransactionAsync(async () => {
+      for (const row of rows) {
+        const existing = await opened.getFirstAsync<{ n: number }>(
+          'SELECT COUNT(*) AS n FROM municipalities WHERE lower(name) = lower(?) AND lower(province) = lower(?)',
+          row.name,
+          row.province,
+        );
+        if ((existing?.n ?? 0) > 0) {
+          outcome.skipped.push({
+            label: row.name,
+            reason: `${row.name} is already listed in ${row.province}.`,
+          });
+          continue;
+        }
+        const result = await opened.runAsync(
+          'INSERT INTO municipalities (name, province, is_active) VALUES (?, ?, ?)',
+          row.name,
+          row.province,
+          row.is_active,
+        );
+        outcome.inserted += 1;
+        outcome.idsByName.set(municipalityKey(row.name, row.province), Number(result.lastInsertRowId));
+      }
+    });
+  } catch {
+    outcome.failed = true;
+  }
+  return outcome;
+}
+
+/** The name/province composite both the write and the caller's map key on. */
+export function municipalityKey(name: string, province: string): string {
+  return `${name.toLowerCase()} ${province.toLowerCase()}`;
 }
 
 // ── Barangay Configuration (municipalities + the stop registry) ────────────
