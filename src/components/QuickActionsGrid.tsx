@@ -2,7 +2,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { GlassCard } from './GlassCard';
 import { Icon, IconName } from '../icons';
-import { Accent, glassBlur, radius, space, type, type KonduktTheme } from '../theme';
+import { Accent, radius, space, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
 import { useThemedStyles } from '../lib/useThemedStyles';
 
@@ -32,7 +32,7 @@ export type QuickAction = {
  * `extra` and `opens` were already computed on the screen and dropped on the
  * floor here.
  *
- * Surface: the shared `GlassCard`, frosted with `glassBlur` — the same
+ * Surface: the shared `GlassCard`, frosted with the bundle's own blur — the same
  * `blur(18px)` the reference's `.glass` carries — at the reference's 16px
  * corner (not the 28px panel radius: `.qa-btn` overrides `.glass` in the
  * stylesheet) and its 112px floor, 40px chip, 14px padding.
@@ -53,7 +53,7 @@ function QuickActionCard({ action }: { action: QuickAction }) {
   return (
     <GlassCard
       onPress={action.onPress}
-      intensity={glassBlur}
+      intensity={theme.glass.blur}
       cornerRadius={radius.large}
       accessibilityRole="button"
       accessibilityLabel={`${action.title}. ${action.subtitle}. ${action.value}. ${action.extra}. Opens ${action.opens}.`}

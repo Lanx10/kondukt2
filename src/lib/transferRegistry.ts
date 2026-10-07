@@ -84,9 +84,9 @@ export const TERMINAL_REGISTRY: TransferRegistry = {
   stopsSingular: 'terminal',
 };
 
-/** The sheet's closing note: what this registry's file does and does not carry. */
+/** The sheet's closing note: what this registry's PDF does and does not carry. */
 export function transferScopeNote(registry: TransferRegistry): string {
   return registry.createsMunicipalities
-    ? 'A barangay file carries every municipality and every barangay with its registered KM. Nothing already on this device is deleted.'
-    : 'A terminal file carries every terminal with its registered KM. Municipalities are referenced by name and never created by this screen.';
+    ? 'A barangay PDF carries every municipality and every barangay with its registered KM. Nothing already on this device is deleted.'
+    : 'A terminal PDF carries every terminal with its registered KM. Municipalities are referenced by name and never created by this screen.';
 }

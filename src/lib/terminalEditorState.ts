@@ -64,6 +64,9 @@ export const TERMINAL_KM_ERROR = 'Enter the registered KM as a number, up to 999
  */
 export const BARANGAY_KM_ERROR = 'Enter a valid KM marker.';
 export const TERMINAL_SAVE_ERROR = 'Unable to save terminal.';
+/** The Barangay Editor's own. It used to show the terminal sentence above, so a
+ *  user adding a barangay was told a TERMINAL had failed to save. */
+export const BARANGAY_SAVE_ERROR = 'Unable to save barangay.';
 export const TERMINAL_NOT_FOUND_ERROR = 'Terminal not found.';
 export const BARANGAY_NOT_FOUND_ERROR = 'Barangay not found.';
 
@@ -471,8 +474,14 @@ export function barangayEditorHint(
   const name = fields.name.trim();
   const province =
     typeof municipality.province === 'string' ? municipality.province : '';
+  // A typed comma falls into the same branch as an empty name. The validator
+  // refuses the comma outright, so composing a name from it would print a
+  // `Stores "Bagong, Olongapo, Olongapo"` — telling the user this is what will
+  // be saved while the field above them is being refused for exactly that. The
+  // context (which municipality, which markers) is still true and still useful,
+  // so that part of the line stays.
   const head =
-    name === ''
+    name === '' || name.includes(',')
       ? municipalityDisplayLabel(municipality)
       : `Stores "${barangayEditorComposeName(fields, municipality, context.loaded ?? null)}"${
           province === '' ? '' : ` · ${province}`

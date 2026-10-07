@@ -6,7 +6,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,9 +13,17 @@ import { SectionChrome } from '../components/SectionChrome';
 import { GlassBackdrop } from '../components/GlassBackdrop';
 import { GlassCard } from '../components/GlassCard';
 import { DetailCard, DetailRow, Sheet } from '../components/BottomSheet';
-import { ConfigTransferSheet, TransferTrigger } from '../components/ConfigTransferSheet';
+import { ConfigSearchRow, ConfigTransferSheet } from '../components/ConfigTransferSheet';
 import { Icon } from '../icons';
-import { maxContentWidth, onPrimarySolid, radius, space, tintedGlass, type, type KonduktTheme } from '../theme';
+import {
+  maxContentWidth,
+  onPrimarySolid,
+  radius,
+  space,
+  tintedGlass,
+  type,
+  type KonduktTheme,
+} from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
 import { useThemedStyles } from '../lib/useThemedStyles';
 import {
@@ -260,24 +267,21 @@ export function TerminalConfigScreen({ onBack, onOpenEditor }: TerminalConfigScr
           ListHeaderComponent={
             <>
             <View testID="tc-controls">
-              {/* One card, one control: the shared 60px search field. */}
+              {/* One card, one row: the search and the one Import / Export
+                  control. Same component and same geometry as the Barangay
+                  screen's, so a feature that reads as one feature on one screen
+                  reads as one feature on the other. */}
               <GlassCard style={styles.controlCard}>
-                <GlassCard cornerRadius={radius.large} style={styles.field}>
-                  <View style={styles.fieldIcon}>
-                    <Icon name="search" size={18} color={theme.accent.tertiary.onContainer} />
-                  </View>
-                  <TextInput
-                    testID="tc-q"
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    placeholder="Search terminals"
-                    placeholderTextColor={theme.palette.outline}
-                    accessibilityLabel="Search terminals"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    style={styles.fieldInput}
-                  />
-                </GlassCard>
+                <ConfigSearchRow
+                  testID="tc-q"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Search terminals"
+                  accessibilityLabel="Search terminals"
+                  transferLabel={transfer.triggerLabel}
+                  transferTestID="tc-transfer"
+                  onOpenTransfer={() => setOverlay({ kind: 'transfer' })}
+                />
               </GlassCard>
 
               {/* The status caption IS the filter: it names the value already
@@ -420,14 +424,6 @@ export function TerminalConfigScreen({ onBack, onOpenEditor }: TerminalConfigScr
               <Text style={styles.secNote} testID="tc-secnote">
                 Terminals mark where a trip starts and ends.
               </Text>
-              {/* The one Import / Export entry point, above the storage card it
-                  acts on — the same place and the same component as the
-                  Barangay screen's, so the two registries read as one feature. */}
-              <TransferTrigger
-                label={transfer.triggerLabel}
-                testID="tc-transfer"
-                onPress={() => setOverlay({ kind: 'transfer' })}
-              />
               {/* A surface like every other storage footer in the app, but
                   still not a control: no chevron, nothing to press. */}
               <GlassCard
@@ -834,27 +830,6 @@ const makeStyles = (theme: KonduktTheme) =>
   controlCard: { padding: 14 },
   /** The list's card gap, between rows — the note's 12 comes from its own margin. */
   rowGap: { height: space(3) },
-  // A GlassCard (the `cornerRadius` prop in the JSX paints it); these styles
-  // are geometry only — the flat white field was the same defect the rest of
-  // this column had.
-  field: {
-    minHeight: 60,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space(3),
-    paddingVertical: space(2),
-    paddingHorizontal: 14,
-  },
-  fieldIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.small,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.accent.tertiary.container,
-  },
-  fieldInput: { flex: 1, minWidth: 0, padding: 0, ...type.bodyMedium, color: theme.palette.onSurface },
-
   // `.range-caption`: 10px below the card — the family's caption margin, the
   // one gap here that is not 12 or 20.
   // Centred, and set at the caption's own 12px throughout — see the same row

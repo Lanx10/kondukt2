@@ -1,0 +1,12 @@
+{
+  "version": "1.0.4",
+  "versionCode": 6,
+  "minimumVersion": "1.0.0",
+  "apkUrl": "https://github.com/Lanx10/kondukt2/releases/download/v1.0.4/kondukt-1.0.4.apk",
+  "releaseNotes": [
+    "Home now raises the update sheet the moment a new version is found, without going into Settings",
+    "Both update cards in Settings gained a Version button showing the build installed on this device",
+    "The App updates card now reports the latest published release, not just the installed version"
+  ],
+  "sha256": "03d9348fdc028addc565cfca3b1dc5a6bf8e726734edb7e33b705e03eec91ea9"
+}

@@ -1,0 +1,12 @@
+{
+  "version": "1.0.3",
+  "versionCode": 5,
+  "minimumVersion": "1.0.0",
+  "apkUrl": "https://github.com/Lanx10/kondukt2/releases/download/v1.0.3/kondukt-1.0.3.apk",
+  "releaseNotes": [
+    "Add ticket: boarding and destination pickers now follow the running trip's route",
+    "The pickers list the barangays the bus actually passes, not every one on the device",
+    "Interface updates can now reach every build (runtime version pinned)"
+  ],
+  "sha256": "817c424f0685fc93d861303d995fdd50bc4a3df8de70ab7f734dafcd29b587ab"
+}

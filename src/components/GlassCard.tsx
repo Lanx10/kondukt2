@@ -9,7 +9,8 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { cardShadow, radius, type KonduktTheme } from '../theme';
+import { cardShadowFor, radius, type KonduktTheme } from '../theme';
+import { resolveAppearance } from '../theme/appearance';
 import { useKonduktTheme } from '../lib/themeContext';
 import { useThemedStyles } from '../lib/useThemedStyles';
 
@@ -103,6 +104,12 @@ export function GlassCard({
   // The blur tints whatever it samples, so it has to follow the mode: a light
   // tint over a dark backdrop washes the panel out to grey.
   const blurTint = theme.mode === 'dark' ? 'dark' : 'light';
+  // The grain's WEIGHT is a resolved appearance value rather than the 0.035 this
+  // card used to hard-code. At the default appearance it is exactly that 0.035,
+  // so nothing an untouched install paints changes; with Reduce Visual Effects
+  // on it is zero, and a card that kept drawing its noise while promising it was
+  // off would be the one place the setting did not take.
+  const grainAlpha = resolveAppearance(theme.appearance, theme.mode).treatment.grainAlpha;
 
   const body = (
     <>
@@ -117,7 +124,7 @@ export function GlassCard({
         style={StyleSheet.absoluteFill}
       />
       {/* Grain. Flat rather than per-pixel; see the note above. */}
-      <View style={styles.noise} pointerEvents="none" />
+      <View style={[styles.noise, { opacity: grainAlpha }]} pointerEvents="none" />
       {children}
       {/* The lit edge goes on last so it reads as a highlight *over* the panel,
           not a border behind the content. */}
@@ -162,11 +169,11 @@ const makeStyles = (theme: KonduktTheme) =>
       borderRadius: radius.glass,
       backgroundColor: theme.glass.tint,
       // Shared with every filled card on the page, so a panel can't end up at a
-      // depth its neighbours aren't at. See `cardShadow`. The geometry is the
+      // depth its neighbours aren't at. See `cardShadowFor`. The geometry is the
       // shared token; only the shadow's COLOUR follows the mode — light's token
       // bakes in a light `glass.shadow`, and casting a light shadow from a dark
       // panel is what makes a dark surface look pasted on.
-      ...cardShadow,
+      ...cardShadowFor(theme),
       shadowColor: theme.glass.shadow,
     },
     innerRim: {
@@ -179,10 +186,12 @@ const makeStyles = (theme: KonduktTheme) =>
       // short of the centre, so a 1px ring reads correctly and costs nothing.
       borderWidth: 1,
     },
+    // The COLOUR of the grain, not its weight: the opacity is applied at the
+    // call site from the resolved appearance, because it is a setting and not a
+    // property of the colour.
     noise: {
       ...StyleSheet.absoluteFill,
       backgroundColor: theme.glass.grain,
-      opacity: 0.035,
     },
     pressed: { opacity: 0.88 },
   });

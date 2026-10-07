@@ -10,8 +10,8 @@ import {
 } from '@expo-google-fonts/poppins';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { GlassBackdrop } from './src/components/GlassBackdrop';
-import { getTheme, space, type, type KonduktTheme } from './src/theme';
-import { loadThemeMode } from './src/lib/preferences';
+import { getThemeBundle, DEFAULT_APPEARANCE, DEFAULT_THEME_ID, space, type, type Appearance, type KonduktTheme } from './src/theme';
+import { loadAppearance, loadThemeId, loadThemeMode } from './src/lib/preferences';
 import { installWebScrollGuards } from './src/lib/webScroll';
 import { KonduktThemeProvider, useKonduktTheme } from './src/lib/themeContext';
 import { UpdateProvider } from './src/lib/UpdateProvider';
@@ -31,6 +31,19 @@ export default function App() {
   // selected mode — no flash of light before dark. Storage failures resolve
   // to null and the app stays in its light default.
   const [themeMode, setThemeMode] = useState<'light' | 'dark' | null>(null);
+  // The selected theme id, read in the same pass. It has to be ready BEFORE
+  // the first paint for the same reason the mode is: a driver who chose Cyber
+  // would otherwise get a frame of the app's own warm palette on every cold
+  // start, which is the flash this pair of loads exists to prevent.
+  const [themeId, setThemeId] = useState<string | null>(null);
+  // The seven Advanced Appearance axes, read in the same pass as the pair
+  // above and for the same reason: they change how the page behind the splash
+  // is painted, so loading them after the first paint would put a frame of the
+  // default field in front of a driver who chose something else. Only the axes
+  // the store actually holds come back; the rest are the app's own defaults, so
+  // a device that has never touched a control resolves exactly what it always
+  // did.
+  const [appearance, setAppearance] = useState<Appearance | null>(null);
   // The page must not scroll or bounce around the app frame — see the module.
   // Runs before the first paint that matters, and is a no-op on native.
   useEffect(() => {
@@ -45,17 +58,52 @@ export default function App() {
       cancelled = true;
     };
   }, []);
+  useEffect(() => {
+    let cancelled = false;
+    void loadThemeId().then((id) => {
+      if (!cancelled) setThemeId(id ?? DEFAULT_THEME_ID);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  useEffect(() => {
+    let cancelled = false;
+    void loadAppearance().then((axes) => {
+      if (!cancelled) setAppearance({ ...DEFAULT_APPEARANCE, ...axes });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  if (!fontsLoaded || themeMode === null) {
-    // `getTheme` rather than the light `palette.background` this used to read:
-    // App sits ABOVE the provider, so it cannot use the hook, but it already
-    // holds the persisted mode — a dark-mode user was getting a white flash on
-    // every cold start, for as long as the fonts took to load.
-    return <View style={{ flex: 1, backgroundColor: getTheme(themeMode ?? 'light').palette.background }} />;
+  if (!fontsLoaded || themeMode === null || themeId === null || appearance === null) {
+    // `getThemeBundle` rather than the light `palette.background` this used to
+    // read: App sits ABOVE the provider, so it cannot use the hook, but it
+    // already holds all three persisted values — a dark-mode user was getting a
+    // white flash on every cold start, for as long as the fonts took to load,
+    // and a themed user would have got the app's own warm page for the same
+    // moment.
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: getThemeBundle(
+            themeId ?? DEFAULT_THEME_ID,
+            themeMode ?? 'light',
+            appearance ?? DEFAULT_APPEARANCE,
+          ).palette.background,
+        }}
+      />
+    );
   }
 
   return (
-    <KonduktThemeProvider initialMode={themeMode}>
+    <KonduktThemeProvider
+      initialMode={themeMode}
+      initialThemeId={themeId}
+      initialAppearance={appearance}
+    >
       <SafeAreaProvider>
         {/* Two update checkers for the whole app: the APK updater (GitHub
             Releases — the primary, installable-binary channel) and the OTA

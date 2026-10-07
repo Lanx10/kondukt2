@@ -464,6 +464,11 @@ check(
   'Stores "Bagong, Olongapo City" · Zambales · nearest 232.4 KM · Poblacion',
 );
 check(
+  'a typed comma is not quoted back as a composed name — the form refuses it',
+  barangayEditorHint(fields('Bagong, Olongapo City', 4, '233.8'), hintCtx),
+  'Olongapo City, Zambales · nearest 232.4 KM · Poblacion',
+);
+check(
   'nearest picks by absolute distance, inactive rows included',
   barangayEditorHint(fields('X', 4, '231.5'), hintCtx).includes('nearest 231 KM · Barangay 1'),
   true,

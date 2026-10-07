@@ -11,11 +11,11 @@ import { formatScaled, SCALE_KM } from './fareFormat';
 /**
  * The pure half of the Configuration screens' Import / Export.
  *
- * The file is a JSON document on disk, written and read through
- * `expo-file-system` by `transferFile.ts` — this module decides WHAT that
- * document says and whether one may be trusted. No I/O, no React, no SQLite,
- * so every rule below is exercised by `npx tsx src/lib/transferState.test.ts`
- * against fixtures.
+ * The document below is what a file CARRIES. `transferFile.ts` wraps it in
+ * a PDF — this module decides WHAT it says and whether one may be trusted, and
+ * has no opinion about the container. No I/O, no React, no SQLite, so every
+ * rule below is exercised by `npx tsx src/lib/transferState.test.ts` against
+ * fixtures.
  *
  * TWO FILE KINDS, ONE ENVELOPE. Each screen owns a registry:
  *
@@ -63,8 +63,9 @@ function stopsOf(file: Record<string, unknown>, kind: TransferKind): ExportedSto
   return file[stopsKey(kind)] as ExportedStop[];
 }
 
-/** Human title for a file kind, for this module's own copy. */
-function transferKindTitle(kind: TransferKind): string {
+/** Human title for a file kind. Read by this module's own copy, and by the
+ *  PDF header, so both say "Barangay configuration" the one way. */
+export function transferKindTitle(kind: TransferKind): string {
   return kind === 'barangay-config' ? 'Barangay configuration' : 'Terminal configuration';
 }
 

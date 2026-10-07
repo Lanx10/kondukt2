@@ -32,7 +32,8 @@ import { transferScopeNote, type TransferRegistry } from './transferRegistry';
  * THE FLOW, and the order it runs in:
  *
  *   1. `readTransferFile` — a cancelled picker is not an error and changes
- *      nothing.
+ *      nothing. `busy` is set before this await, not after it, because this
+ *      await is the only one here that lasts longer than a frame.
  *   2. `parseTransferFile` — pure, and run to COMPLETION before any write, so
  *      a malformed file costs one sentence and never a half-written registry.
  *   3. `importMunicipalities` (only when the registry owns them), then
@@ -67,7 +68,7 @@ export function useConfigTransfer(input: {
   const { registry, municipalities, stops } = input;
   const [transfer, setTransfer] = useState<TransferUiState>(INITIAL);
 
-  /** Writes the device's whole registry to a dated JSON file. Offline. */
+  /** Writes the device's whole registry to a dated PDF. Offline. */
   const exportNow = useCallback(async () => {
     setTransfer((current) => ({ ...current, busy: 'export', issues: [] }));
     const file = registry.build(municipalities, stops, Date.now());
@@ -95,13 +96,27 @@ export function useConfigTransfer(input: {
    * rather than minting a municipality this screen does not own.
    */
   const importNow = useCallback(async () => {
+    // Busy BEFORE the picker, not after it. The picker is the one await in this
+    // app that lasts as long as the user does — it is a separate activity and
+    // they are away from us until they find a file — so setting `busy` once it
+    // resolved left the sheet reading as idle for the whole of that window, with
+    // both of its actions live and its label still saying IMPORT. A second tap
+    // there opened a second picker, and two imports parsing against the SAME
+    // `municipalities`/`stops` snapshot would each write the rows the other
+    // could not yet see.
+    setTransfer((current) => ({ ...current, busy: 'import', issues: [] }));
+
     const read = await readTransferFile();
-    if (read.kind === 'cancelled') return;
+    if (read.kind === 'cancelled') {
+      // Dismissing the picker decided nothing, so it says nothing — it only
+      // hands the sheet back.
+      setTransfer((current) => ({ ...current, busy: null }));
+      return;
+    }
     if (read.kind === 'failed') {
       setTransfer((current) => ({ ...current, busy: null, notice: read.message }));
       return;
     }
-    setTransfer((current) => ({ ...current, busy: 'import', issues: [] }));
 
     const parsed = parseTransferFile({
       text: read.text,

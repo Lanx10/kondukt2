@@ -1,7 +1,7 @@
 
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Icon } from '../icons';
-import { glassBlur, space, type, type KonduktTheme } from '../theme';
+import { space, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
 import { useThemedStyles } from '../lib/useThemedStyles';
 import { GlassCard } from './GlassCard';
@@ -39,7 +39,7 @@ export function StorageNote({
   return (
     <View style={[styles.root, style]}>
       <GlassCard
-        intensity={glassBlur}
+        intensity={theme.glass.blur}
         style={styles.card}
         accessible
         accessibilityLabel={summary}

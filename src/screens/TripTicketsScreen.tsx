@@ -14,7 +14,7 @@ import { LocalStorageCard } from '../components/LocalStorageCard';
 import { GlassCard } from '../components/GlassCard';
 import { Skeleton } from '../components/SummaryDisclosure';
 import { Icon } from '../icons';
-import { cardShadow, onAmber, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
+import { cardShadowFor, onAmber, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
 import { useThemedStyles } from '../lib/useThemedStyles';
 import {
@@ -622,7 +622,7 @@ const makeStyles = (theme: KonduktTheme) =>
   heroSolid: {
     backgroundColor: theme.palette.secondary,
     borderRadius: radius.glass,
-    ...cardShadow,
+    ...cardShadowFor(theme),
     // Only the shadow's colour follows the mode — the geometry is the card's.
     shadowColor: theme.glass.shadow,
   },

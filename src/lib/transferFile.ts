@@ -1,3 +1,5 @@
+import { decodeTransferPdf, encodeTransferPdf } from './transferPdf';
+
 /**
  * The file I/O half of the Configuration screens' Import / Export.
  *
@@ -7,9 +9,20 @@
  * directory and an import reads a file the user picked with the system picker.
  * The same two functions serve both registries.
  *
- * The decisions — what goes in the document, and whether one may be trusted —
- * belong to `transferState.ts`, which has no I/O and is unit tested. This
- * module only moves bytes and classifies what happened.
+ * WHAT MOVES: the container is a PDF, written and read as BYTES. An export is
+ * `transferPdf.ts`'s hand-rolled PDF 1.4 with the Kondukt document base64'd
+ * into its page text, so it opens and prints like any other PDF; an import
+ * reads the picked file's bytes and pulls that document back out. The document
+ * itself, and every rule about whether one may be trusted, belong to
+ * `transferState.ts`, which has no I/O and is unit tested — this module only
+ * moves bytes and classifies what happened. `read` hands back exactly the
+ * JSON `parseTransferFile` has always taken, so no parser changed.
+ *
+ * BYTES, NOT STRINGS: `write` takes a `Uint8Array` and `bytes()` returns one.
+ * The page streams carry WinAnsi bytes above 127, and a JS string written to a
+ * file would have those UTF-8 encoded into two bytes apiece — which shifts
+ * every xref offset and mangles the tilde in "Sto. Niño". Writing the bytes as
+ * bytes is what makes the file a valid PDF at all.
  *
  * BOTH NATIVE MODULES ARE LOADED DYNAMICALLY, INSIDE THE FUNCTIONS, for the
  * reason `konduktStore.ts` gives: a static `react-native` import made this
@@ -45,17 +58,17 @@ async function currentPlatformOs(): Promise<string> {
 export function transferFileName(prefix: string, now: Date): string {
   const pad = (value: number) => String(value).padStart(2, '0');
   const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  return `kondukt-${prefix}-${stamp}.json`;
+  return `kondukt-${prefix}-${stamp}.pdf`;
 }
 
 /**
- * Writes one JSON document into the app's document directory and reports how
- * many bytes landed.
+ * Writes one registry as a PDF into the app's document directory and reports
+ * how many bytes landed.
  *
  * `Paths.document` rather than `Paths.cache`: a backup the OS may delete when
  * storage runs low is not a backup, and this is the directory Android's file
- * manager and a USB cable both reach. `overwrite` is set so re-exporting on the
- * same day replaces yesterday's copy instead of throwing.
+ * manager and a USB cable both reach. `overwrite` is set so re-exporting on
+ * the same day replaces yesterday's copy instead of throwing.
  */
 export async function writeTransferFile(
   fileName: string,
@@ -68,7 +81,7 @@ export async function writeTransferFile(
     const { File, Paths } = await import('expo-file-system');
     const target = new File(Paths.document, fileName);
     target.create({ overwrite: true, intermediates: true });
-    target.write(JSON.stringify(file, null, 2));
+    target.write(encodeTransferPdf(file));
     return { kind: 'written', fileName: target.name, sizeBytes: target.size ?? 0 };
   } catch (error) {
     return {
@@ -79,12 +92,16 @@ export async function writeTransferFile(
 }
 
 /**
- * Opens the system file picker and reads the chosen document.
+ * Opens the system file picker and recovers the Kondukt document from the PDF
+ * the user chose.
  *
  * `canceled` is a distinct outcome, not a failure: the user dismissing the
  * picker has decided nothing and the sheet must not report an error for it.
- * JSON files are the only type offered, so the picker cannot hand the app a
- * photo and leave the parse to fail later.
+ * PDFs are offered first, but an all-files wildcard is kept behind them because
+ * plenty of Android document providers report a stored backup as
+ * `application/octet-stream`, and a user who renamed the file should not find
+ * the picker empty. The decoder, not the file type, is the real gate: it
+ * refuses anything that does not carry our sentinels.
  */
 export async function readTransferFile(): Promise<TransferReadResult> {
   try {
@@ -93,10 +110,13 @@ export async function readTransferFile(): Promise<TransferReadResult> {
     }
     const { File } = await import('expo-file-system');
     const picked = await File.pickFileAsync({
-      mimeTypes: ['application/json', 'text/json', 'text/plain', '*/*'],
+      mimeTypes: ['application/pdf', 'application/octet-stream', '*/*'],
     });
     if (picked.canceled) return { kind: 'cancelled' };
-    const text = await picked.result.text();
+    const text = decodeTransferPdf(await picked.result.bytes());
+    if (text === null) {
+      return { kind: 'failed', message: NOT_OUR_EXPORT };
+    }
     return { kind: 'read', fileName: picked.result.name, text };
   } catch (error) {
     return {
@@ -115,3 +135,11 @@ function messageOf(error: unknown, fallback: string): string {
 /** Said once, in the sheet, wherever a browser would otherwise be silent. */
 const WEB_UNSUPPORTED =
   'Import and export need the app installed on the phone or tablet. The browser preview cannot save files.';
+
+/**
+ * Said once, when the picked PDF opened fine and simply was not one of ours —
+ * a photo, a report, or a Kondukt PDF whose block was stripped. Distinct from
+ * the parser's "not readable Kondukt data", because this file never even
+ * claimed to carry a document.
+ */
+const NOT_OUR_EXPORT = 'That PDF is not a Kondukt export.';

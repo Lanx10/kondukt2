@@ -6,7 +6,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,9 +13,18 @@ import { SectionChrome } from '../components/SectionChrome';
 import { GlassBackdrop } from '../components/GlassBackdrop';
 import { GlassCard } from '../components/GlassCard';
 import { DetailCard, DetailRow, Sheet } from '../components/BottomSheet';
-import { ConfigTransferSheet, TransferTrigger } from '../components/ConfigTransferSheet';
+import { ConfigSearchRow, ConfigTransferSheet } from '../components/ConfigTransferSheet';
 import { Icon } from '../icons';
-import { maxContentWidth, onPrimarySolid, radius, space, tintedGlass, type, type KonduktTheme } from '../theme';
+import {
+  controlHeight,
+  maxContentWidth,
+  onPrimarySolid,
+  radius,
+  space,
+  tintedGlass,
+  type,
+  type KonduktTheme,
+} from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
 import { useThemedStyles } from '../lib/useThemedStyles';
 import {
@@ -445,29 +453,29 @@ export function BarangayConfigScreen({
                 </GlassCard>
 
                 <View style={styles.fields}>
-                  {/* Search: add-trip's `.field`, minus the trailing control. */}
-                  <GlassCard cornerRadius={radius.large} style={styles.field}>
-                    <View style={styles.fieldIcon}>
-                      <Icon name="search" size={18} color={theme.accent.tertiary.onContainer} />
-                    </View>
-                    <TextInput
-                      value={query}
-                      onChangeText={(text) =>
-                        apply(
-                          onBarangays
-                            ? { barangaySearchQuery: text }
-                            : { municipalitySearchQuery: text },
-                        )
-                      }
-                      placeholder={onBarangays ? 'Search barangays' : 'Search municipalities'}
-                      placeholderTextColor={theme.palette.outline}
-                      accessibilityLabel={onBarangays ? 'Search barangays' : 'Search municipalities'}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      returnKeyType="search"
-                      style={styles.fieldInput}
-                    />
-                  </GlassCard>
+                  {/* The search and the one Import / Export control, on one
+                      row: the control acts ON this list, so it belongs at the
+                      top of it rather than in the storage footer. The row's
+                      geometry is `ConfigSearchRow`'s, shared with the Terminal
+                      screen so the two cannot drift apart. */}
+                  <ConfigSearchRow
+                    value={query}
+                    onChangeText={(text) =>
+                      apply(
+                        onBarangays
+                          ? { barangaySearchQuery: text }
+                          : { municipalitySearchQuery: text },
+                      )
+                    }
+                    placeholder={onBarangays ? 'Search barangays' : 'Search municipalities'}
+                    accessibilityLabel={
+                      onBarangays ? 'Search barangays' : 'Search municipalities'
+                    }
+                    returnKeyType="search"
+                    transferLabel={transfer.triggerLabel}
+                    transferTestID="bc-transfer"
+                    onOpenTransfer={() => setOverlay({ kind: 'transfer' })}
+                  />
 
                   {/* The scope is the only control that appears and disappears
                       with the tab: a municipality cannot be scoped to a
@@ -651,14 +659,6 @@ export function BarangayConfigScreen({
                   ? 'Used when creating passenger tickets.'
                   : 'Barangays are assigned to a municipality here.'}
               </Text>
-              {/* The one Import / Export entry point, above the storage card it
-                  acts on. A barangay file carries the municipalities too, so it
-                  is reachable from either tab and neither tab is a dead end. */}
-              <TransferTrigger
-                label={transfer.triggerLabel}
-                testID="bc-transfer"
-                onPress={() => setOverlay({ kind: 'transfer' })}
-              />
               <GlassCard
                 style={styles.noteLock}
                 accessible
@@ -1227,8 +1227,11 @@ const makeStyles = (theme: KonduktTheme) =>
   segmentCountSelected: { color: onPrimarySolid },
 
   fields: { marginTop: space(3), gap: space(3) },
+  // The search + Import / Export row is `ConfigSearchRow`'s geometry, not
+  // this screen's. What remains here is the MUNICIPALITY SCOPE trigger, which
+  // is this screen's own second control and therefore keeps its own styles.
   field: {
-    minHeight: 60,
+    minHeight: controlHeight,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space(3),
@@ -1259,7 +1262,6 @@ const makeStyles = (theme: KonduktTheme) =>
     fontWeight: '500',
     color: theme.palette.onSurfaceVariant,
   },
-  fieldInput: { flex: 1, minWidth: 0, padding: 0, ...type.bodyMedium, color: theme.palette.onSurface },
 
   // ── the status caption: the filter, in words ──
   //

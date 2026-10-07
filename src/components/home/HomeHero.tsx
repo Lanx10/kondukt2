@@ -1,9 +1,10 @@
 import { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon, type IconName } from '../../icons';
-import { cardShadow, glassBlur, onAmber, onPrimarySolid, radius, space, tintedGlass, type, type KonduktTheme } from '../../theme';
+import { cardShadowFor, onAmber, onPrimarySolid, radius, space, tintedGlass, type, type KonduktTheme } from '../../theme';
 
 import { useThemedStyles } from '../../lib/useThemedStyles';
+import { useKonduktTheme } from '../../lib/themeContext';
 import { GlassCard } from '../GlassCard';
 import { Skeleton } from '../SummaryDisclosure';
 
@@ -47,6 +48,7 @@ export function HomeHero({
   actions?: HeroAction[];
   titleSuffix?: string;
 }) {
+  const { theme } = useKonduktTheme();
   const styles = useThemedStyles(makeStyles);
   const running = state === 'running';
   const failed = state === 'error';
@@ -169,7 +171,7 @@ export function HomeHero({
         <View style={[styles.card, styles.cardRunning]}>{content}</View>
       ) : (
         <GlassCard
-          intensity={glassBlur}
+          intensity={theme.glass.blur}
           style={[styles.card, failed && styles.cardError]}
           accessible
           accessibilityLabel={`${eyebrow}. ${title}. ${body}${when ? ` ${when}` : ''}`}
@@ -198,12 +200,13 @@ const makeStyles = (theme: KonduktTheme) =>
     // and the red eyebrow carry the state, not an outline around the card.
     backgroundColor: theme.palette.errorContainer,
   },
-  // Solid amber, the only yellow in the app. `cardShadow` rather than a second
-  // shadow: the same numbers as every other panel, so it sits at the same depth.
+  // Solid amber, the only yellow in the app. `cardShadowFor` rather than a
+  // second shadow: the same lift every other panel gets, so it sits at the same
+  // depth.
   cardRunning: {
     backgroundColor: theme.palette.secondary,
     borderRadius: radius.glass,
-    ...cardShadow,
+    ...cardShadowFor(theme),
   },
   eyebrowRow: {
     flexDirection: 'row',

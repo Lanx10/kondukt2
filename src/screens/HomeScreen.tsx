@@ -823,7 +823,7 @@ type SectionKey = keyof typeof SECTIONS | OpenRoute;
          children: /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.View, {
            style: styles.readableWidth,
          children: /*#__PURE__*/(0, _reactJsxRuntime.jsxs)(_componentsGlassCard.GlassCard, {
-           intensity: _theme.glassBlur,
+           intensity: theme.glass.blur,
            style: styles.empty,
              children: [/*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.View, {
                style: styles.emptyIcon,

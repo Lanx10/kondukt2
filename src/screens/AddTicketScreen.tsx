@@ -1521,7 +1521,7 @@ type Observation = {
      padding: (0, _theme.space)(5),
      borderRadius: _theme.radius.glass,
      backgroundColor: theme.palette.secondary,
-     ..._theme.cardShadow
+     ..._theme.cardShadowFor(theme)
    },
    fareLabel: {
      ..._theme.type.labelSmall,

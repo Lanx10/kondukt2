@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon, type IconName } from '../../icons';
-import { cardShadow, onAmber, onPrimarySolid, radius, space, type, type KonduktTheme } from '../../theme';
+import { cardShadowFor, onAmber, onPrimarySolid, radius, space, type, type KonduktTheme } from '../../theme';
 import { useKonduktTheme } from '../../lib/themeContext';
 import { useThemedStyles } from '../../lib/useThemedStyles';
 import { GlassCard } from '../GlassCard';
@@ -149,13 +149,13 @@ const makeStyles = (theme: KonduktTheme) =>
     borderWidth: 1,
     borderColor: theme.palette.error,
   },
-  // Solid amber, and the only yellow on the screen. `cardShadow` rather than a
-  // second shadow: same numbers as every other panel, so it sits at the same
-  // depth.
+  // Solid amber, and the only yellow on the screen. `cardShadowFor` rather than
+  // a second shadow: the same lift every other panel gets, so it sits at the
+  // same depth - and loses that lift with them when visual effects are reduced.
   cardActive: {
     backgroundColor: theme.palette.secondary,
     borderRadius: radius.glass,
-    ...cardShadow,
+    ...cardShadowFor(theme),
   },
   eyebrowRow: {
     flexDirection: 'row',

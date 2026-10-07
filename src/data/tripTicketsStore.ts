@@ -925,15 +925,25 @@ export type SaveTerminalResult =
 export async function saveTerminal(input: SaveTerminalInput): Promise<SaveTerminalResult> {
   try {
     const opened = await openDatabase();
+    // Scoped to THIS row's registry. A barangay and a terminal are separate
+    // records — transferState already refuses to treat one as a duplicate of
+    // the other — so an unscoped name match let a terminal block a barangay of
+    // the same composed name, which is a dead end: the record could not be
+    // created at all. `kind` is absent only for a caller that has not chosen
+    // one, and those get the column default below, so the same fallback is
+    // used here.
+    const kind = input.kind ?? 'BARANGAY';
     const dupe =
       input.id === null
         ? await opened.getFirstAsync<{ n: number }>(
-            'SELECT COUNT(*) AS n FROM terminals WHERE lower(name) = lower(?)',
+            'SELECT COUNT(*) AS n FROM terminals WHERE lower(name) = lower(?) AND kind = ?',
             input.name,
+            kind,
           )
         : await opened.getFirstAsync<{ n: number }>(
-            'SELECT COUNT(*) AS n FROM terminals WHERE lower(name) = lower(?) AND id != ?',
+            'SELECT COUNT(*) AS n FROM terminals WHERE lower(name) = lower(?) AND kind = ? AND id != ?',
             input.name,
+            kind,
             input.id,
           );
     if ((dupe?.n ?? 0) > 0) {

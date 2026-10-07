@@ -5,7 +5,7 @@ import { DetailCard, DetailRow, Handoff, Sheet } from '../components/BottomSheet
 import { GlassCard } from '../components/GlassCard';
 import { SectionChrome } from '../components/SectionChrome';
 import { Icon } from '../icons';
-import { cardShadow, onAmber, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
+import { cardShadowFor, onAmber, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
 import { useThemedStyles } from '../lib/useThemedStyles';
 import {
@@ -798,7 +798,7 @@ const makeStyles = (theme: KonduktTheme) =>
     backgroundColor: theme.palette.error,
     borderWidth: 1,
     borderColor: theme.palette.error,
-    ...cardShadow,
+    ...cardShadowFor(theme),
     // Only the shadow's colour follows the mode — the geometry is the card's.
     shadowColor: theme.glass.shadow,
   },
@@ -851,7 +851,7 @@ const makeStyles = (theme: KonduktTheme) =>
     borderWidth: 1,
     borderColor: 'rgba(61, 46, 0, 0.26)',
     overflow: 'hidden',
-    ...cardShadow,
+    ...cardShadowFor(theme),
     // Only the shadow's colour follows the mode — the geometry is the card's.
     shadowColor: theme.glass.shadow,
   },

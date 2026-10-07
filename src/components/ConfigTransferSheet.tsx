@@ -1,8 +1,17 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type ReturnKeyTypeOptions,
+} from 'react-native';
 import { GlassCard } from './GlassCard';
 import { DetailCard, DetailRow, Sheet } from './BottomSheet';
 import { Icon } from '../icons';
-import { onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
+import { controlHeight, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
+import { useKonduktTheme } from '../lib/themeContext';
 import { useThemedStyles } from '../lib/useThemedStyles';
 import {
   transferIssueLines,
@@ -137,7 +146,7 @@ export function ConfigTransferSheet({
           disabled={busy !== null}
           testID="transfer-export"
           accessibilityRole="button"
-          accessibilityLabel={`Export ${stopsSingular} configuration to a file`}
+          accessibilityLabel={`Export ${stopsSingular} configuration to a PDF`}
           accessibilityState={{ disabled: busy !== null, busy: busy === 'export' }}
           style={({ pressed }) => [
             styles.ghost,
@@ -153,7 +162,7 @@ export function ConfigTransferSheet({
           disabled={busy !== null}
           testID="transfer-import"
           accessibilityRole="button"
-          accessibilityLabel={`Import ${stopsSingular} configuration from a file`}
+          accessibilityLabel={`Import ${stopsSingular} configuration from a PDF`}
           accessibilityState={{ disabled: busy !== null, busy: busy === 'import' }}
           style={({ pressed }) => [
             styles.primary,
@@ -169,13 +178,26 @@ export function ConfigTransferSheet({
 }
 
 /**
- * The trigger both screens show in their list footer.
+ * The trigger both screens show BESIDE THEIR SEARCH FIELD.
  *
- * A row beside the OFFLINE STORAGE card it acts on, not a button in the
- * section head: the head already carries the count and the one ADD pill, and a
- * third control there would make the list's own primary action ambiguous. The
- * icon is the same `database` glyph the Settings screen uses for storage, so
- * the feature reads as "this device's data", which is what it is.
+ * It is measured by `controlHeight` — the same exported constant the search
+ * field is — so the two are the same height on every screen and neither can
+ * drift from the other. The row around them stretches both, so a search that
+ * grows takes the button with it rather than leaving one hovering.
+ *
+ * `flexShrink: 0` is what keeps a narrow phone honest: the search gives way
+ * first and the button never does, so the row shortens instead of wrapping,
+ * clipping or pushing the button off the edge.
+ *
+ * The descriptive second line this carried in the list footer is gone, and
+ * with it the `database` icon: a 60pt row beside a search field cannot afford
+ * both an icon and a one-line label without squeezing the search down to a few
+ * characters on a small phone. The control's height instead buys two stacked
+ * lines of the label itself, which is both narrower and easier to read.
+ *
+ * What the icon used to carry survives in the accessibility label, which still
+ * names the registry this acts on, so a screen reader announces what the
+ * button does and not merely that it exists.
  */
 export function TransferTrigger({
   label,
@@ -192,19 +214,85 @@ export function TransferTrigger({
       onPress={onPress}
       testID={testID}
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={`Import or export. ${label}`}
+      accessibilityHint="Opens a sheet to export this configuration to a PDF, or import one."
       style={({ pressed }) => [styles.trigger, pressed && styles.pressed]}
     >
       <GlassCard cornerRadius={radius.large} style={StyleSheet.absoluteFill} pointerEvents="none" />
-      <View style={styles.triggerIcon}>
-        <Icon name="database" size={18} color={onPrimarySolid} />
-      </View>
-      <View style={styles.triggerBody}>
-        <Text style={styles.triggerLabel}>IMPORT / EXPORT</Text>
-        <Text style={styles.triggerSub}>{label}</Text>
-      </View>
-      <Icon name="chevron" size={18} color={onPrimarySolid} />
+      <Text style={styles.triggerLine}>IMPORT</Text>
+      <Text style={styles.triggerLine}>EXPORT</Text>
     </Pressable>
+  );
+}
+
+/**
+ * The search field and the Import / Export button, side by side, at the top of
+ * both Configuration lists.
+ *
+ * It is ONE component because the user asked for that row to read the same on
+ * both screens, and two hand-maintained copies of the same styles is a row that
+ * drifts the first time one screen is edited. The geometry lives here, next to
+ * the `TransferTrigger` it has to align with, so the search and the button
+ * cannot disagree about what height they are.
+ *
+ * ALIGNMENT IS STRUCTURAL, not tuned: the row stretches both children, so the
+ * button is exactly as tall as the search rather than merely centred beside it,
+ * and both also declare `controlHeight`. At a narrow width the search gives
+ * way — `flex: 1`, with the button `flexShrink: 0` — so a small phone
+ * shortens the field instead of wrapping, clipping or overflowing the row.
+ *
+ * `testID` and `returnKeyType` are optional because the two screens genuinely
+ * differ: one labels its field for tests, the other asks the keyboard for its
+ * search key. Both are the caller's call, and neither is defaulted into
+ * behaviour the other screen never had.
+ */
+export function ConfigSearchRow({
+  value,
+  onChangeText,
+  placeholder,
+  accessibilityLabel,
+  transferLabel,
+  onOpenTransfer,
+  testID,
+  returnKeyType,
+  transferTestID,
+}: {
+  /** The current query. The row is controlled; it holds no state of its own. */
+  value: string;
+  onChangeText: (text: string) => void;
+  placeholder: string;
+  /** Announced, and distinct from the placeholder, per screen. */
+  accessibilityLabel: string;
+  /** The registry's own description, shown to a screen reader on the button. */
+  transferLabel: string;
+  onOpenTransfer: () => void;
+  testID?: string;
+  returnKeyType?: ReturnKeyTypeOptions;
+  transferTestID: string;
+}) {
+  const { theme } = useKonduktTheme();
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <View style={styles.searchRow}>
+      <GlassCard cornerRadius={radius.large} style={[styles.field, styles.fieldSearch]}>
+        <View style={styles.fieldIcon}>
+          <Icon name="search" size={18} color={theme.accent.tertiary.onContainer} />
+        </View>
+        <TextInput
+          testID={testID}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={theme.palette.outline}
+          accessibilityLabel={accessibilityLabel}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType={returnKeyType}
+          style={styles.fieldInput}
+        />
+      </GlassCard>
+      <TransferTrigger label={transferLabel} onPress={onOpenTransfer} testID={transferTestID} />
+    </View>
   );
 }
 
@@ -273,28 +361,64 @@ const makeStyles = (theme: KonduktTheme) =>
   },
   primaryLabel: { ...type.labelLarge, color: onPrimarySolid },
 
-  trigger: {
+  // ── the shared search + button row ──
+  /**
+   * `stretch` rather than `center`: stretch is what makes the two the SAME
+   * height instead of both sitting on a shared centre line.
+   */
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: space(3),
+  },
+  /** The search takes the slack; the button beside it does not. */
+  fieldSearch: { flex: 1, minWidth: 0 },
+  field: {
+    minHeight: controlHeight,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space(3),
-    marginTop: space(5),
-    paddingVertical: space(3),
-    paddingHorizontal: space(4),
+    paddingVertical: space(2),
+    paddingHorizontal: 14,
+    // The GlassCard child paints the fill and the corner; this keeps it inside
+    // them, which is the same reason the scope trigger on the Barangay screen
+    // needs it.
     overflow: 'hidden',
     borderRadius: radius.large,
-    backgroundColor: theme.palette.primarySolid,
   },
-  triggerIcon: {
+  fieldIcon: {
     width: 36,
     height: 36,
     borderRadius: radius.small,
     alignItems: 'center',
     justifyContent: 'center',
-    // Translucent white, not the solid fill: the icon already sits ON the
-    // solid pill, so a `primarySolid` tile at any opacity is invisible.
-    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    backgroundColor: theme.accent.tertiary.container,
   },
-  triggerBody: { flex: 1, minWidth: 0 },
-  triggerLabel: { ...type.labelSmall, color: onPrimarySolid },
-  triggerSub: { ...type.bodySmall, color: onPrimarySolid, marginTop: 2, opacity: 0.9 },
+  fieldInput: { flex: 1, minWidth: 0, padding: 0, ...type.bodyMedium, color: theme.palette.onSurface },
+
+  trigger: {
+    // COLUMN, not row: the label is two lines, and a row would set them side
+    // by side and double the button's width — which is the width the search
+    // field beside it needs.
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    // The same constant the search field beside it uses. Two literals in two
+    // files is two chances to end up with a bar one row taller than its button.
+    minHeight: controlHeight,
+    // The search is the side that gives way on a narrow screen; this never does.
+    // Measured at ~70px: on a 320pt phone that still leaves the search a usable
+    // input, where an icon beside a one-line label left it three characters
+    // wide.
+    flexShrink: 0,
+    paddingHorizontal: space(3),
+    paddingVertical: space(2),
+    overflow: 'hidden',
+    borderRadius: radius.large,
+    backgroundColor: theme.palette.primarySolid,
+  },
+  // The label is two stacked lines rather than one long one, which is what the
+  // control's own height buys: 2 x 16px sits inside 60px comfortably, and it
+  // halves the button's width, which is the width the search needed.
+  triggerLine: { ...type.labelSmall, color: onPrimarySolid, textAlign: 'center' },
 });

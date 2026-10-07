@@ -1,8 +1,9 @@
 
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { glassBlur, space, type, type KonduktTheme } from '../../theme';
+import { space, type, type KonduktTheme } from '../../theme';
 
 import { useThemedStyles } from '../../lib/useThemedStyles';
+import { useKonduktTheme } from '../../lib/themeContext';
 import { GlassCard } from '../GlassCard';
 import type { LastCompletedTrip } from '../../data/historyStore';
 import { formatShortTime } from '../../lib/tripScreenFormat';
@@ -27,6 +28,7 @@ export function LastTripCard({
   trip: LastCompletedTrip;
   onOpenHistory: () => void;
 }) {
+  const { theme } = useKonduktTheme();
   const styles = useThemedStyles(makeStyles);
   const route = `${trip.origin_location_snapshot} → ${trip.destination_location_snapshot}`;
   const summary =
@@ -39,7 +41,7 @@ export function LastTripCard({
         LAST TRIP
       </Text>
       <GlassCard
-        intensity={glassBlur}
+        intensity={theme.glass.blur}
         style={styles.card}
         accessible
         accessibilityLabel={`Last trip. ${route}. ${summary}. ${centavos(trip.earnings)} collected.`}

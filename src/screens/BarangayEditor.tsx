@@ -30,7 +30,7 @@ import { applyFareInputFilter } from '../lib/fareFormat';
 import { setScreenFlash } from '../lib/screenFlash';
 import {
   BARANGAY_NOT_FOUND_ERROR,
-  TERMINAL_SAVE_ERROR,
+  BARANGAY_SAVE_ERROR,
   barangayEditorComposeName,
   barangayEditorFieldsFromRecord,
   barangayEditorHint,
@@ -130,7 +130,14 @@ export function BarangayEditor({ id, onBack }: BarangayEditorProps) {
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      fetchAllTerminals(),
+      // BARANGAY only, and the argument is load-bearing. Unfiltered this
+      // returned every stop, so the two registries contaminated each other: a
+      // TERMINAL named "Santa Cruz" made the form refuse a barangay of the same
+      // name ("already registered in Olongapo") when no such barangay existed,
+      // and the municipality picker counted terminals as barangays — Olongapo
+      // claimed three when the Barangays list held one. Every consumer below
+      // (the duplicate check, the counts, the KM context) wants THIS registry.
+      fetchAllTerminals('BARANGAY'),
       fetchAllMunicipalities(),
       id === null ? Promise.resolve(null) : fetchTerminalById(id),
     ])
@@ -279,7 +286,7 @@ export function BarangayEditor({ id, onBack }: BarangayEditorProps) {
       }
       // The form, the typed values, and the button all survive; navigating
       // on a failed write would show a save that did not happen.
-      setState((current) => ({ ...current, isSaving: false, saveError: TERMINAL_SAVE_ERROR }));
+      setState((current) => ({ ...current, isSaving: false, saveError: BARANGAY_SAVE_ERROR }));
     });
   }, [state, municipalities, terminals, loaded, id, onBack]);
 

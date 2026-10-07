@@ -1,22 +1,46 @@
-import { useCallback, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { GlassCard } from '../components/GlassCard';
 import { SectionChrome } from '../components/SectionChrome';
 import { Icon, type IconName } from '../icons';
 import {
-  cardShadow,
+  cardShadowFor,
+  DEFAULT_APPEARANCE,
+  DEFAULT_THEME_ID,
+  getThemeBundle,
   maxContentWidth,
-  onPrimarySolid,
   radius,
+  resolveFieldStops,
   space,
   type,
+  THEME_REGISTRY,
+  APPEARANCE_CHOICE_GROUPS,
+  APPEARANCE_TOGGLES,
+  type Appearance,
+  type AppearanceAxis,
   type KonduktTheme,
   type ThemeMode,
+  type ThemeSpec,
 } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
 import { useThemedStyles } from '../lib/useThemedStyles';
-import { loadThemeMode, saveThemeMode } from '../lib/preferences';
+import {
+  loadAppearance,
+  loadThemeId,
+  loadThemeMode,
+  saveAppearanceAxis,
+  saveThemeId,
+  saveThemeMode,
+} from '../lib/preferences';
 
 export type AdvancedSettingsScreenProps = {
   onBack: () => void;
@@ -34,6 +58,107 @@ const OPTIONS: AppearanceOption[] = [
   { mode: 'light', icon: 'lightMode', label: 'Light mode', sub: 'Bright surfaces, high contrast.' },
   { mode: 'dark', icon: 'darkMode', label: 'Dark mode', sub: 'Dimmed surfaces, less glare at night.' },
 ];
+
+/**
+ * A theme's field, as the app actually paints it RIGHT NOW.
+ *
+ * Not the theme's declared gradient: it is that gradient resolved through the
+ * bundle in the CURRENT mode and under the CURRENT appearance, which is the
+ * honest answer on both counts. A dark-dialect theme's stops are re-toned when
+ * it is rendered in Light mode, so the raw declaration would put a near-black
+ * swatch on a light card; and the Background, Intensity and Direction axes are
+ * drawn by `GlassBackdrop` from the same descriptor, so a swatch that ignored
+ * them would preview a field that is not the one behind the screen.
+ *
+ * `resolveFieldStops` is shared with the backdrop for that reason: the swatch
+ * and the page are two answers to one question, and they cannot disagree.
+ */
+function paintedField(id: string, mode: ThemeMode, appearance: Appearance) {
+  const { backgroundGradient } = getThemeBundle(id, mode, appearance).semantic;
+  return {
+    colors: resolveFieldStops(backgroundGradient),
+    start: backgroundGradient.start,
+    end: backgroundGradient.end,
+  };
+}
+
+/**
+ * The screen's own option row - ONE row, for a mode, an appearance value and a
+ * toggle alike.
+ *
+ * It was two rows once: the mode cards were inline markup and the appearance
+ * values got a component, so the same six styles were written twice in this
+ * file and could drift. Every one of those options is the same question - pick
+ * one of these, or turn this on - asked with a chip, a title, a line of
+ * consequence and a 20px mark, so it is one row now and the mode block above
+ * calls it like any other.
+ *
+ * The only thing that varies is the role it reports: `radio` for a choice
+ * between values, `switch` for a flag, because "on or off" is a different
+ * question to a screen reader than "which of these three". The mark answers
+ * both the same way.
+ */
+function OptionRow({
+  label,
+  sub,
+  icon,
+  selected,
+  onPress,
+  testID,
+  role = 'radio',
+}: {
+  label: string;
+  sub: string;
+  icon: IconName;
+  selected: boolean;
+  onPress: () => void;
+  /** Optional: the mode rows are identified by their group, not individually. */
+  testID?: string;
+  role?: 'radio' | 'switch';
+}) {
+  const { theme } = useKonduktTheme();
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <Pressable
+      testID={testID}
+      onPress={onPress}
+      accessibilityRole={role}
+      accessibilityLabel={`${label}. ${sub}`}
+      // `aria-checked` DIRECTLY: react-native-web 0.21 forwards aria-* props to
+      // the DOM and drops `accessibilityState`, while RN core merges the aria
+      // prop into the native state — both platforms get the state from this
+      // one prop, and the second rides along as the native-side belt.
+      aria-checked={selected}
+      accessibilityState={{ checked: selected }}
+      style={({ pressed }) => [
+        styles.option,
+        selected && styles.optionSelected,
+        pressed && styles.pressed,
+      ]}
+    >
+      <View style={[styles.chip, selected && styles.chipSelected]}>
+        <Icon
+          name={icon}
+          size={22}
+          color={selected ? theme.palette.primarySolid : theme.palette.onTertiaryContainer}
+        />
+      </View>
+      <View style={styles.optionBody}>
+        <Text style={[styles.optionTitle, selected && styles.optionTitleSelected]}>{label}</Text>
+        <Text style={[styles.optionSub, selected && styles.optionSubSelected]}>{sub}</Text>
+      </View>
+      {/* Decorative, as on the mode cards: the label and the checked state
+          already say it to a reader. */}
+      <View
+        style={[styles.mark, selected && styles.markSelected]}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
+        {selected ? <Icon name="check" size={13} color={theme.palette.primarySolid} /> : null}
+      </View>
+    </Pressable>
+  );
+}
 
 /**
  * The Advanced Settings screen: one boolean, two options, and the facts
@@ -56,8 +181,28 @@ const OPTIONS: AppearanceOption[] = [
  */
 export function AdvancedSettingsScreen({ onBack }: AdvancedSettingsScreenProps) {
   const insets = useSafeAreaInsets();
-  const { theme, setThemeMode } = useKonduktTheme();
+  const { theme, themeId, appearance, setThemeMode, setThemeId, setAppearance } =
+    useKonduktTheme();
   const styles = useThemedStyles(makeStyles);
+  const { width: windowWidth } = useWindowDimensions();
+
+  // Two columns once the column is wide enough to carry two readable cards,
+  // one below that. Measured from the COLUMN, not the window: the column stops
+  // at `maxContentWidth`, so on a tablet the extra room is gutter, not card.
+  const contentWidth = Math.min(windowWidth, maxContentWidth) - space(5) * 2;
+  const columns = contentWidth >= 300 ? 2 : 1;
+
+  // Every theme's field in the current mode. Memoised on the mode alone, so a
+  // tap re-renders this screen once and does not rebuild eleven bundles again
+  // for the cards that did not change.
+  const previews = useMemo(
+    () =>
+      THEME_REGISTRY.map((spec: ThemeSpec) => ({
+        spec,
+        field: paintedField(spec.id, theme.mode, theme.appearance),
+      })),
+    [theme.mode, theme.appearance],
+  );
 
   // The failure copy, or null. The happy path never renders a message.
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +210,16 @@ export function AdvancedSettingsScreen({ onBack }: AdvancedSettingsScreenProps) 
   // must no-op against what is ON SCREEN, not against the context value the
   // closure still holds.
   const modeRef = useRef<ThemeMode>(theme.mode);
-  // The write chain: sequential by construction, last tap wins.
+  // The selected id, readable synchronously, for the same reason the mode is:
+  // a second tap inside one frame must no-op against what is ON SCREEN.
+  const themeIdRef = useRef<string>(themeId);
+  // The seven appearance axes, readable synchronously, for the same reason the
+  // mode and the id are: a second tap inside one frame must no-op against what
+  // is ON SCREEN, not against the context value the closure still holds.
+  const appearanceRef = useRef<Appearance>(appearance);
+  // The write chain: sequential by construction, last tap wins. Shared by the
+  // mode and the theme, so a tap on one and a tap on the other cannot land out
+  // of order against the same store.
   const chainRef = useRef<Promise<void>>(Promise.resolve());
 
   const commit = useCallback(
@@ -97,7 +251,80 @@ export function AdvancedSettingsScreen({ onBack }: AdvancedSettingsScreenProps) 
     [setThemeMode],
   );
 
-  const subtitle = `One setting · ${theme.mode === 'dark' ? 'Dark' : 'Light'} mode`;
+  /**
+   * The theme commit. Same contract as the mode commit above, for the same
+   * reasons: the paint is optimistic because the answer to a theme tap IS the
+   * theme, and a refused write reverts to the id read back from storage rather
+   * than to the one this session remembers.
+   */
+  const commitTheme = useCallback(
+    (next: string) => {
+      if (next === themeIdRef.current) return; // the chosen card is a no-op
+      themeIdRef.current = next;
+      setError(null);
+      setThemeId(next);
+
+      chainRef.current = chainRef.current
+        .then(() => saveThemeId(next))
+        .then((ok) => {
+          if (ok) return;
+          return loadThemeId().then((stored) => {
+            const onDisk = stored ?? DEFAULT_THEME_ID;
+            themeIdRef.current = onDisk;
+            setThemeId(onDisk);
+            const name = THEME_REGISTRY.find((t) => t.id === onDisk)?.name ?? 'the default theme';
+            setError(
+              `Kondukt could not save that theme, so the screen is back on ${name}. ` +
+                'Nothing was lost — tap again to retry.',
+            );
+          });
+        });
+    },
+    [setThemeId],
+  );
+
+  /**
+   * The appearance commit: one axis, one paint, one key.
+   *
+   * The same contract as the mode and the theme commits above, for the same
+   * reasons. The paint is optimistic because the answer to a tap on an axis IS
+   * the new appearance, and a refused write reverts to the axes read back from
+   * storage rather than to the ones this session remembers - which is why the
+   * revert rebuilds the whole appearance from `DEFAULT_APPEARANCE` plus what the
+   * store actually holds, exactly as a cold start does. One axis is written per
+   * tap: the other six are not in the store's business.
+   */
+  const commitAxis = useCallback(
+    (axis: AppearanceAxis, value: Appearance[AppearanceAxis]) => {
+      const current = appearanceRef.current;
+      if (current[axis] === value) return; // the chosen value is a no-op
+      // The spread is what makes this a partial edit: the six axes that were not
+      // tapped are carried over untouched.
+      const next = { ...current, [axis]: value } as Appearance;
+      appearanceRef.current = next;
+      setError(null);
+      setAppearance(next);
+
+      chainRef.current = chainRef.current
+        .then(() => saveAppearanceAxis(axis, value))
+        .then((ok) => {
+          if (ok) return;
+          return loadAppearance().then((stored) => {
+            const onDisk: Appearance = { ...DEFAULT_APPEARANCE, ...stored };
+            appearanceRef.current = onDisk;
+            setAppearance(onDisk);
+            setError(
+              'Kondukt could not save that setting, so the app is back to how ' +
+                'it was. Nothing was lost — tap again to retry.',
+            );
+          });
+        });
+    },
+    [setAppearance],
+  );
+
+  const currentSpec = THEME_REGISTRY.find((spec) => spec.id === themeId) ?? THEME_REGISTRY[0];
+  const subtitle = `${currentSpec.name} · ${theme.mode === 'dark' ? 'Dark' : 'Light'} mode`;
 
   return (
     // The outer View paints the theme background; SectionChrome owns the top
@@ -159,66 +386,150 @@ export function AdvancedSettingsScreen({ onBack }: AdvancedSettingsScreenProps) 
               accessibilityLabel="APPEARANCE"
               style={styles.modes}
             >
-              {OPTIONS.map((option) => {
-                const selected = theme.mode === option.mode;
+              {OPTIONS.map((option) => (
+                <OptionRow
+                  key={option.mode}
+                  label={option.label}
+                  sub={option.sub}
+                  icon={option.icon}
+                  selected={theme.mode === option.mode}
+                  onPress={() => commit(option.mode)}
+                />
+              ))}
+            </View>
+
+            <Text testID="as-commit" style={styles.commitHint}>
+              Applies the moment you tap it. There is nothing to save.
+            </Text>
+          </View>
+
+          {/* ── THEMES ────────────────────────────────────────────────────
+              Below the appearance control, not inside it: the mode and the
+              theme are two different answers, and a driver picking a palette
+              should not have to reason about which half of the screen it is
+              in. One column, the same 20px gutter and the same heading rhythm
+              as APPEARANCE above. */}
+          <View testID="as-themes" style={styles.themes}>
+            <Text accessibilityRole="header" style={styles.heading}>
+              THEMES
+            </Text>
+
+            {/* Every theme in the registry, the app's own first. Just colour
+                choices: each card shows the theme's field and nothing else.
+                `kondukt` is listed rather than omitted so you can always get
+                back to the shipped look. */}
+            <View style={styles.themeGrid}>
+              {previews.map(({ spec, field }) => {
+                const selected = themeId === spec.id;
+                const builtForDark = spec.dialect === 'dark';
+                const dark = builtForDark ? 'Dark' : 'Light';
                 return (
                   <Pressable
-                    key={option.mode}
-                    onPress={() => commit(option.mode)}
+                    key={spec.id}
+                    testID={`as-theme-${spec.id}`}
+                    onPress={() => commitTheme(spec.id)}
                     accessibilityRole="radio"
-                    accessibilityLabel={`${option.label}. ${option.sub}`}
-                    // `aria-checked` DIRECTLY: react-native-web 0.21 forwards
-                    // aria-* props to the DOM and drops `accessibilityState`,
-                    // while RN core merges the aria prop into the native
-                    // state — both platforms get the checked state from this
-                    // one prop. `accessibilityState.checked` rides along as
-                    // the native-side belt.
+                    accessibilityLabel={`${spec.name}. ${spec.note}. Built for ${dark.toLowerCase()} mode.`}
                     aria-checked={selected}
                     accessibilityState={{ checked: selected }}
                     style={({ pressed }) => [
-                      styles.option,
-                      selected && styles.optionSelected,
+                      styles.themeCard,
+                      columns === 2 ? styles.themeCardHalf : styles.themeCardFull,
+                      selected && styles.themeCardSelected,
                       pressed && styles.pressed,
                     ]}
                   >
-                    <View style={[styles.chip, selected && styles.chipSelected]}>
-                      <Icon
-                        name={option.icon}
-                        size={22}
-                        color={
-                          selected
-                            ? theme.palette.primarySolid
-                            : theme.palette.onTertiaryContainer
-                        }
-                      />
-                    </View>
-                    <View style={styles.optionBody}>
-                      <Text style={[styles.optionTitle, selected && styles.optionTitleSelected]}>
-                        {option.label}
-                      </Text>
-                      <Text style={[styles.optionSub, selected && styles.optionSubSelected]}>
-                        {option.sub}
-                      </Text>
-                    </View>
-                    {/* The mark: a ring at rest, a filled check when chosen.
-                        Decorative — the label and the selected state already
-                        say it to the reader. */}
-                    <View
-                      style={[styles.mark, selected && styles.markSelected]}
-                      accessibilityElementsHidden
-                      importantForAccessibility="no-hide-descendants"
+                    <LinearGradient
+                      colors={field.colors}
+                      start={field.start}
+                      end={field.end}
+                      style={styles.themeSwatch}
                     >
-                      {selected ? (
-                        <Icon name="check" size={13} color={theme.palette.primarySolid} />
-                      ) : null}
-                    </View>
+                      {/* The same 20px mark the mode cards use, so selection
+                          reads identically in both halves of the screen. */}
+                      <View
+                        style={[styles.mark, styles.themeMark, selected && styles.markSelected]}
+                        accessibilityElementsHidden
+                        importantForAccessibility="no-hide-descendants"
+                      >
+                        {selected ? (
+                          <Icon name="check" size={13} color={theme.palette.primarySolid} />
+                        ) : null}
+                      </View>
+                    </LinearGradient>
                   </Pressable>
                 );
               })}
             </View>
 
-            <Text testID="as-commit" style={styles.commitHint}>
-              Applies the moment you tap it. There is nothing to save.
+            <Text testID="as-themes-hint" style={styles.commitHint}>
+              The whole app changes as you tap, background included.
+            </Text>
+          </View>
+
+          {/* ── ADVANCED APPEARANCE ─────────────────────────────────────────
+              Below THEMES, not inside it: a theme is WHICH the app looks like
+              and these seven axes are HOW it is drawn, so they sit under the
+              choice of theme rather than beside it. The same column, the same
+              20px gutter and the same heading rhythm as the two sections above;
+              every row is the mode card, so nothing here introduces a control
+              the screen did not already have. */}
+          <View testID="as-advanced" style={styles.advanced}>
+            <Text accessibilityRole="header" style={styles.heading}>
+              ADVANCED APPEARANCE
+            </Text>
+
+            {APPEARANCE_CHOICE_GROUPS.map((group) => (
+              <View key={group.axis} testID={`as-axis-${group.axis}`} style={styles.axisGroup}>
+                <Text style={styles.axisLabel}>{group.label}</Text>
+                {/* One radio group per axis, labelled by the caption above it:
+                    each axis is one setting, and the group is what says which
+                    set of options belongs together. */}
+                <View
+                  accessibilityRole="radiogroup"
+                  accessibilityLabel={group.label}
+                  style={styles.modes}
+                >
+                  {group.options.map((option) => (
+                    <OptionRow
+                      key={option.value}
+                      testID={`as-${group.axis}-${option.value}`}
+                      label={option.label}
+                      sub={option.sub}
+                      icon={option.icon}
+                      selected={appearance[group.axis] === option.value}
+                      onPress={() => commitAxis(group.axis, option.value)}
+                    />
+                  ))}
+                </View>
+              </View>
+            ))}
+
+            {/* The two flags. Same row, same mark; `role="switch"` is the only
+                difference, because "is it on" is a different question to a
+                reader than "which of these three". */}
+            <View testID="as-axis-toggles" style={styles.axisGroup}>
+              <Text style={styles.axisLabel}>ACCENT &amp; EFFECTS</Text>
+              <View style={styles.modes}>
+                {APPEARANCE_TOGGLES.map((toggle) => (
+                  <OptionRow
+                    key={toggle.axis}
+                    role="switch"
+                    testID={`as-${toggle.axis}`}
+                    label={toggle.label}
+                    sub={toggle.sub}
+                    icon={toggle.icon}
+                    selected={appearance[toggle.axis]}
+                    onPress={() => commitAxis(toggle.axis, !appearance[toggle.axis])}
+                  />
+                ))}
+              </View>
+            </View>
+
+            {/* The same one-line contract the two sections above it make. */}
+            <Text testID="as-advanced-hint" style={styles.commitHint}>
+              Every control repaints the whole app as you tap it, and is kept on
+              the handset.
             </Text>
           </View>
 
@@ -331,7 +642,7 @@ const makeStyles = (theme: KonduktTheme) =>
       borderWidth: 1,
       borderColor: theme.palette.outline,
       backgroundColor: theme.glass.tint,
-      ...cardShadow,
+      ...cardShadowFor(theme),
     },
     // The chosen option goes SOLID: the accent fills the whole panel and every
     // piece of text on it turns to on-primary. This replaces a pale
@@ -365,19 +676,19 @@ const makeStyles = (theme: KonduktTheme) =>
     },
     // The chip inverts with the panel: a light chip carrying the accent icon,
     // so it stays legible on the solid fill instead of dissolving into it.
-    chipSelected: { backgroundColor: onPrimarySolid },
+    chipSelected: { backgroundColor: theme.onPrimarySolid },
     optionBody: { flex: 1, minWidth: 0 },
     optionTitle: {
       ...type.titleMedium,
       color: theme.glass.onGlass,
     },
-    optionTitleSelected: { color: onPrimarySolid },
+    optionTitleSelected: { color: theme.onPrimarySolid },
     optionSub: {
       ...type.bodySmall,
       color: theme.glass.onGlassVariant,
       marginTop: 2,
     },
-    optionSubSelected: { color: onPrimarySolid },
+    optionSubSelected: { color: theme.onPrimarySolid },
     // 20px ring: the selection mark the shipped screen never had. Rest is a
     // plain --outline ring; chosen fills with on-primary and knocks the tick
     // out in primary — inverting with the panel, so the tick reads on the
@@ -393,9 +704,92 @@ const makeStyles = (theme: KonduktTheme) =>
       flexShrink: 0,
     },
     markSelected: {
-      borderColor: onPrimarySolid,
-      backgroundColor: onPrimarySolid,
+      borderColor: theme.onPrimarySolid,
+      backgroundColor: theme.onPrimarySolid,
     },
+
+    // ── THEMES ──
+    // The same 20 that separates the two sections above and below, so the
+    // screen keeps one rhythm rather than gaining a second one.
+    themes: { marginTop: space(5) },
+
+    // The current theme's field. The gradient is a child rather than a
+    // background so it can be clipped by the same `overflow: hidden` the mode
+    // cards use, and so the panel can keep the shared card depth.
+    preview: {
+      overflow: 'hidden',
+      borderRadius: radius.large,
+      borderWidth: 1,
+      borderColor: theme.palette.outline,
+      backgroundColor: theme.glass.tint,
+      ...cardShadowFor(theme),
+    },
+    // 56 tall: tall enough for the three stops to read as a field rather than
+    // as a hairline, short enough that the eleven cards below stay on one
+    // screen on a handset.
+    previewField: { height: 56, width: '100%' },
+    previewBody: { padding: space(4) },
+    previewName: { ...type.titleMedium, color: theme.glass.onGlass },
+    previewNote: { ...type.bodySmall, color: theme.glass.onGlassVariant, marginTop: 2 },
+
+    // A wrapping row rather than a FlatList: eleven cards is a static list on
+    // a screen that already scrolls.
+    themeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: space(3) },
+
+    // The mode card's own part - glass tint, lit lip, 1px border in BOTH
+    // states, the shared card depth - stacked rather than laid out in a row.
+    // A row at this width leaves the name about 60px, which truncated "Cyber
+    // Summer Night" to "Cy..."; a swatch above the name gives the name the
+    // whole card.
+    themeCard: {
+      overflow: 'hidden',
+      borderRadius: radius.large,
+      borderWidth: 1,
+      borderColor: theme.palette.outline,
+      backgroundColor: theme.glass.tint,
+      ...cardShadowFor(theme),
+    },
+    // FLEX-BASIS, NOT A COMPUTED PIXEL WIDTH, and the reason is arithmetic that
+    // cannot be won. Two cards plus the 12px gap have to fit inside the column
+    // or flex wrap drops the second card onto its own line, which turned a
+    // two-column grid into eleven stacked rows at every viewport whose column
+    // was not an even number of pixels - and the widths that look fine are the
+    // ones that hide it. A basis of 48% with room to grow lets flexbox do the
+    // division: it always fits, and it fills the row rather than leaving a
+    // slack pixel at the right edge.
+    themeCardHalf: { flexBasis: '48%', flexGrow: 1, maxWidth: '49%' },
+    themeCardFull: { flexBasis: '100%', maxWidth: '100%' },
+
+    // Chosen goes SOLID, exactly as a chosen mode does, so selection means the
+    // same thing in both halves of the screen. The border stays 1px in both
+    // states so choosing cannot resize the grid and shift it under the tap.
+    themeCardSelected: {
+      borderColor: theme.palette.primarySolid,
+      backgroundColor: theme.palette.primarySolid,
+    },
+    // The swatch IS the card: no name, no note, just the colour field.
+    themeSwatch: { width: '100%', height: 72 },
+    // On the swatch rather than beside it. It carries its own solid backing so
+    // it reads on a pale field and a dark one alike.
+    themeMark: {
+      position: 'absolute',
+      top: 8,
+      right: 8,
+      backgroundColor: theme.glass.tint,
+    },
+
+    // ── ADVANCED APPEARANCE ──
+    // The same 20 that separates the sections above and below, so the screen
+    // keeps one rhythm rather than gaining a second one.
+    advanced: { marginTop: space(5) },
+    // One axis: its caption and its options. The 8 above the caption is the gap
+    // that says "this is a new question" without a rule or a card between two
+    // things the eye already reads as one list.
+    axisGroup: { marginTop: space(2), gap: space(2) },
+    // The section's own voice, at group weight: the same uppercase tracked label
+    // as `heading`, one step closer in. It is the axis's NAME, not another
+    // section title, and the options under it are what answers it.
+    axisLabel: { ...type.labelSmall, color: theme.glass.onGlassVariant },
 
     // ── the commit caption ──
     commitHint: {

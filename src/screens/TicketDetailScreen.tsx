@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SectionChrome } from '../components/SectionChrome';
 import { GlassCard } from '../components/GlassCard';
 import { Icon } from '../icons';
-import { cardShadow, onAmber, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
+import { cardShadowFor, onAmber, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
 import { useThemedStyles } from '../lib/useThemedStyles';
 import { fetchTripWithTickets, subscribeToTripWithTickets } from '../data/tripTicketsStore';
@@ -576,7 +576,7 @@ const makeStyles = (theme: KonduktTheme) =>
     // keeps the 28px shape and the panel depth of the card it replaces.
     borderWidth: 0,
     borderRadius: radius.glass,
-    ...cardShadow,
+    ...cardShadowFor(theme),
     // Only the shadow's colour follows the mode — the geometry is the card's.
     shadowColor: theme.glass.shadow,
   },

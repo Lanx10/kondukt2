@@ -16,7 +16,7 @@ import { SectionChrome } from '../components/SectionChrome';
 import { Icon } from '../icons';
 import {
   amberSurface,
-  cardShadow,
+  cardShadowFor,
   onAmber,
   onPrimarySolid,
   radius,
@@ -962,7 +962,7 @@ const makeStyles = (theme: KonduktTheme) =>
     padding: space(5),
     backgroundColor: theme.palette.secondary,
     borderRadius: radius.glass,
-    ...cardShadow,
+    ...cardShadowFor(theme),
     // Only the shadow's colour follows the mode — the geometry is the card's.
     shadowColor: theme.glass.shadow,
   },
@@ -1158,7 +1158,16 @@ const makeStyles = (theme: KonduktTheme) =>
   // fading, for the reason `.end-btn:disabled` says: opacity drags the white
   // label under AA on a fill that is already the darkest thing here.
   actionBar: {
-    flex: 0,
+    // `flexShrink: 0`, and never `flex: 0`. The bar is a SIBLING of the
+    // scroll, so it is the one thing in this screen that must keep its natural
+    // height: `flex: 0` sets a zero basis, which sized the bar to its button
+    // alone and let the count line under it fall past the bottom of the frame.
+    // Nothing scrolls that over — the page itself is deliberately unscrollable
+    // — so SAVE, the screen's one committing action, was cut off at every
+    // height. Zero shrink instead keeps the bar whole and lets the ScrollView
+    // beside it absorb the difference, which is the arrangement
+    // `CurrentTripScreen.actionBar` already uses.
+    flexShrink: 0,
     paddingHorizontal: space(5),
     paddingTop: space(3),
     gap: space(2),
