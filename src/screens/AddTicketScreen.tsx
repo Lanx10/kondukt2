@@ -6,6 +6,7 @@ import * as _componentsSectionChrome from '../components/SectionChrome';
 import * as _componentsBottomSheet from '../components/BottomSheet';
 import * as _icons from '../icons';
 import * as _theme from '../theme';
+import * as _themeColor from '../theme/color';
 import * as _libThemeContext from '../lib/themeContext';
 import * as _libUseThemedStyles from '../lib/useThemedStyles';
 import * as _dataTripTicketsStore from '../data/tripTicketsStore';
@@ -1553,7 +1554,7 @@ type Observation = {
      marginTop: (0, _theme.space)(4),
      paddingTop: (0, _theme.space)(4),
      borderTopWidth: 1,
-     borderTopColor: 'rgba(61, 46, 0, 0.25)'
+     borderTopColor: (0, _themeColor.withAlpha)((0, _themeColor.parseColor)(theme.onSecondaryRamp.primary), 0.25)
    },
    calcRow: {
      flexDirection: 'row',
@@ -1581,7 +1582,7 @@ type Observation = {
      paddingTop: (0, _theme.space)(3),
      minHeight: 57,
      borderTopWidth: 1,
-     borderTopColor: 'rgba(61, 46, 0, 0.25)'
+     borderTopColor: (0, _themeColor.withAlpha)((0, _themeColor.parseColor)(theme.onSecondaryRamp.primary), 0.25)
    },
    sumLabel: {
      ..._theme.type.labelLarge,

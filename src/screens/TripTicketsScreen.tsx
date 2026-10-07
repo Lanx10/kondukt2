@@ -15,6 +15,7 @@ import { GlassCard } from '../components/GlassCard';
 import { Skeleton } from '../components/SummaryDisclosure';
 import { Icon } from '../icons';
 import { cardShadowFor, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
+import { parseColor, withAlpha } from '../theme/color';
 import { useKonduktTheme } from '../lib/themeContext';
 import { useThemedStyles } from '../lib/useThemedStyles';
 import {
@@ -675,7 +676,7 @@ const makeStyles = (theme: KonduktTheme) =>
     borderTopWidth: 1,
     borderTopColor: theme.palette.outline,
   },
-  heroFiguresSolid: { borderTopColor: 'rgba(61, 46, 0, 0.7)' },
+  heroFiguresSolid: { borderTopColor: withAlpha(parseColor(theme.onSecondaryRamp.primary), 0.7) },
   heroFigure: { minWidth: 0 },
   heroFigureValue: {
     ...type.titleMedium,

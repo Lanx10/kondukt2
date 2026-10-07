@@ -13,6 +13,7 @@ import { GlassCard } from '../components/GlassCard';
 import { SectionChrome } from '../components/SectionChrome';
 import { Icon } from '../icons';
 import { cardShadowFor, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
+import { parseColor, withAlpha } from '../theme/color';
 import { useKonduktTheme } from '../lib/themeContext';
 import { useThemedStyles } from '../lib/useThemedStyles';
 import {
@@ -1087,7 +1088,7 @@ const makeStyles = (theme: KonduktTheme) =>
     borderTopWidth: 1,
     borderTopColor: theme.palette.outline,
   },
-  heroFiguresSolid: { borderTopColor: 'rgba(61, 46, 0, 0.7)' },
+  heroFiguresSolid: { borderTopColor: withAlpha(parseColor(theme.onSecondaryRamp.primary), 0.7) },
   figure: { flex: 1, minWidth: 0 },
   figureValue: {
     ...type.titleMedium,
@@ -1111,7 +1112,7 @@ const makeStyles = (theme: KonduktTheme) =>
     borderColor: theme.palette.outline,
     backgroundColor: 'transparent',
   },
-  ghostBtnSolid: { borderColor: 'rgba(61, 46, 0, 0.6)' },
+  ghostBtnSolid: { borderColor: withAlpha(parseColor(theme.onSecondaryRamp.primary), 0.6) },
   ghostBtnLabel: { ...type.labelLarge, color: theme.palette.onSurfaceVariant },
 
   // ── filter bar: five equal tracks in one row ────────────────────────────

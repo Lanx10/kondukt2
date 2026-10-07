@@ -6,6 +6,7 @@ import { GlassCard } from '../components/GlassCard';
 import { SectionChrome } from '../components/SectionChrome';
 import { Icon } from '../icons';
 import { cardShadowFor, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
+import { parseColor, withAlpha } from '../theme/color';
 import { useKonduktTheme } from '../lib/themeContext';
 import { useThemedStyles } from '../lib/useThemedStyles';
 import {
@@ -849,7 +850,7 @@ const makeStyles = (theme: KonduktTheme) =>
     borderRadius: radius.glass,
     backgroundColor: theme.palette.secondary,
     borderWidth: 1,
-    borderColor: 'rgba(61, 46, 0, 0.26)',
+    borderColor: withAlpha(parseColor(theme.onSecondaryRamp.primary), 0.26),
     overflow: 'hidden',
     ...cardShadowFor(theme),
     // Only the shadow's colour follows the mode — the geometry is the card's.
@@ -911,7 +912,7 @@ const makeStyles = (theme: KonduktTheme) =>
     height: 8,
     marginTop: space(4),
     borderRadius: radius.full,
-    backgroundColor: 'rgba(74, 54, 0, 0.16)',
+    backgroundColor: withAlpha(parseColor(theme.onSecondaryRamp.detail), 0.16),
     overflow: 'hidden',
   },
   mixSeg: { height: '100%' },
@@ -934,7 +935,7 @@ const makeStyles = (theme: KonduktTheme) =>
     gap: space(3),
     paddingVertical: space(3),
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(61, 46, 0, 0.26)',
+    borderBottomColor: withAlpha(parseColor(theme.onSecondaryRamp.primary), 0.26),
   },
   detailRowLast: { borderBottomWidth: 0 },
   detailKey: { ...type.bodyMedium, color: theme.onSecondaryRamp.detail, flexShrink: 1 },

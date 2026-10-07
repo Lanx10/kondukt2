@@ -5,6 +5,7 @@ import { SectionChrome } from '../components/SectionChrome';
 import { GlassCard } from '../components/GlassCard';
 import { Icon } from '../icons';
 import { cardShadowFor, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
+import { parseColor, withAlpha } from '../theme/color';
 import { useKonduktTheme } from '../lib/themeContext';
 import { useThemedStyles } from '../lib/useThemedStyles';
 import { fetchTripWithTickets, subscribeToTripWithTickets } from '../data/tripTicketsStore';
@@ -629,7 +630,7 @@ const makeStyles = (theme: KonduktTheme) =>
   // amber, the outline on glass — never the neutral that reads as dirt.
   heroRule: { height: 1, marginTop: space(4) },
   heroRuleClosed: { backgroundColor: theme.palette.outline },
-  heroRuleAmber: { backgroundColor: 'rgba(61, 46, 0, 0.7)' },
+  heroRuleAmber: { backgroundColor: withAlpha(parseColor(theme.onSecondaryRamp.primary), 0.7) },
 
   // ── The dashed note (both of them) ───────────────────────────────────────
   // The reference's handoff: white wash over whatever carries it, 16 radius,

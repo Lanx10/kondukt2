@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon, type IconName } from '../../icons';
 import { cardShadowFor, onPrimarySolid, radius, space, type, type KonduktTheme } from '../../theme';
+import { parseColor, withAlpha } from '../../theme/color';
 
 import { useThemedStyles } from '../../lib/useThemedStyles';
 import { useKonduktTheme } from '../../lib/themeContext';
@@ -292,7 +293,7 @@ const makeStyles = (theme: KonduktTheme) =>
     borderTopColor: theme.palette.outline,
   },
   figuresRunning: {
-    borderTopColor: 'rgba(61, 46, 0, 0.25)',
+    borderTopColor: withAlpha(parseColor(theme.onSecondaryRamp.primary), 0.25),
   },
   figure: {
     flex: 1,
@@ -341,7 +342,7 @@ const makeStyles = (theme: KonduktTheme) =>
   // ink. `palette.outline` clears 3:1 against light amber but only reaches
   // ~2.4:1 against the dark mode step, under the non-text floor.
   actionGhostRunning: {
-    borderColor: 'rgba(61, 46, 0, 0.6)',
+    borderColor: withAlpha(parseColor(theme.onSecondaryRamp.primary), 0.6),
   },
   actionLabel: {
     ...type.labelLarge,
