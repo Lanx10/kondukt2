@@ -357,7 +357,7 @@ type Observation = {
                  pressed
                }: { [key: string]: any }) => [styles.solidButton, pressed && styles.pressed],
                children: [/*#__PURE__*/(0, _reactJsxRuntime.jsx)(_componentsGlassCard.GlassCard, {
-                 tint: _theme.tintedGlass.accent,
+                 tint: theme.tintedGlass.accent,
                  cornerRadius: _theme.radius.large,
                  style: _reactNative.StyleSheet.absoluteFill,
                  pointerEvents: "none"
@@ -848,6 +848,7 @@ type Observation = {
    onOpenRules
  }: { [key: string]: any }) {
    let styles = (0, _libUseThemedStyles.useThemedStyles)(makeStyles);
+   let theme = (0, _libThemeContext.useKonduktTheme)().theme;
    let notes = breakdown ? (0, _libAddTicketFare.minimumNotes)(breakdown, rules) : [];
    let pax = (0, _libAddTicketFare.clampQuantity)(quantity);
    return /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.View, {
@@ -925,7 +926,7 @@ type Observation = {
          }), /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_icons.Icon, {
            name: "chevron",
            size: 14,
-           color: _theme.onAmber.primary
+           color: theme.onSecondaryRamp.primary
          })]
        })]
      })
@@ -1525,7 +1526,7 @@ type Observation = {
    },
    fareLabel: {
      ..._theme.type.labelSmall,
-     color: _theme.onAmber.primary
+     color: theme.onSecondaryRamp.primary
    },
    fareRulesAction: {
      flexDirection: 'row',
@@ -1536,16 +1537,16 @@ type Observation = {
    },
    fareRulesActionLabel: {
      ..._theme.type.labelSmall,
-     color: _theme.onAmber.primary
+     color: theme.onSecondaryRamp.primary
    },
    fareSub: {
      ..._theme.type.bodySmall,
-     color: _theme.onAmber.muted,
+     color: theme.onSecondaryRamp.muted,
      marginTop: 2
    },
    fareRoute: {
      ..._theme.type.headlineSmall,
-     color: _theme.onAmber.muted,
+     color: theme.onSecondaryRamp.muted,
      marginTop: (0, _theme.space)(3)
    },
    calc: {
@@ -1563,12 +1564,12 @@ type Observation = {
    },
    calcLabel: {
      ..._theme.type.bodySmall,
-     color: _theme.onAmber.detail,
+     color: theme.onSecondaryRamp.detail,
      flexShrink: 1
    },
    calcValue: {
      ..._theme.type.bodyMedium,
-     color: _theme.onAmber.primary,
+     color: theme.onSecondaryRamp.primary,
      fontVariant: ['tabular-nums']
    },
    sumRow: {
@@ -1584,18 +1585,18 @@ type Observation = {
    },
    sumLabel: {
      ..._theme.type.labelLarge,
-     color: _theme.onAmber.primary,
+     color: theme.onSecondaryRamp.primary,
      flexShrink: 1
    },
    sumValue: {
      ..._theme.type.displaySmall,
     
-color: _theme.onAmber.muted,
+color: theme.onSecondaryRamp.muted,
     fontVariant: ['tabular-nums']
    },
    fareNote: {
      ..._theme.type.bodySmall,
-     color: _theme.onAmber.muted,
+     color: theme.onSecondaryRamp.muted,
      marginTop: (0, _theme.space)(3)
    },
    // COMMIT

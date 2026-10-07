@@ -20,7 +20,6 @@ import {
   onPrimarySolid,
   radius,
   space,
-  tintedGlass,
   type,
   type KonduktTheme,
 } from '../theme';
@@ -225,7 +224,7 @@ export function TerminalConfigScreen({ onBack, onOpenEditor }: TerminalConfigScr
       return (
         <GlassCard
           testID="tc-state"
-          tint={tintedGlass.error}
+          tint={theme.tintedGlass.error}
           cornerRadius={radius.xlarge}
           style={styles.stateError}
           accessibilityLiveRegion="polite"
@@ -589,7 +588,7 @@ function PickOption({
       testID={testID}
       // The applied option is the ACTIVE button, so it is the orange glass
       // pill — same material and same pigment as the sibling's picker.
-      tint={current ? tintedGlass.accent : undefined}
+      tint={current ? theme.tintedGlass.accent : undefined}
       cornerRadius={radius.large}
       style={styles.pickRow}
       accessibilityRole="button"
@@ -632,6 +631,7 @@ function RecordSheet({
   onDeactivate: () => void;
   onClose: () => void;
 }) {
+  const { theme } = useKonduktTheme();
   const styles = useThemedStyles(makeStyles);
   const title = terminalNameOf(terminal.name);
   const pairs = terminalDetailPairs(terminal, allMunicipalities);
@@ -679,7 +679,7 @@ function RecordSheet({
                 inactive row greys instead: there is nothing left to write. */}
             {terminal.is_active === 1 ? (
               <GlassCard
-                tint={tintedGlass.error}
+                tint={theme.tintedGlass.error}
                 cornerRadius={radius.large}
                 style={StyleSheet.absoluteFill}
                 pointerEvents="none"

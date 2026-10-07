@@ -15,9 +15,7 @@ import { GlassCard } from '../components/GlassCard';
 import { SectionChrome } from '../components/SectionChrome';
 import { Icon } from '../icons';
 import {
-  amberSurface,
   cardShadowFor,
-  onAmber,
   onPrimarySolid,
   radius,
   space,
@@ -967,35 +965,35 @@ const makeStyles = (theme: KonduktTheme) =>
     shadowColor: theme.glass.shadow,
   },
   previewHead: { gap: space(0.5) },
-  eyebrow: { ...type.labelSmall, color: onAmber.muted },
-  previewCaption: { ...type.bodySmall, color: onAmber.detail },
+  eyebrow: { ...type.labelSmall, color: theme.onSecondaryRamp.muted },
+  previewCaption: { ...type.bodySmall, color: theme.onSecondaryRamp.detail },
   previewFigures: {
     flexDirection: 'row',
     gap: space(3),
     marginTop: space(4),
   },
   previewFigure: { flex: 1, gap: space(0.5), minWidth: 0 },
-  previewLabel: { ...type.labelSmall, color: onAmber.muted },
-  previewValue: { ...type.headlineSmall, color: onAmber.primary, fontVariant: ['tabular-nums'] },
-  previewValueNone: { ...type.titleMedium, color: onAmber.detail },
+  previewLabel: { ...type.labelSmall, color: theme.onSecondaryRamp.muted },
+  previewValue: { ...type.headlineSmall, color: theme.onSecondaryRamp.primary, fontVariant: ['tabular-nums'] },
+  previewValueNone: { ...type.titleMedium, color: theme.onSecondaryRamp.detail },
   previewBlank: { marginTop: space(4), gap: space(1) },
-  previewSub: { ...type.bodySmall, color: onAmber.detail },
+  previewSub: { ...type.bodySmall, color: theme.onSecondaryRamp.detail },
   previewGap: {
     marginTop: space(4),
     paddingTop: space(4),
     borderTopWidth: 1,
-    borderTopColor: amberSurface.rule,
+    borderTopColor: theme.amberSurface.rule,
     gap: space(2),
   },
   previewRow: { flexDirection: 'row', justifyContent: 'space-between', gap: space(3) },
-  previewRowLabel: { ...type.bodySmall, color: onAmber.detail, flex: 1 },
+  previewRowLabel: { ...type.bodySmall, color: theme.onSecondaryRamp.detail, flex: 1 },
   previewRowValue: {
     ...type.labelSmall,
-    color: onAmber.primary,
+    color: theme.onSecondaryRamp.primary,
     fontVariant: ['tabular-nums'],
     flexShrink: 0,
   },
-  previewNote: { ...type.bodySmall, color: onAmber.faint, marginTop: space(3) },
+  previewNote: { ...type.bodySmall, color: theme.onSecondaryRamp.faint, marginTop: space(3) },
 
   // ── banner ──────────────────────────────────────────────────────────────
   // --surface-high is the token theme.palette.surfaceContainerHigh resolves to.

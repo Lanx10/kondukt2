@@ -12,7 +12,7 @@ import { DetailCard, DetailRow, Handoff, Sheet } from '../components/BottomSheet
 import { GlassCard } from '../components/GlassCard';
 import { SectionChrome } from '../components/SectionChrome';
 import { Icon } from '../icons';
-import { cardShadowFor, onAmber, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
+import { cardShadowFor, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
 import { useThemedStyles } from '../lib/useThemedStyles';
 import {
@@ -840,7 +840,7 @@ function TripCard({
         <Icon
           name="arrowRight"
           size={18}
-          color={live ? onAmber.faint : theme.palette.onSurfaceVariant}
+          color={live ? theme.onSecondaryRamp.faint : theme.palette.onSurfaceVariant}
         />
         <Text style={[styles.heroRouteText, live && styles.amberPrimary]}>
           {trip.destination_location_snapshot}
@@ -874,7 +874,7 @@ function TripCard({
           pressed && styles.pressed,
         ]}
       >
-        <Icon name="swap" size={16} color={live ? onAmber.detail : theme.palette.onSurfaceVariant} />
+        <Icon name="swap" size={16} color={live ? theme.onSecondaryRamp.detail : theme.palette.onSurfaceVariant} />
         <Text style={[styles.ghostBtnLabel, live && styles.amberDetail]}>Switch trip</Text>
       </Pressable>
     </>
@@ -1095,9 +1095,9 @@ const makeStyles = (theme: KonduktTheme) =>
     fontVariant: ['tabular-nums'],
   },
   figureLabel: { ...type.labelSmall, color: theme.palette.onSurfaceVariant, marginTop: space(0.5) },
-  amberPrimary: { color: onAmber.primary },
-  amberDetail: { color: onAmber.detail },
-  amberMuted: { color: onAmber.muted },
+  amberPrimary: { color: theme.onSecondaryRamp.primary },
+  amberDetail: { color: theme.onSecondaryRamp.detail },
+  amberMuted: { color: theme.onSecondaryRamp.muted },
   ghostBtn: {
     marginTop: space(4),
     minHeight: 48,

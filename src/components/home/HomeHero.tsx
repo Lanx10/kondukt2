@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon, type IconName } from '../../icons';
-import { cardShadowFor, onAmber, onPrimarySolid, radius, space, tintedGlass, type, type KonduktTheme } from '../../theme';
+import { cardShadowFor, onPrimarySolid, radius, space, type, type KonduktTheme } from '../../theme';
 
 import { useThemedStyles } from '../../lib/useThemedStyles';
 import { useKonduktTheme } from '../../lib/themeContext';
@@ -125,7 +125,7 @@ export function HomeHero({
                 onPress={action.onPress}
                 accessibilityRole="button"
                 accessibilityLabel={action.label}
-                tint={tintedGlass.accent}
+                tint={theme.tintedGlass.accent}
                 cornerRadius={radius.full}
                 style={styles.action}
               >
@@ -226,7 +226,7 @@ const makeStyles = (theme: KonduktTheme) =>
   // and on a solid amber fill it measured 1.18:1 — the eyebrow, the arrow and
   // destination, and all three figure labels went with it.
   eyebrowRunning: {
-    color: onAmber.muted,
+    color: theme.onSecondaryRamp.muted,
   },
   chip: {
     minHeight: 24,
@@ -262,7 +262,7 @@ const makeStyles = (theme: KonduktTheme) =>
     color: theme.palette.onSurfaceVariant,
   },
   titleSuffixRunning: {
-    color: onAmber.muted,
+    color: theme.onSecondaryRamp.muted,
   },
   when: {
     ...type.bodyMedium,
@@ -270,7 +270,7 @@ const makeStyles = (theme: KonduktTheme) =>
     marginTop: space(0.5),
   },
   whenRunning: {
-    color: onAmber.detail,
+    color: theme.onSecondaryRamp.detail,
   },
   body: {
     ...type.bodyMedium,
@@ -278,7 +278,7 @@ const makeStyles = (theme: KonduktTheme) =>
     marginTop: space(2),
   },
   bodyRunning: {
-    color: onAmber.detail,
+    color: theme.onSecondaryRamp.detail,
   },
   figures: {
     flexDirection: 'row',
@@ -311,7 +311,7 @@ const makeStyles = (theme: KonduktTheme) =>
     marginTop: 1,
   },
   figureLabelRunning: {
-    color: onAmber.muted,
+    color: theme.onSecondaryRamp.muted,
   },
   actions: {
     flexDirection: 'row',

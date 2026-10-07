@@ -14,7 +14,6 @@ import { SectionChrome } from '../components/SectionChrome';
 import { Icon, type IconName } from '../icons';
 import {
   cardShadowFor,
-  DEFAULT_APPEARANCE,
   DEFAULT_THEME_ID,
   getThemeBundle,
   maxContentWidth,
@@ -23,10 +22,7 @@ import {
   space,
   type,
   THEME_REGISTRY,
-  APPEARANCE_CHOICE_GROUPS,
-  APPEARANCE_TOGGLES,
   type Appearance,
-  type AppearanceAxis,
   type KonduktTheme,
   type ThemeMode,
   type ThemeSpec,
@@ -34,10 +30,8 @@ import {
 import { useKonduktTheme } from '../lib/themeContext';
 import { useThemedStyles } from '../lib/useThemedStyles';
 import {
-  loadAppearance,
   loadThemeId,
   loadThemeMode,
-  saveAppearanceAxis,
   saveThemeId,
   saveThemeMode,
 } from '../lib/preferences';
@@ -181,7 +175,7 @@ function OptionRow({
  */
 export function AdvancedSettingsScreen({ onBack }: AdvancedSettingsScreenProps) {
   const insets = useSafeAreaInsets();
-  const { theme, themeId, appearance, setThemeMode, setThemeId, setAppearance } =
+  const { theme, themeId, setThemeMode, setThemeId } =
     useKonduktTheme();
   const styles = useThemedStyles(makeStyles);
   const { width: windowWidth } = useWindowDimensions();
@@ -213,10 +207,6 @@ export function AdvancedSettingsScreen({ onBack }: AdvancedSettingsScreenProps) 
   // The selected id, readable synchronously, for the same reason the mode is:
   // a second tap inside one frame must no-op against what is ON SCREEN.
   const themeIdRef = useRef<string>(themeId);
-  // The seven appearance axes, readable synchronously, for the same reason the
-  // mode and the id are: a second tap inside one frame must no-op against what
-  // is ON SCREEN, not against the context value the closure still holds.
-  const appearanceRef = useRef<Appearance>(appearance);
   // The write chain: sequential by construction, last tap wins. Shared by the
   // mode and the theme, so a tap on one and a tap on the other cannot land out
   // of order against the same store.
@@ -281,46 +271,6 @@ export function AdvancedSettingsScreen({ onBack }: AdvancedSettingsScreenProps) 
         });
     },
     [setThemeId],
-  );
-
-  /**
-   * The appearance commit: one axis, one paint, one key.
-   *
-   * The same contract as the mode and the theme commits above, for the same
-   * reasons. The paint is optimistic because the answer to a tap on an axis IS
-   * the new appearance, and a refused write reverts to the axes read back from
-   * storage rather than to the ones this session remembers - which is why the
-   * revert rebuilds the whole appearance from `DEFAULT_APPEARANCE` plus what the
-   * store actually holds, exactly as a cold start does. One axis is written per
-   * tap: the other six are not in the store's business.
-   */
-  const commitAxis = useCallback(
-    (axis: AppearanceAxis, value: Appearance[AppearanceAxis]) => {
-      const current = appearanceRef.current;
-      if (current[axis] === value) return; // the chosen value is a no-op
-      // The spread is what makes this a partial edit: the six axes that were not
-      // tapped are carried over untouched.
-      const next = { ...current, [axis]: value } as Appearance;
-      appearanceRef.current = next;
-      setError(null);
-      setAppearance(next);
-
-      chainRef.current = chainRef.current
-        .then(() => saveAppearanceAxis(axis, value))
-        .then((ok) => {
-          if (ok) return;
-          return loadAppearance().then((stored) => {
-            const onDisk: Appearance = { ...DEFAULT_APPEARANCE, ...stored };
-            appearanceRef.current = onDisk;
-            setAppearance(onDisk);
-            setError(
-              'Kondukt could not save that setting, so the app is back to how ' +
-                'it was. Nothing was lost — tap again to retry.',
-            );
-          });
-        });
-    },
-    [setAppearance],
   );
 
   const currentSpec = THEME_REGISTRY.find((spec) => spec.id === themeId) ?? THEME_REGISTRY[0];
@@ -464,72 +414,6 @@ export function AdvancedSettingsScreen({ onBack }: AdvancedSettingsScreenProps) 
 
             <Text testID="as-themes-hint" style={styles.commitHint}>
               The whole app changes as you tap, background included.
-            </Text>
-          </View>
-
-          {/* ── ADVANCED APPEARANCE ─────────────────────────────────────────
-              Below THEMES, not inside it: a theme is WHICH the app looks like
-              and these seven axes are HOW it is drawn, so they sit under the
-              choice of theme rather than beside it. The same column, the same
-              20px gutter and the same heading rhythm as the two sections above;
-              every row is the mode card, so nothing here introduces a control
-              the screen did not already have. */}
-          <View testID="as-advanced" style={styles.advanced}>
-            <Text accessibilityRole="header" style={styles.heading}>
-              ADVANCED APPEARANCE
-            </Text>
-
-            {APPEARANCE_CHOICE_GROUPS.map((group) => (
-              <View key={group.axis} testID={`as-axis-${group.axis}`} style={styles.axisGroup}>
-                <Text style={styles.axisLabel}>{group.label}</Text>
-                {/* One radio group per axis, labelled by the caption above it:
-                    each axis is one setting, and the group is what says which
-                    set of options belongs together. */}
-                <View
-                  accessibilityRole="radiogroup"
-                  accessibilityLabel={group.label}
-                  style={styles.modes}
-                >
-                  {group.options.map((option) => (
-                    <OptionRow
-                      key={option.value}
-                      testID={`as-${group.axis}-${option.value}`}
-                      label={option.label}
-                      sub={option.sub}
-                      icon={option.icon}
-                      selected={appearance[group.axis] === option.value}
-                      onPress={() => commitAxis(group.axis, option.value)}
-                    />
-                  ))}
-                </View>
-              </View>
-            ))}
-
-            {/* The two flags. Same row, same mark; `role="switch"` is the only
-                difference, because "is it on" is a different question to a
-                reader than "which of these three". */}
-            <View testID="as-axis-toggles" style={styles.axisGroup}>
-              <Text style={styles.axisLabel}>ACCENT &amp; EFFECTS</Text>
-              <View style={styles.modes}>
-                {APPEARANCE_TOGGLES.map((toggle) => (
-                  <OptionRow
-                    key={toggle.axis}
-                    role="switch"
-                    testID={`as-${toggle.axis}`}
-                    label={toggle.label}
-                    sub={toggle.sub}
-                    icon={toggle.icon}
-                    selected={appearance[toggle.axis]}
-                    onPress={() => commitAxis(toggle.axis, !appearance[toggle.axis])}
-                  />
-                ))}
-              </View>
-            </View>
-
-            {/* The same one-line contract the two sections above it make. */}
-            <Text testID="as-advanced-hint" style={styles.commitHint}>
-              Every control repaints the whole app as you tap it, and is kept on
-              the handset.
             </Text>
           </View>
 
@@ -777,19 +661,6 @@ const makeStyles = (theme: KonduktTheme) =>
       right: 8,
       backgroundColor: theme.glass.tint,
     },
-
-    // ── ADVANCED APPEARANCE ──
-    // The same 20 that separates the sections above and below, so the screen
-    // keeps one rhythm rather than gaining a second one.
-    advanced: { marginTop: space(5) },
-    // One axis: its caption and its options. The 8 above the caption is the gap
-    // that says "this is a new question" without a rule or a card between two
-    // things the eye already reads as one list.
-    axisGroup: { marginTop: space(2), gap: space(2) },
-    // The section's own voice, at group weight: the same uppercase tracked label
-    // as `heading`, one step closer in. It is the axis's NAME, not another
-    // section title, and the options under it are what answers it.
-    axisLabel: { ...type.labelSmall, color: theme.glass.onGlassVariant },
 
     // ── the commit caption ──
     commitHint: {

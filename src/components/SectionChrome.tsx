@@ -7,8 +7,9 @@ import {
   type TextStyle,
 } from 'react-native';
 import { Icon } from '../icons';
-import { maxContentWidth, radius, space, tintedGlass, type, type KonduktTheme } from '../theme';
+import { maxContentWidth, radius, space, type, type KonduktTheme } from '../theme';
 
+import { useKonduktTheme } from '../lib/themeContext';
 import { useThemedStyles } from '../lib/useThemedStyles';
 import { GlassBackdrop } from './GlassBackdrop';
 import { GlassCard } from './GlassCard';
@@ -87,6 +88,7 @@ export function SectionChrome({
   subtitleTestID?: string;
   children: ReactNode;
 }) {
+  const { theme } = useKonduktTheme();
   const styles = useThemedStyles(makeStyles);
 
   return (
@@ -104,7 +106,7 @@ export function SectionChrome({
           accessibilityRole="button"
           accessibilityLabel={backLabel ?? 'Back'}
           hitSlop={12}
-          tint={tintedGlass.accent}
+          tint={theme.tintedGlass.accent}
           cornerRadius={radius.full}
           style={styles.backCard}
         >
@@ -113,7 +115,7 @@ export function SectionChrome({
           <Icon name="chevronLeft" size={20} color="#FFFFFF" />
         </GlassCard>
         <GlassCard
-          tint={tintedGlass.accent}
+          tint={theme.tintedGlass.accent}
           cornerRadius={radius.full}
           style={[
             styles.titleCard,

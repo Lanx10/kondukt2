@@ -14,7 +14,7 @@ import { LocalStorageCard } from '../components/LocalStorageCard';
 import { GlassCard } from '../components/GlassCard';
 import { Skeleton } from '../components/SummaryDisclosure';
 import { Icon } from '../icons';
-import { cardShadowFor, onAmber, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
+import { cardShadowFor, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
 import { useThemedStyles } from '../lib/useThemedStyles';
 import {
@@ -633,7 +633,7 @@ const makeStyles = (theme: KonduktTheme) =>
     flexWrap: 'wrap',
   },
   heroEyebrowText: { ...type.labelSmall, color: theme.palette.onSurfaceVariant },
-  heroEyebrowTextSolid: { color: onAmber.detail },
+  heroEyebrowTextSolid: { color: theme.onSecondaryRamp.detail },
   heroPill: {
     height: 24,
     paddingHorizontal: space(2.5),
@@ -650,23 +650,23 @@ const makeStyles = (theme: KonduktTheme) =>
     color: theme.palette.onSurface,
     marginTop: space(1.5),
   },
-  heroRouteSolid: { color: onAmber.primary },
+  heroRouteSolid: { color: theme.onSecondaryRamp.primary },
   heroDetail: {
     ...type.bodySmall,
     color: theme.palette.onSurfaceVariant,
     marginTop: space(1),
     fontVariant: ['tabular-nums'],
   },
-  heroDetailSolid: { color: onAmber.muted },
+  heroDetailSolid: { color: theme.onSecondaryRamp.muted },
   heroLead: {
     ...type.displaySmall,
     color: theme.palette.onSurface,
     marginTop: space(3.5),
     fontVariant: ['tabular-nums'],
   },
-  heroLeadSolid: { color: onAmber.primary },
+  heroLeadSolid: { color: theme.onSecondaryRamp.primary },
   heroLeadCap: { ...type.labelSmall, color: theme.palette.onSurfaceVariant, marginTop: space(0.5) },
-  heroLeadCapSolid: { color: onAmber.detail },
+  heroLeadCapSolid: { color: theme.onSecondaryRamp.detail },
   heroFigures: {
     flexDirection: 'row',
     gap: space(5),
@@ -683,9 +683,9 @@ const makeStyles = (theme: KonduktTheme) =>
     color: theme.palette.onSurface,
     fontVariant: ['tabular-nums'],
   },
-  heroFigureValueSolid: { color: onAmber.primary },
+  heroFigureValueSolid: { color: theme.onSecondaryRamp.primary },
   heroFigureLabel: { ...type.labelSmall, color: theme.palette.onSurfaceVariant, marginTop: space(0.5) },
-  heroFigureLabelSolid: { color: onAmber.detail },
+  heroFigureLabelSolid: { color: theme.onSecondaryRamp.detail },
 
   // ── buttons: one primary, one quiet ──
   cardActions: { flexDirection: 'row', gap: space(2), marginTop: space(4) },

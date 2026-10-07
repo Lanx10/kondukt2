@@ -7,7 +7,7 @@
  * consistency — hand-tuned outlines drift apart the moment one is tweaked.
  */
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { palette } from './theme';
+import { useKonduktTheme } from './lib/themeContext';
 
 /** Screen-level names mapped to their MaterialCommunityIcons glyph. */
 const GLYPHS = {
@@ -62,17 +62,18 @@ export type IconName = keyof typeof GLYPHS;
 export function Icon({
   name,
   size = 24,
-  color = palette.onSurface,
+  color,
 }: {
   name: IconName;
   size?: number;
   color?: string;
 }) {
+  const { theme } = useKonduktTheme();
   return (
     <MaterialCommunityIcons
       name={GLYPHS[name]}
       size={size}
-      color={color}
+      color={color ?? theme.palette.onSurface}
       // Every glyph here sits beside a text label that already carries the
       // accessible name, so the icon itself is decorative.
       accessibilityElementsHidden

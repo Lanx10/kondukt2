@@ -793,7 +793,7 @@ type SectionKey = keyof typeof SECTIONS | OpenRoute;
            accessibilityRole: "button",
            accessibilityLabel: "Back to home",
            hitSlop: 12,
-           tint: _theme.tintedGlass.accent,
+           tint: theme.tintedGlass.accent,
            cornerRadius: _theme.radius.full,
            style: styles.back,
            children: [/*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.View, {
@@ -808,7 +808,7 @@ type SectionKey = keyof typeof SECTIONS | OpenRoute;
              children: "Home"
            })]
          }), /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_componentsGlassCard.GlassCard, {
-           tint: _theme.tintedGlass.accent,
+           tint: theme.tintedGlass.accent,
            cornerRadius: _theme.radius.full,
            style: styles.titlePill,
            children: /*#__PURE__*/(0, _reactJsxRuntime.jsx)(_reactNative.Text, {

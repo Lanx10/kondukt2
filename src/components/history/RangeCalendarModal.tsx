@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '../../icons';
-import { onPrimarySolid, radius, space, tintedGlass, type, type KonduktTheme } from '../../theme';
+import { onPrimarySolid, radius, space, type, type KonduktTheme } from '../../theme';
 import { useKonduktTheme } from '../../lib/themeContext';
 import { useThemedStyles } from '../../lib/useThemedStyles';
 import { GlassCard } from '../GlassCard';
@@ -210,7 +210,7 @@ export function RangeCalendarModal({
                   style={({ pressed }) => [styles.solid, pressed && styles.pressed]}
                 >
                   <GlassCard
-                    tint={tintedGlass.accent}
+                    tint={theme.tintedGlass.accent}
                     cornerRadius={radius.full}
                     style={StyleSheet.absoluteFill}
                     pointerEvents="none"

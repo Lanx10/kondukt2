@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SectionChrome } from '../components/SectionChrome';
 import { GlassCard } from '../components/GlassCard';
 import { Icon } from '../icons';
-import { cardShadowFor, onAmber, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
+import { cardShadowFor, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
 import { useThemedStyles } from '../lib/useThemedStyles';
 import { fetchTripWithTickets, subscribeToTripWithTickets } from '../data/tripTicketsStore';
@@ -289,10 +289,10 @@ function ReceiptSection({
   // against the tinted panel rather than the page.
   const ink = live
     ? {
-        eyebrow: AMBER_INK.detail,
-        route: AMBER_INK.primary,
-        meta: AMBER_INK.muted,
-        soft: AMBER_INK.detail,
+        eyebrow: { color: theme.onSecondaryRamp.detail },
+        route: { color: theme.onSecondaryRamp.primary },
+        meta: { color: theme.onSecondaryRamp.muted },
+        soft: { color: theme.onSecondaryRamp.detail },
       }
     : {
         eyebrow: { color: theme.glass.onGlassVariant },
@@ -323,7 +323,7 @@ function ReceiptSection({
         <Icon
           name="arrowRight"
           size={18}
-          color={live ? onAmber.faint : theme.glass.onGlassVariant}
+          color={live ? theme.onSecondaryRamp.faint : theme.glass.onGlassVariant}
         />
         <Text style={[styles.routeText, ink.route]}>{ticket.destination_location_snapshot}</Text>
       </View>
@@ -390,11 +390,12 @@ function ReceiptSection({
 }
 
 function Figure({ label, value, amber }: { label: string; value: string; amber: boolean }) {
+  const { theme } = useKonduktTheme();
   const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.figure}>
-      <Text style={[styles.figureValue, amber ? AMBER_INK.primary : null]}>{value}</Text>
-      <Text style={[styles.figureLabel, amber ? AMBER_INK.detail : null]}>{label}</Text>
+      <Text style={[styles.figureValue, amber ? { color: theme.onSecondaryRamp.primary } : null]}>{value}</Text>
+      <Text style={[styles.figureLabel, amber ? { color: theme.onSecondaryRamp.detail } : null]}>{label}</Text>
     </View>
   );
 }
@@ -536,14 +537,6 @@ function StorageFooter({ state, counts }: { state: 'ready' | 'loading' | 'error'
   );
 }
 
-/** The amber ink ramp — the only text colours permitted on #FFB300. */
-const AMBER_INK = {
-  detail: { color: onAmber.detail },
-  primary: { color: onAmber.primary },
-  muted: { color: onAmber.muted },
-  faint: { color: onAmber.faint },
-} as const;
-
 const READ_ONLY_COPY =
   'A fare is written once, at the moment it is taken, and this store keeps no way to change or cancel it afterwards. So nothing on the recorded row is editable here.';
 
@@ -663,9 +656,9 @@ const makeStyles = (theme: KonduktTheme) =>
   },
   noteBody: { ...type.bodySmall, color: theme.glass.onGlassVariant },
 
-  amberNoteTitle: { color: onAmber.detail },
-  amberMath: { color: onAmber.primary },
-  amberNoteBody: { color: onAmber.muted },
+  amberNoteTitle: { color: theme.onSecondaryRamp.detail },
+  amberMath: { color: theme.onSecondaryRamp.primary },
+  amberNoteBody: { color: theme.onSecondaryRamp.muted },
 
   // ── Fact lists ───────────────────────────────────────────────────────────
   factCard: { paddingVertical: space(1.5), paddingHorizontal: space(5) },

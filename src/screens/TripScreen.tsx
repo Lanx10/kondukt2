@@ -12,7 +12,7 @@ import { SectionChrome } from '../components/SectionChrome';
 import { LocalStorageCard } from '../components/LocalStorageCard';
 import { GlassCard } from '../components/GlassCard';
 import { Icon } from '../icons';
-import { onAmber, radius, space, type, type KonduktTheme } from '../theme';
+import { radius, space, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
 import { useThemedStyles } from '../lib/useThemedStyles';
 import {
@@ -530,27 +530,27 @@ const makeStyles = (theme: KonduktTheme) =>
   // every ink in it comes from the `onAmber` ramp rather than the neutral one.
   // `onSurfaceVariant` is a light warm grey in dark mode and measured 1.18:1
   // on amber; the route and the two clock values were 1.22:1.
-  activeRoute: { ...type.titleMedium, color: onAmber.primary, marginTop: space(2) },
+  activeRoute: { ...type.titleMedium, color: theme.onSecondaryRamp.primary, marginTop: space(2) },
   activeMeta: {
     ...type.bodyMedium,
-    color: onAmber.muted,
+    color: theme.onSecondaryRamp.muted,
     marginTop: space(1),
     fontVariant: ['tabular-nums'],
   },
 
   timesRow: { flexDirection: 'row', gap: space(6), marginTop: space(3) },
   timeBlock: {},
-  timeLabel: { ...type.labelSmall, color: onAmber.muted },
+  timeLabel: { ...type.labelSmall, color: theme.onSecondaryRamp.muted },
   timeValue: {
     ...type.titleMedium,
-    color: onAmber.primary,
+    color: theme.onSecondaryRamp.primary,
     marginTop: space(0.5),
     fontVariant: ['tabular-nums'],
   },
-  timeDate: { ...type.bodySmall, color: onAmber.muted, fontVariant: ['tabular-nums'] },
+  timeDate: { ...type.bodySmall, color: theme.onSecondaryRamp.muted, fontVariant: ['tabular-nums'] },
   elapsedValue: {
     ...type.titleMedium,
-    color: onAmber.primary,
+    color: theme.onSecondaryRamp.primary,
     marginTop: space(0.5),
     fontVariant: ['tabular-nums'],
   },

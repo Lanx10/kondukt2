@@ -5,7 +5,7 @@ import { DetailCard, DetailRow, Handoff, Sheet } from '../components/BottomSheet
 import { GlassCard } from '../components/GlassCard';
 import { SectionChrome } from '../components/SectionChrome';
 import { Icon } from '../icons';
-import { cardShadowFor, onAmber, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
+import { cardShadowFor, onPrimarySolid, radius, space, type, type KonduktTheme } from '../theme';
 import { useKonduktTheme } from '../lib/themeContext';
 import { useThemedStyles } from '../lib/useThemedStyles';
 import {
@@ -898,10 +898,10 @@ const makeStyles = (theme: KonduktTheme) =>
   },
   figCol: { flex: 1, minWidth: 0 },
   figAlignRight: { textAlign: 'right' },
-  figLabel: { ...type.labelSmall, color: onAmber.detail },
+  figLabel: { ...type.labelSmall, color: theme.onSecondaryRamp.detail },
   figValue: {
     ...type.displaySmall,
-    color: onAmber.primary,
+    color: theme.onSecondaryRamp.primary,
     fontVariant: ['tabular-nums'],
     marginTop: 2,
   },
@@ -920,11 +920,11 @@ const makeStyles = (theme: KonduktTheme) =>
   mixDisc: { backgroundColor: '#6B4B00' },
   mixLegend: {
     ...type.bodySmall,
-    color: onAmber.detail,
+    color: theme.onSecondaryRamp.detail,
     marginTop: space(3),
     flexWrap: 'wrap',
   },
-  mixLegendCount: { color: onAmber.primary, fontWeight: '700' },
+  mixLegendCount: { color: theme.onSecondaryRamp.primary, fontWeight: '700' },
 
   runRows: { marginTop: space(4) },
   detailRow: {
@@ -937,15 +937,15 @@ const makeStyles = (theme: KonduktTheme) =>
     borderBottomColor: 'rgba(61, 46, 0, 0.26)',
   },
   detailRowLast: { borderBottomWidth: 0 },
-  detailKey: { ...type.bodyMedium, color: onAmber.detail, flexShrink: 1 },
+  detailKey: { ...type.bodyMedium, color: theme.onSecondaryRamp.detail, flexShrink: 1 },
   detailValue: {
     ...type.bodyMedium,
     fontWeight: '600',
-    color: onAmber.primary,
+    color: theme.onSecondaryRamp.primary,
     textAlign: 'right',
     flexShrink: 1,
   },
-  runNote: { ...type.bodySmall, color: onAmber.detail, marginTop: space(3) },
+  runNote: { ...type.bodySmall, color: theme.onSecondaryRamp.detail, marginTop: space(3) },
 
   // The ledger
   secHead: {

@@ -21,7 +21,6 @@ import {
   onPrimarySolid,
   radius,
   space,
-  tintedGlass,
   type,
   type KonduktTheme,
 } from '../theme';
@@ -362,7 +361,7 @@ export function BarangayConfigScreen({
     if (loadError !== null) {
       return (
         <GlassCard
-          tint={tintedGlass.error}
+          tint={theme.tintedGlass.error}
           cornerRadius={radius.xlarge}
           style={styles.stateError}
           accessibilityLiveRegion="polite"
@@ -835,7 +834,7 @@ function RecordRow({
       cornerRadius={radius.glass}
       // A data fault is a red GLASS card, not a flat panel: the same
       // material as every other row, carrying the error pigment.
-      tint={unlinked ? tintedGlass.error : undefined}
+      tint={unlinked ? theme.tintedGlass.error : undefined}
       style={styles.row}
       accessibilityRole="button"
       accessibilityLabel={label}
@@ -949,7 +948,7 @@ function PickOption({
       style={styles.pickRow}
       // The applied option is the ACTIVE button, so it is the orange glass
       // pill — same material and same pigment as the tab pills and add pill.
-      tint={current ? tintedGlass.accent : undefined}
+      tint={current ? theme.tintedGlass.accent : undefined}
       accessibilityRole="button"
       accessibilityLabel={current ? `${label}, currently applied` : label}
       accessibilityState={{ selected: current }}
@@ -993,6 +992,7 @@ function RecordSheet({
   onEdit: () => void;
   onDeactivate: () => void;
 }) {
+  const { theme } = useKonduktTheme();
   const styles = useThemedStyles(makeStyles);
   const isBarangay = row.kind === 'barangay';
   const title = isBarangay ? row.barangay.barangayName : row.municipality.name;
@@ -1042,7 +1042,7 @@ function RecordSheet({
                 this app's own material, not a flat error swatch. */}
             {active ? (
               <GlassCard
-                tint={tintedGlass.error}
+                tint={theme.tintedGlass.error}
                 cornerRadius={radius.large}
                 style={StyleSheet.absoluteFill}
                 pointerEvents="none"
@@ -1390,7 +1390,7 @@ const makeStyles = (theme: KonduktTheme) =>
   rowTitle: { ...type.titleMedium, color: theme.palette.onSurface },
   rowValue: { ...type.bodyMedium, color: theme.palette.onSurfaceVariant, marginTop: 2 },
   // On the red glass row the neutral ink goes dark-on-red; white clears
-  // 6.5:1 on `tintedGlass.error` and reads as the fault.
+  // 6.5:1 on `theme.tintedGlass.error` and reads as the fault.
   rowTitleUnlinked: { color: '#FFFFFF' },
   rowValueUnlinked: {
     fontFamily: 'Poppins_600SemiBold',
