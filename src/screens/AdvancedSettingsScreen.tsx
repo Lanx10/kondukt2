@@ -364,8 +364,9 @@ export function AdvancedSettingsScreen({ onBack }: AdvancedSettingsScreenProps) 
               THEMES
             </Text>
 
-            {/* Every theme in the registry, the app's own first. Just colour
-                choices: each card shows the theme's field and nothing else.
+            {/* Every theme in the registry, the app's own first. Colour
+                choice plus its name: the field shows the colour, the label
+                says which theme it is.
                 `kondukt` is listed rather than omitted so you can always get
                 back to the shipped look. */}
             <View style={styles.themeGrid}>
@@ -407,6 +408,15 @@ export function AdvancedSettingsScreen({ onBack }: AdvancedSettingsScreenProps) 
                         ) : null}
                       </View>
                     </LinearGradient>
+                    <Text
+                      numberOfLines={1}
+                      style={[
+                        styles.themeCardName,
+                        selected && styles.themeCardNameSelected,
+                      ]}
+                    >
+                      {spec.name}
+                    </Text>
                   </Pressable>
                 );
               })}
@@ -651,8 +661,20 @@ const makeStyles = (theme: KonduktTheme) =>
       borderColor: theme.palette.primarySolid,
       backgroundColor: theme.palette.primarySolid,
     },
-    // The swatch IS the card: no name, no note, just the colour field.
+    // The swatch is the card's field; the name sits under it so a wrapping
+    // grid of colours can still be told apart at a glance.
     themeSwatch: { width: '100%', height: 72 },
+    // 10/12 padding, centred: the label bar under the swatch. On the chosen
+    // card the fill is solid primary, so the ink inverts with it — the same
+    // rule every other selected surface on this screen follows.
+    themeCardName: {
+      ...type.labelLarge,
+      color: theme.glass.onGlass,
+      paddingHorizontal: space(3),
+      paddingVertical: space(2.5),
+      textAlign: 'center',
+    },
+    themeCardNameSelected: { color: theme.onPrimarySolid },
     // On the swatch rather than beside it. It carries its own solid backing so
     // it reads on a pale field and a dark one alike.
     themeMark: {
